@@ -7,7 +7,7 @@ export const colors = {
       icon: '#ffffff',
     },
     active: {
-      base: '#38bdf8',
+      base: '#00f003',
       rim: '#075985',
       shadow: '#0c4a6e',
       icon: '#ffffff',
