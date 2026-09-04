@@ -20,7 +20,6 @@ export const HomeIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
 );
 
 
-
 export const PathIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Circle cx="7" cy="6.5" r="2.2" stroke={color} strokeWidth={2} />
@@ -58,5 +57,20 @@ export const FlameIcon = ({ size = 16 }: { size?: number }) => (
 export const StarIcon = ({ size = 16 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="#eab308">
     <Path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+  </Svg>
+);
+
+export const SparkleIcon = ({
+  color = '#ffffff',
+  size = 22,
+}: {
+  color?: string;
+  size?: number;
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    {/* Large Sparkle */}
+    <Path d="M9.5 2C9.5 6.14 6.14 9.5 2 9.5C6.14 9.5 9.5 12.86 9.5 17C9.5 12.86 12.86 9.5 17 9.5C12.86 9.5 9.5 6.14 9.5 2Z" />
+    {/* Small Offset Sparkle */}
+    <Path d="M17.5 14C17.5 16.21 15.71 18 13.5 18C15.71 18 17.5 19.79 17.5 22C17.5 19.79 19.29 18 21.5 18C19.29 18 17.5 16.21 17.5 14Z" />
   </Svg>
 );

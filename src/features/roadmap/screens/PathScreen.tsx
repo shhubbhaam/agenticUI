@@ -11,7 +11,7 @@ import { RoadmapHeader } from '../../../components/organisms/RoadmapHeader';
 import { UnitBanner } from '../../../components/organisms/UnitBanner';
 import { UnitCompletionCard } from '../../../components/organisms/UnitCompletionCard';
 import { RoadmapNode, NodeStatus } from '../../../components/molecules/RoadmapNode';
-import { FloatingScrollButton } from '../../../components/atoms/FloatingScrollButton';
+import { AIFloatingButton } from '../../../components/atoms/AIFloatingButton';
 import { IconType } from '../../../components/atoms/Icon';
 
 // Bottom Navbar & Icons
@@ -54,14 +54,14 @@ export default function PathScreen() {
     <RoadmapTemplate
       background={<BackgroundAbstracts />}
       header={
-    <RoadmapHeader
-      dayText="THURSDAY"
-      title="Today"
-      streakCount={12}
-      pointsCount="1,480"
-      userInitials="RM"
-    />
-  }
+        <RoadmapHeader
+          dayText="THURSDAY"
+          title="Today"
+          streakCount={12}
+          pointsCount="1,480"
+          userInitials="RM"
+        />
+      }
       banner={<UnitBanner sectionText="Section 1, Unit 1" unitTitle="AI Fundamentals" />}
       nodes={lessons.map((lesson) => (
         <RoadmapNode
@@ -73,7 +73,12 @@ export default function PathScreen() {
         />
       ))}
       footer={<UnitCompletionCard title="Unit 1 Completion" />}
-      floatingAction={<FloatingScrollButton onPress={() => console.log('Scroll hint clicked')} />}
+      floatingAction={
+        <AIFloatingButton
+          bottomOffset={110}
+          onPress={() => console.log('AI Assistant clicked')}
+        />
+      }
       bottomBar={
         <BottomNavBar
           tabs={tabs}
