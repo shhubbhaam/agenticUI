@@ -14,11 +14,13 @@ import { IconType } from '../../../components/atoms/Icon';
 // Bottom Navbar (inside src/components/)
 import BottomNavBar, {
   TabItem,
+} from '../../../components/bottomnavbar';
+import {
   HomeIcon,
   PathIcon,
   PracticeIcon,
   YouIcon,
-} from '../../../components/bottomnavbar';
+} from '../../../components/icons';
 
 type Lesson = {
   title: string;
