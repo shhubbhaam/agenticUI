@@ -27,7 +27,7 @@ export const RoadmapTemplate: React.FC<RoadmapTemplateProps> = ({
   const amplitude = 65;
 
   return (
-    <SafeAreaView style={s`flex-1 bg-slate-50`}>
+    <View style={s`flex-1 bg-slate-50`}>
       {background}
       {header}
 
@@ -55,6 +55,6 @@ export const RoadmapTemplate: React.FC<RoadmapTemplateProps> = ({
 
       {floatingAction}
       {bottomBar}
-    </SafeAreaView>
+    </View>
   );
 };

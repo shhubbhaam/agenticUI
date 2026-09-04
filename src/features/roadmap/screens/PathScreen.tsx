@@ -53,7 +53,15 @@ export default function PathScreen() {
   return (
     <RoadmapTemplate
       background={<BackgroundAbstracts />}
-      header={<RoadmapHeader booksCount={12} streakCount={5} gemsCount="1,024" />}
+      header={
+    <RoadmapHeader
+      dayText="THURSDAY"
+      title="Today"
+      streakCount={12}
+      pointsCount="1,480"
+      userInitials="RM"
+    />
+  }
       banner={<UnitBanner sectionText="Section 1, Unit 1" unitTitle="AI Fundamentals" />}
       nodes={lessons.map((lesson) => (
         <RoadmapNode

@@ -22,7 +22,6 @@ type BottomNavBarProps = {
   inactiveColor?: string;
 };
 
-// Internal sub-component to keep render logic tidy
 const NavItem: React.FC<{
   tab: TabItem;
   isActive: boolean;
@@ -37,7 +36,7 @@ const NavItem: React.FC<{
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={tw`flex-1 items-center pt-3 pb-1`}
+      style={tw`flex-1 items-center pt-2 pb-1`}
     >
       {isActive && (
         <View
@@ -47,8 +46,12 @@ const NavItem: React.FC<{
           ]}
         />
       )}
-      <IconComponent color={color} size={26} />
-      <Text style={[tw`mt-1 text-xs font-medium`, { color }]}>
+      {IconComponent ? (
+        <IconComponent color={color} size={28} />
+      ) : (
+        <View style={{ width: 28, height: 28 }} />
+      )}
+      <Text style={[tw`mt-1 text-xs font-semibold`, { color }]}>
         {tab.label}
       </Text>
     </TouchableOpacity>
@@ -68,14 +71,14 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
   return (
     <View
       style={[
-        tw`bg-white border-t`,
+        tw`bg-white border-t w-full`,
         {
           borderColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 10),
+          paddingBottom: Math.max(insets.bottom, 8),
         },
       ]}
     >
-      <View style={tw`flex-row`}>
+      <View style={tw`flex-row items-center`}>
         {tabs.map((tab) => (
           <NavItem
             key={tab.key}
