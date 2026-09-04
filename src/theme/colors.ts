@@ -1,6 +1,6 @@
 export const colors = {
   // Brand & Navigation
-  primary: '#0284c7', // Sky 600
+  primary: '#3157d5', // Sky 600
   text: {
     dark: '#0f172a',  // Slate 900
     muted: '#64748b', // Slate 500

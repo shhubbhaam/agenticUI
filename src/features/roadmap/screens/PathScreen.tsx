@@ -1,6 +1,9 @@
 // src/features/roadmap/screens/PathScreen.tsx
 import React, { useState } from 'react';
 
+// Central Theme
+import { colors } from '../../../theme/colors';
+
 // Organisms, Molecules, Atoms & Template
 import { RoadmapTemplate } from '../../../components/templates/RoadmapTemplate';
 import { BackgroundAbstracts } from '../../../components/organisms/BackgroundAbstracts';
@@ -11,10 +14,8 @@ import { RoadmapNode, NodeStatus } from '../../../components/molecules/RoadmapNo
 import { FloatingScrollButton } from '../../../components/atoms/FloatingScrollButton';
 import { IconType } from '../../../components/atoms/Icon';
 
-// Bottom Navbar (inside src/components/)
-import BottomNavBar, {
-  TabItem,
-} from '../../../components/bottomnavbar';
+// Bottom Navbar & Icons
+import BottomNavBar, { TabItem } from '../../../components/bottomnavbar';
 import {
   HomeIcon,
   PathIcon,
@@ -71,8 +72,8 @@ export default function PathScreen() {
           activeTab={activeTab}
           onTabPress={(key) => setActiveTab(key)}
           reserveSlot={true}
-          activeColor="#0284c7"
-          inactiveColor="#64748b"
+          activeColor={colors.primary}
+          inactiveColor={colors.text.muted}
         />
       }
     />
