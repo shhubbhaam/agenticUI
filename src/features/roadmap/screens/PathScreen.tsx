@@ -13,6 +13,7 @@ import { UnitCompletionCard } from '../../../components/organisms/UnitCompletion
 import { RoadmapNode, NodeStatus } from '../../../components/molecules/RoadmapNode';
 import { AIFloatingButton } from '../../../components/atoms/AIFloatingButton';
 import { IconType } from '../../../components/atoms/Icon';
+import { LessonCard } from '../../../components/organisms/LessonCard';
 
 // Bottom Navbar & Icons
 import BottomNavBar, { TabItem } from '../../../components/bottomnavbar';
@@ -62,6 +63,17 @@ export default function PathScreen() {
           userInitials="RM"
         />
       }
+      header2={<LessonCard
+          category="AUDIO"
+          stage="STAGE 2"
+          title="What a token actually costs"
+          author="Dr. A. Iyer"
+          affiliation="IIT Hyderabad, CSE"
+          avatarUrl="https://example.com/avatar.jpg"
+          currentTime="3:12"
+          remainingTime="1:08 left"
+          progressPercent={35}
+        />}
       banner={<UnitBanner sectionText="Section 1, Unit 1" unitTitle="AI Fundamentals" />}
       nodes={lessons.map((lesson) => (
         <RoadmapNode

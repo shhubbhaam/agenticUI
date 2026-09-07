@@ -2,7 +2,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import s from 'twrnc';
 import { FlameIcon, StarIcon } from '../icons';
 import { colors } from '../../theme/colors';
 
@@ -35,33 +35,33 @@ export const RoadmapHeader: React.FC<RoadmapHeaderProps> = ({
   return (
     <View
       style={[
-        tw`bg-white border-b`,
+        s`bg-white border-b`,
         {
           borderColor: colors.border,
           paddingTop: insets.top, // Extends white background behind status bar
         },
       ]}
     >
-      <View style={tw`flex-row items-center justify-between px-5 py-3`}>
+      <View style={s`flex-row items-center justify-between px-5 py-3`}>
         {/* Left: Date & Title */}
         <View>
-          <Text style={tw`text-[12px] font-semibold tracking-widest text-slate-400 uppercase`}>
+          <Text style={[{ fontFamily: 'PlusJakartaSans-SemiBold' }, s`text-[12px] font-semibold tracking-widest text-slate-400 uppercase`]}>
             {dayText}
           </Text>
-          <Text style={[tw`text-2xl font-bold`, { color: colors.primary },]}>
+          <Text style={[{ fontFamily: 'PlusJakartaSans-Bold', color: colors.primary}, s`text-2xl `]}>
             {title}
           </Text>
         </View>
 
         {/* Right: Pill Stats & Avatar */}
-        <View style={tw`flex-row items-center gap-2`}>
+        <View style={s`flex-row items-center gap-2`}>
           <TouchableOpacity
             onPress={onStreakPress}
             activeOpacity={0.7}
-            style={tw`flex-row items-center bg-slate-100/80 px-4 py-2 rounded-full`}
+            style={s`flex-row items-center bg-slate-100/80 px-4 py-2 rounded-full`}
           >
             <FlameIcon color={colors.stats.flame} size={16} />
-            <Text style={tw`ml-1.5 text-sm font-bold text-slate-900`}>
+            <Text style={s`ml-1.5 text-sm font-bold text-slate-900`}>
               {streakCount}
             </Text>
           </TouchableOpacity>
@@ -69,10 +69,10 @@ export const RoadmapHeader: React.FC<RoadmapHeaderProps> = ({
           <TouchableOpacity
             onPress={onPointsPress}
             activeOpacity={0.7}
-            style={tw`flex-row items-center bg-slate-100/80 px-4 py-2 rounded-full`}
+            style={s`flex-row items-center bg-slate-100/80 px-4 py-2 rounded-full`}
           >
             <StarIcon size={20} />
-            <Text style={tw`ml-1.5 text-sm font-semibold text-slate-900`}>
+            <Text style={s`ml-1.5 text-sm font-semibold text-slate-900`}>
               {displayPoints}
             </Text>
           </TouchableOpacity>
@@ -80,9 +80,9 @@ export const RoadmapHeader: React.FC<RoadmapHeaderProps> = ({
           <TouchableOpacity
             onPress={onAvatarPress}
             activeOpacity={0.7}
-            style={tw`h-12 w-12 rounded-full bg-slate-100/80 items-center justify-center`}
+            style={s`h-12 w-12 rounded-full bg-slate-100/80 items-center justify-center`}
           >
-            <Text style={tw`text-xs font-bold text-slate-600`}>
+            <Text style={s`text-xs font-bold text-slate-600`}>
               {userInitials}
             </Text>
           </TouchableOpacity>

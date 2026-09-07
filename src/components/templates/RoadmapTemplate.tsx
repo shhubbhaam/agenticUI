@@ -8,6 +8,7 @@ const s = twrnc;
 interface RoadmapTemplateProps {
   background: React.ReactNode;
   header: React.ReactNode;
+  header2: React.ReactNode;
   banner: React.ReactNode;
   nodes: React.ReactNode[];
   footer: React.ReactNode;
@@ -18,6 +19,7 @@ interface RoadmapTemplateProps {
 export const RoadmapTemplate: React.FC<RoadmapTemplateProps> = ({
   background,
   header,
+  header2,
   banner,
   nodes,
   footer,
@@ -30,6 +32,7 @@ export const RoadmapTemplate: React.FC<RoadmapTemplateProps> = ({
     <View style={s`flex-1 bg-slate-50`}>
       {background}
       {header}
+      {header2}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s`pb-12`}>
         {banner}
