@@ -1,11 +1,11 @@
 import React from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-
 import Login from './Login';
 import Path from './Path';
 import index from './index';
 import PathScreen from '../features/roadmap/screens/PathScreen';
+import Screen from '../features/roadmap/screens/Screen';
 
 console.log('Path component:', Path);
 console.log('Path type:', typeof Path);
@@ -16,6 +16,7 @@ export type RootStackParamList = {
   Path: undefined;
   index: undefined;
   PathScreen: undefined;
+  Screen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -23,7 +24,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function MainStack() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="PathScreen" screenOptions={{headerShown: false,}}>
+      <Stack.Navigator initialRouteName="Screen" screenOptions={{headerShown: false,}}>
         <Stack.Screen
           name="Login"
           component={Login}
@@ -39,6 +40,10 @@ export default function MainStack() {
         <Stack.Screen
           name="index"
           component={index}
+        />
+        <Stack.Screen
+          name="Screen"
+          component={Screen}
         />
       </Stack.Navigator>
     </NavigationContainer>

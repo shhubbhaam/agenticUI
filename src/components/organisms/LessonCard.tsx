@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import s from 'twrnc';
 import { Headphones } from 'lucide-react-native';
 
@@ -38,7 +38,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
     >
       {/* Card Header */}
       <View style={s`flex-row items-center justify-between`}>
-        <Text style={s`text-[11px] font-semibold tracking-wider text-slate-400`}>
+        <Text style={[s`text-[11px] tracking-wider text-slate-400`, fonts.semiBold]}>
           {category} · {stage}
         </Text>
         <Headphones size={15} color="#334155" strokeWidth={2} />
@@ -46,35 +46,40 @@ export const LessonCard: React.FC<LessonCardProps> = ({
 
       {/* Media Info */}
       <View style={s`mt-2.5 flex-row items-center`}>
+        {/* Avatar with extra right margin */}
         <View
-          style={s`h-11 w-11 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 bg-slate-100 overflow-hidden mr-3.5`}
+          style={s`h-11 w-11 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 bg-slate-100 overflow-hidden mr-4`}
         >
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={s`h-full w-full`} resizeMode="cover" />
           ) : (
-            <Text style={s`text-[10px] font-medium text-slate-400`}>Photo</Text>
+            <Text style={[s`text-[10px] text-slate-400`, fonts.medium]}>Photo</Text>
           )}
         </View>
 
-        <View style={s`flex-1 justify-center`}>
-          <Text style={[{ fontFamily: 'PlusJakartaSans-Bold' }, s`text-lg text-slate-900`]} numberOfLines={2}>
+        {/* Text Container with slight left padding */}
+        <View style={s`flex-1 justify-center pl-0.5`}>
+          <Text
+            style={[s`text-[18px] leading-snug text-slate-900`, fonts.bold]}
+            numberOfLines={2}
+          >
             {title}
           </Text>
-          <Text style={s`mt-0.5 text-[11px] text-slate-500`}>
+          <Text style={[s`mt-0.5 text-[11px] text-slate-500`, fonts.medium]}>
             {author} · {affiliation}
           </Text>
         </View>
       </View>
 
       {/* Waveform Visualizer */}
-      <View style={s`mt-3 h-10 flex-row items-end justify-between`}>
+      <View style={s`mt-3 h-10 flex-row items-end justify-between px-1`}>
         {waveformHeights.map((height, index) => {
           const isActive = index < activeBarCount;
           return (
             <View
               key={index}
               style={[
-                s`flex-1 mx-[1.5px] rounded-t-sm ${isActive ? 'bg-blue-600' : 'bg-slate-200'}`,
+                s`flex-1 mx-[2px] rounded-t-sm ${isActive ? 'bg-blue-600' : 'bg-slate-200'}`,
                 { height },
               ]}
             />
@@ -83,14 +88,14 @@ export const LessonCard: React.FC<LessonCardProps> = ({
       </View>
 
       {/* Card Footer */}
-      <View style={s`mt-2.5 flex-row items-center justify-between`}>
-        <Text style={s`text-[11px] font-semibold text-slate-700`}>
+      <View style={s`mt-2.5 flex-row items-center justify-between px-0.5`}>
+        <Text style={[s`text-[11px] text-slate-700`, fonts.semiBold]}>
           {currentTime} · {remainingTime}
         </Text>
 
-        <View style={s`flex-row items-center rounded-full bg-slate-100 px-2.5 py-1`}>
-          <Headphones size={14} color="#334155" strokeWidth={2.2} style={s`mr-1`} />
-          <Text style={s`text-[10px] font-bold tracking-wider text-slate-700`}>
+        <View style={s`flex-row items-center rounded-full bg-slate-100 px-2.5 py-2 mt-2`}>
+          <Headphones size={12} color="#334155" strokeWidth={2.2} style={s`mr-1.5`} />
+          <Text style={[s`text-[10px] tracking-wider text-slate-700`, fonts.bold]}>
             SCREEN-FREE
           </Text>
         </View>
@@ -98,3 +103,22 @@ export const LessonCard: React.FC<LessonCardProps> = ({
     </View>
   );
 };
+
+const fonts = StyleSheet.create({
+  regular: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    includeFontPadding: false,
+  },
+  medium: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    includeFontPadding: false,
+  },
+  semiBold: {
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    includeFontPadding: false,
+  },
+  bold: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    includeFontPadding: false,
+  },
+});
