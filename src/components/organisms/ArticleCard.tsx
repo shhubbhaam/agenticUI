@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import s from 'twrnc';
 import { FileText, Check } from 'lucide-react-native';
 import {typography} from '../../theme/typography';
@@ -17,7 +17,7 @@ interface ArticleCardProps {
 }
 
 export const ArticleCard: React.FC<ArticleCardProps> = ({
-  category = 'ARTICLE',
+  category = '',
   stage = 'STAGE 2',
   badgeLetter = 'G',
   title = 'Grounding vs. guessing',
@@ -28,7 +28,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
   offlineStatus = 'READY OFFLINE',
 }) => {
   return (
-    <View
+    <TouchableOpacity
       style={s`w-full max-w-[390px] self-center rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm`}
     >
       {/* Top Meta Header */}
@@ -80,12 +80,12 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
 
         <View style={s`flex-row items-center`}>
           <Check size={14} color="#16a34a" strokeWidth={2.5} style={s`mr-1`} />
-          <Text style={[s`text-[11px] tracking-wider text-slate-600`, fonts.bold]}>
+          <Text style={[s`text-[11px] tracking-wider text-slate-600`,{fontFamily: typography.fontFamily.jakarta}]}>
             {offlineStatus}
           </Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

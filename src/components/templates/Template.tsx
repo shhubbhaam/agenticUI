@@ -29,7 +29,7 @@ export const Template: React.FC<TemplateProps> = ({
     <View style={s`flex-1 bg-slate-50 relative`}>
       {background}
       {header3}
-      <SafeAreaView edges={['top']} style={s`flex-1`}>
+      <ScrollView style={s`flex-1 mt-2`}>
         {/* Header 1 Slot */}
         <View style={s`px-4  pb-1 items-center w-full z-10`}>
           {header1}
@@ -52,7 +52,7 @@ export const Template: React.FC<TemplateProps> = ({
           style={s`flex-1`}
         >
         </ScrollView>
-      </SafeAreaView>
+      </ScrollView>
 
       {floatingAction}
       {bottomBar}

@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
-import { colors } from '../theme/colors';
+import { colors } from '../theme/colorsss';
 import { IconProps } from './icons';
 
 export type TabItem = {
@@ -62,7 +62,7 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
   tabs,
   activeTab,
   onTabPress,
-  reserveSlot = true,
+  reserveSlot = false,
   activeColor = colors.primary,
   inactiveColor = colors.text.muted,
 }) => {
@@ -90,7 +90,7 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
           />
         ))}
 
-        {reserveSlot && <View style={tw`flex-1`} />}
+        
       </View>
     </View>
   );

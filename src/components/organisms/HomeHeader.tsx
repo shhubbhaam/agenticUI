@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import {FlameIcon} from '../icons';
 
 interface HomeHeaderProps {
   username?: string;
@@ -29,7 +30,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
   }
 
   return (
-    <View style={[tw`px-4 pb-2 w-full`, { paddingTop:80 }]}>
+    <View style={[tw`px-4 pb-2 w-full`, { paddingTop: insets.top + 8 }]}>
       <View style={tw`flex-row justify-between items-center mb-1`}>
         <Text 
           style={[
@@ -45,13 +46,13 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
         </Text>
         
         <View style={[tw`flex-row items-center px-3 py-1.5 rounded-full`, { backgroundColor: colors.source.streak.surface }]}>
-          <Text style={tw`mr-1`}>🔥</Text>
+          <View style={tw`mr-1`}><FlameIcon /></View>
           <Text 
             style={[
               { 
                 fontFamily: typography.fontFamily['jakarta-bold'], 
                 color: colors.source.streak.ink,
-                ...typography.fontSize['type-11'],
+                ...typography.fontSize['type-12'],
               }
             ]}
           >

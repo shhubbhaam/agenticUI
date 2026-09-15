@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 // Central Theme
-import { colors } from '../../../theme/colors';
+import { colors } from '../../../theme/colorsss';
 
 // Organisms, Molecules, Atoms & Template
 import { RoadmapTemplate } from '../../../components/templates/RoadmapTemplate';
@@ -100,6 +100,7 @@ export default function PathScreen() {
           activeColor={colors.primary}
           inactiveColor={colors.text.muted}
         />
+        
       }
     />
   );

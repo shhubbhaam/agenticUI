@@ -4,7 +4,7 @@ import { View, Text } from 'react-native';
 import twrnc from 'twrnc';
 import { SphereButton } from '../atoms/SphereButton';
 import { Icon, IconType } from '../atoms/Icon';
-import { colors } from '../../theme/colors';
+import { colors } from '../../theme/colorsss';
 
 const s = twrnc;
 

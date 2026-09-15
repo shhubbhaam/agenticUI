@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import s from 'twrnc';
 
 // Central Theme
-import { colors } from '../../../theme/colors';
+import { colors } from '../../../theme/colorsss';
 
 // Organisms, Molecules, Atoms & Template
 import { Template } from '../../../components/templates/Template';
