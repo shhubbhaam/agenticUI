@@ -1,7 +1,7 @@
 // src/components/atoms/AIFloatingButton.tsx
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, TouchableOpacity, View } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import tw from 'twrnc';
 import { SparkleIcon } from '../icons';
 

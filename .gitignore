@@ -2,6 +2,12 @@
 #
 .DS_Store
 
+# Expo
+#
+.expo/
+/android
+/ios
+
 # Xcode
 #
 build/

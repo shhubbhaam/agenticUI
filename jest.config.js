@@ -1,3 +1,6 @@
 module.exports = {
-  preset: '@react-native/jest-preset',
+  preset: 'jest-expo',
+  moduleNameMapper: {
+    '^lucide-react-native$': '<rootDir>/node_modules/lucide-react-native/dist/cjs/lucide-react-native.js',
+  },
 };
