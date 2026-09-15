@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import s from 'twrnc';
 import { FileText, Check } from 'lucide-react-native';
+import {typography} from '../../theme/typography';
 
 interface ArticleCardProps {
   category?: string;

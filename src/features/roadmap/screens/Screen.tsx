@@ -9,7 +9,7 @@ import { colors } from '../../../theme/colors';
 // Organisms, Molecules, Atoms & Template
 import { Template } from '../../../components/templates/Template';
 import { ArticleCard } from '../../../components/organisms/ArticleCard';
-import { InsightCard } from '../../../components/organisms/InsightCard';
+import { SlideCard } from '../../../components/organisms/SlideCard';
 import { RoadmapHeader } from '../../../components/organisms/RoadmapHeader';
 import { LessonCard } from '../../../components/organisms/LessonCard';
 import { UnitCompletionCard } from '../../../components/organisms/UnitCompletionCard';
@@ -73,7 +73,7 @@ export default function Screen() {
         />
       }
       header4={
-        <InsightCard
+        <SlideCard
           category="SLIDES"
           stage="STAGE 3"
           title="What tokens cost"

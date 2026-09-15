@@ -61,7 +61,7 @@ export const RoadmapHeader: React.FC<RoadmapHeaderProps> = ({
             style={s`flex-row items-center bg-slate-100/80 px-4 py-2 rounded-full`}
           >
             <FlameIcon color={colors.stats.flame} size={16} />
-            <Text style={s`ml-1.5 text-sm font-bold text-slate-900`}>
+            <Text style={[{fontFamily:'PlusJakartaSans-Bold'},s`ml-1.5 text-sm text-slate-900`]}>
               {streakCount}
             </Text>
           </TouchableOpacity>
@@ -72,7 +72,7 @@ export const RoadmapHeader: React.FC<RoadmapHeaderProps> = ({
             style={s`flex-row items-center bg-slate-100/80 px-4 py-2 rounded-full`}
           >
             <StarIcon size={20} />
-            <Text style={s`ml-1.5 text-sm font-semibold text-slate-900`}>
+            <Text style={[{fontFamily:'PlusJakartaSans-Bold'},s`ml-1.5 text-sm text-slate-900`]}>
               {displayPoints}
             </Text>
           </TouchableOpacity>
