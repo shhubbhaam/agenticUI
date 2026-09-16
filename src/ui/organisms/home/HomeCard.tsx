@@ -32,8 +32,8 @@ export const HomeCard: React.FC<HomeCardProps> = ({
   buttonIcon,
 }) => {``
   return (
-    <View style={[tw`w-full rounded-3xl overflow-hidden shadow-xlmb-4`, { backgroundColor: colors.badge.plum.surface }]}>
-      <View style={[tw`w-full h-36 justify-center  items-center`, { backgroundColor: colors.hero.surface }]}>
+    <View style={[tw`w-full rounded-3xl overflow-hidden shadow-xlmb-4`, { backgroundColor: colors.hero.surface }]}>
+      <View style={[tw`w-full h-36 justify-center shadow-2xl  items-center`]}>
         <Image
           source={{ uri: imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop' }}
           style={tw`w-full h-full`}

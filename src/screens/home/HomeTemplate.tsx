@@ -7,6 +7,7 @@ import { colors } from '../../ui/tokens/colors';
 interface HomeTemplateProps {
   background?: React.ReactNode;
   homeHeader: React.ReactNode;
+  progressBar: React.ReactNode;
   headerBody: React.ReactNode;
   bottombar?: React.ReactNode;
 }
@@ -14,16 +15,18 @@ interface HomeTemplateProps {
 export const HomeTemplate: React.FC<HomeTemplateProps> = ({
   background,
   homeHeader,
+  progressBar,
   headerBody,
   bottombar,
 }) => {
   return (
     <View style={[tw`flex-1 relative`, { backgroundColor: colors.surface.canvas }]}>
       {background}
-      
+
       {homeHeader}
-      
-      <ScrollView 
+      {progressBar}
+
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={tw`pb-32 px-4 pt-2`}
         style={tw`flex-1`}

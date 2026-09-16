@@ -19,7 +19,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
   const insets = useSafeAreaInsets();
 
   const today = new Date();
-  const formattedDate = today.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+  const formattedDate = today.toLocaleDateString('en-US', { weekday: 'long',  month: 'long' ,day: 'numeric'}).toUpperCase();
 
   const currentHour = today.getHours();
   let greeting = 'Good morning';

@@ -21,8 +21,10 @@ const primitives = {
   slateBlue600: '#657187',
   rust600: '#A95214',
   cream100: '#FFF1DF',
-  plum100: '#EBE3F5',
   lavender100: '#F1ECF8',
+  slate200: '#E5E8F1',
+  periwinkle300: '#BFC9EC',
+  indigo500: '#536BD2',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -58,13 +60,17 @@ export const colors = {
     ink: primitives.rust600, // used in: HomeHeader
     surface: primitives.cream100, // used in: HomeHeader
   },
-  badge: {
-    plum: {
-      surface: primitives.plum100, // used in: HomeCard
-    },
-  },
   hero: {
     surface: primitives.lavender100, // used in: HomeCard
+  },
+  dot: {
+    surface: primitives.slate200, // used in: ProgressBar
+    active: {
+      surface: primitives.periwinkle300, // used in: ProgressBar
+    },
+    done: {
+      surface: primitives.indigo500, // used in: ProgressBar
+    },
   },
 } as const;
 

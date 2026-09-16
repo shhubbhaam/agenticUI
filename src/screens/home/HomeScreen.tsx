@@ -7,6 +7,7 @@ import { colors } from '../../ui/tokens/colors';
 import { HomeTemplate } from './HomeTemplate';
 import { HomeCard } from '../../ui/organisms/home/HomeCard';
 import { HomeHeader } from '../../ui/organisms/home/HomeHeader';
+import { ProgressBar } from '../../ui/molecules/ProgressBar';
 
 import BottomTabs, { TabItem } from '../../ui/organisms/BottomTabs';
 import {
@@ -36,6 +37,7 @@ export default function HomeScreen() {
           streakCount={12}
         />
       }
+      progressBar={<ProgressBar title="Your 15-minute space" totalSteps={6} completedSteps={2} remainingTimeText="~12 min left" />}
       headerBody={
         <HomeCard
           category="ARTICLE"
