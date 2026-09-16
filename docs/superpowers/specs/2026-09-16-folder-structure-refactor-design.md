@@ -138,14 +138,41 @@ src/
    real contract — whichever produces the correct rendered header,
    verified live), and have `PathScreen` import the one real
    `HomeHeader` from `ui/organisms/home/`.
-3. **Color token consolidation**: `colors.ts` (deep Figma-token tree)
-   and `colorsss.ts` (flat hand-written palette) are merged into one
-   `ui/tokens/colors.ts`. `PathScreen.tsx` currently mixes both files
-   (directly and via `RoadmapHeader`) — after the merge, every consumer
-   of either old file is updated to import the single merged file, and
-   any color values that don't already exist in the Figma-token tree are
-   added into it under a sensible primitive/semantic tier (Section 4.2)
-   rather than kept as a second flat file.
+3. **Color token consolidation, full primitive/semantic split (Section
+   4.2)**: `colors.ts` (deep Figma-token tree) and `colorsss.ts` (flat
+   hand-written palette) are merged into one `ui/tokens/colors.ts`,
+   restructured into two tiers:
+   - **`primitives`** — every raw hex/rgba value actually in use, named
+     by hue+shade (e.g. `slate900`, `blue600`, `purple500`), deduplicated
+     where the same literal appears under both old files.
+   - **`colors`** (semantic) — the tier every component imports, each
+     key referencing a `primitives.*` value rather than a literal.
+
+   A `grep -rEo 'colors\.[a-zA-Z0-9_.\[\]-]+' src` audit found only
+   ~16 distinct key paths are ever actually read by a component — the
+   rest of the old `colors.ts`'s `source.*` tree (the `BUTTON`, `SPAN`,
+   `P`, `INPUT`, `DIV`, `choice`, `radio`, `alert`, `crest`, etc. groups)
+   is unused Figma-export bulk output with zero consumers, and is
+   **deleted rather than renamed** — nothing depends on it. Within the
+   ~16 real keys:
+   - `colors.primary` (from `colorsss.ts`) and `colors.action.primary`
+     (from `colors.ts`) are the same blue (`#3157D5` / `#3157d5`)
+     defined twice — consolidated to one semantic key, `action.primary`.
+     Consumers (`BottomTabs.tsx`, `PathScreen.tsx`) updated accordingly.
+   - The meaningless `source.` prefix is dropped from the four groups
+     actually used: `source.eyebrow.ink` → `eyebrow.ink`,
+     `source.streak.ink`/`source.streak.surface` → `streak.ink`/
+     `streak.surface`, `source.badge.plum.surface` →
+     `badge.plum.surface`, `source.hero.surface` → `hero.surface`.
+     Consumers (`HomeHeader.tsx`, `HomeCard.tsx`) updated accordingly.
+   - `text.primary`/`text.body`/`text.ink`/`text.muted`, `border`,
+     `surface.white`/`surface.canvas`, `action.lesson`, and the
+     `node.{completed,active,locked}.{base,rim,shadow,icon}` tree are
+     already clear and keep their existing names/shapes — no consumer
+     change needed for these beyond the import-path swap.
+
+   No component token tier is added — nothing currently needs a
+   component-specific override of a semantic value.
 
 ## Import boundaries
 

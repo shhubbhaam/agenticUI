@@ -167,443 +167,85 @@ Moves every reusable UI piece into `src/ui/<tier>[/<domain>]/`, merges the two c
 
 **Interfaces:**
 - Consumes: `HomeHeader` real props `{ username?: string; streakCount: number }` from Task 1.
-- Produces: `colors` (single merged token object — same key paths as both originals, so no call site other than imports changes), `BottomTabs` (default export, replaces `BottomNavBar`, same props `{tabs, activeTab, onTabPress, reserveSlot?, activeColor?, inactiveColor?}`).
+- Produces: `colors` (semantic token object, primitives split out underneath per rulebook Section 4.2 — most key paths unchanged, four groups un-prefixed from `source.*` and one duplicate consolidated, both called out below), `BottomTabs` (default export, replaces `BottomNavBar`, same props `{tabs, activeTab, onTabPress, reserveSlot?, activeColor?, inactiveColor?}`).
 
-- [ ] **Step 1: Create the merged color tokens file**
+- [ ] **Step 1: Create the merged, primitive/semantic color tokens file**
+
+An audit (`grep -rEo 'colors\.[a-zA-Z0-9_.\[\]-]+' src --include="*.tsx" | sort -u`) found only 16 distinct key paths are ever actually read by a component. Everything else in the old `colors.ts`'s `source.*` tree (`BUTTON`, `SPAN`, `P`, `INPUT`, `DIV`, `choice`, `radio`, `alert`, `crest`, `stage`, and the rest) is unused Figma-export bulk output with zero consumers — it is dropped, not renamed. `colors.primary` (from `colorsss.ts`) and `colors.action.primary` (from `colors.ts`) are the same blue defined twice; they're consolidated into one semantic key, `action.primary`. The meaningless `source.` prefix is dropped from the four used groups (`eyebrow`, `streak`, `badge`, `hero`).
 
 Create `src/ui/tokens/colors.ts`:
 
 ```ts
 // src/ui/tokens/colors.ts
+
+// Primitives: raw values, no meaning attached. Never referenced directly
+// by a component — only `colors` below may reference these.
+const primitives = {
+  slate900: '#182033',
+  slate600: '#5E6980',
+  slate500: '#64748b',
+  slate100: '#f1f5f9',
+  slate300: '#cbd5e1',
+  slate400: '#94a3b8',
+  purple600: '#816696',
+  purple500: '#7751AD',
+  blue600: '#3157D5',
+  white: '#FFFFFF',
+  canvas: '#F8F9FC',
+  sky500: '#0ea5e9',
+  navy800: '#0c4a6e',
+  green500: '#00f003',
+  sky700: '#075985',
+  slateBlue600: '#657187',
+  rust600: '#A95214',
+  cream100: '#FFF1DF',
+  plum100: '#EBE3F5',
+  lavender100: '#F1ECF8',
+} as const;
+
+// Semantic tokens: the tier every component imports and reads from.
 export const colors = {
-  primary: '#3157d5',
   text: {
-    primary: '#182033',
-    body: '#5E6980',
-    ink: '#816696',
-    dark: '#0f172a',
-    muted: '#64748b',
-    light: '#ffffff',
+    primary: primitives.slate900,
+    body: primitives.slate600,
+    ink: primitives.purple600,
+    muted: primitives.slate500,
   },
-  border: '#f1f5f9',
-  background: {
-    surface: '#ffffff',
-    subtle: '#f8fafc',
+  border: primitives.slate100,
+  action: {
+    primary: primitives.blue600,
+    lesson: primitives.purple500,
   },
   surface: {
-    canvas: '#F8F9FC',
-    white: '#FFFFFF',
-    celebration: '#17274A',
-    reading: '#FDFCF9',
-  },
-  action: {
-    lesson: '#7751AD',
-    primary: '#3157D5',
-  },
-  stage: {
-    plum: '#835CB0',
-    indigo: '#526ACC',
-    teal: '#388D84',
-    clay: '#B57154',
+    white: primitives.white,
+    canvas: primitives.canvas,
   },
   node: {
-    completed: { base: '#0ea5e9', rim: '#0c4a6e', shadow: '#0c4a6e', icon: '#ffffff' },
-    active: { base: '#00f003', rim: '#075985', shadow: '#0c4a6e', icon: '#ffffff' },
-    locked: { base: '#f1f5f9', rim: '#cbd5e1', shadow: '#94a3b8', icon: '#94a3b8' },
+    completed: { base: primitives.sky500, rim: primitives.navy800, shadow: primitives.navy800, icon: primitives.white },
+    active: { base: primitives.green500, rim: primitives.sky700, shadow: primitives.navy800, icon: primitives.white },
+    locked: { base: primitives.slate100, rim: primitives.slate300, shadow: primitives.slate400, icon: primitives.slate400 },
   },
-  stats: {
-    book: '#0284c7',
-    flame: '#f97316',
-    gem: '#0284c7',
+  eyebrow: {
+    ink: primitives.slateBlue600,
   },
-  source: {
-    eyebrow: {
-      ink: '#657187',
-      'ink-2': '#70548D',
-      'ink-3': '#705887',
-      'ink-4': '#6A9187',
-      'ink-5': '#9EB1D7',
-    },
-    streak: {
-      ink: '#A95214',
-      surface: '#FFF1DF',
-      frozen: {
-        ink: '#48739E',
-        surface: '#E8F4FA',
-      },
-    },
-    small: {
-      ink: '#64718A',
-      'ink-2': '#816696',
-    },
-    dot: {
-      surface: '#E5E8F1',
-      active: {
-        surface: '#BFC9EC',
-      },
-      done: {
-        surface: '#536BD2',
-      },
-    },
-    hero: {
-      surface: '#F1ECF8',
-      'surface-2': '#E6DEF0',
-      'copy': {
-        surface: '#FBF9FE',
-      },
-    },
-    badge: {
-      ink: '#596982',
-      surface: 'rgba(255, 255, 255, 0.78)',
-      'surface-2': '#F0F3F8',
-      good: {
-        ink: '#246C58',
-        surface: '#E6F3EF',
-      },
-      warn: {
-        ink: '#965A1D',
-        surface: '#FFF0D7',
-      },
-      plum: {
-        ink: '#694797',
-        surface: '#EBE3F5',
-      },
-    },
-    meta: {
-      ink: '#6C567F',
-    },
-    link: {
-      ink: '#4260B3',
-    },
-    'next-card': {
-      'surface': '#E7EAF0',
-    },
-    'mini-icon': {
-      ink: '#5975B3',
-      surface: '#E9EEF9',
-      'ink-2': '#89806E',
-      'surface-2': '#EBE8E0',
-      plum: {
-        ink: '#7A5AA8',
-        surface: '#EEE6F7',
-      },
-    },
-    'filter-btn': {
-      ink: '#65728A',
-      surface: '#DCE2ED',
-      on: {
-        surface: '#E9EEFA',
-        'surface-2': '#BDC9ED',
-      },
-    },
-    'bottom-nav': {
-      surface: 'rgba(255, 255, 255, 0.96)',
-      'surface-2': '#E9ECF3',
-    },
-    BUTTON: {
-      ink: '#67758D',
-      'ink-2': '#79869B',
-      surface: '#F1F4F8',
-      'ink-3': '#7A859B',
-      'ink-4': '#725887',
-      'surface-2': 'rgba(255, 255, 255, 0.40)',
-      'surface-3': '#D0BFDF',
-      'ink-5': '#77859D',
-      'surface-4': '#E0E5EF',
-      'ink-6': '#6B4D98',
-      'surface-5': '#E0D5EE',
-      'ink-7': '#61718C',
-      'ink-8': '#94A0B3',
-      'surface-6': '#EDF0F6',
-      'ink-9': 'black',
-      'surface-7': '#F0F0F0',
-    },
-    'home-indicator': {
-      surface: '#273247',
-      'surface-2': '#BEC9DC',
-    },
-    crest: {
-      large: {
-        surface: 'rgba(255, 255, 255, 0.25)',
-      },
-      locked: {
-        ink: '#8D9CB3',
-        surface: '#E8ECF5',
-        'surface-2': '#E3E8F0',
-      },
-    },
-    'btn-ghost': {
-      ink: '#4A608B',
-    },
-    alert: {
-      ink: '#4F6388',
-      surface: '#EDF3FF',
-      'surface-2': '#D7E3FA',
-      warning: {
-        ink: '#835B27',
-        surface: '#FFF5E5',
-        'surface-2': '#F3E2BC',
-      },
-      success: {
-        ink: '#35694F',
-        surface: '#E9F5EF',
-        'surface-2': '#D5EADE',
-      },
-      error: {
-        ink: '#954B4F',
-        surface: '#FCEEEE',
-        'surface-2': '#EFD7D7',
-      },
-    },
-    'card-tint-empty-hero': {
-      surface: '#F0EAF8',
-      'surface-2': '#E4D8F0',
-    },
-    'card-empty-hero': {
-      surface: '#E4E9F1',
-    },
-    'video-stage': {
-      surface: '#23365A',
-    },
-    'sheet-background': {
-      surface: 'rgba(25, 39, 65, 0.27)',
-    },
-    'sheet-handle': {
-      surface: '#DCE1EA',
-    },
-    colour: {
-      surface: '#E9EDF3',
-      'surface-2': '#C7B8D9',
-      'surface-3': '#9471B6',
-      'surface-4': '#9672B8',
-    },
-    icon: {
-      ink: '#8995AA',
-      'ink-2': '#AA94BD',
-      chev: {
-        ink: '#919BAF',
-      },
-    },
-    'btn-secondary': {
-      ink: '#40547F',
-      surface: '#DAE0EB',
-      'surface-2': 'rgba(255, 255, 255, 0.05)',
-      'surface-3': 'rgba(255, 255, 255, 0.13)',
-    },
-    choice: {
-      ink: '#44516B',
-      surface: '#DDE4EF',
-      selected: {
-        ink: '#314FA9',
-        surface: '#F0F3FD',
-        'surface-2': '#758BDA',
-      },
-    },
-    radio: {
-      surface: '#C7D0DF',
-      'surface-2': '#5270D2',
-    },
-    iconbtn: {
-      ink: '#506079',
-      surface: '#E6EAF0',
-    },
-    subtitle: {
-      ink: '#778399',
-    },
-    tiny: {
-      ink: '#667BBA',
-      'ink-2': '#94A9D0',
-    },
-    progress: {
-      surface: '#E5E8F0',
-    },
-    SPAN: {
-      surface: '#687ECA',
-      'surface-2': '#8762AF',
-      'surface-3': '#DDD2E8',
-      'surface-4': '#8C6AB5',
-      'surface-5': '#BCC9E6',
-      'surface-6': '#5D79C1',
-      'surface-7': '#5774CC',
-      'surface-8': '#5270CC',
-      'surface-9': '#8563AE',
-      'surface-10': '#B87459',
-      'surface-11': '#8393C5',
-      'surface-12': '#518E86',
-      ink: '#8290A4',
-      'ink-2': '#836B98',
-      'ink-3': '#5B667A',
-      'ink-4': '#8B98AD',
-    },
-    segmented: {
-      surface: '#E9EDF5',
-    },
-    selected: {
-      ink: '#45597F',
-      'ink-2': '#3656B0',
-      surface: '#EDF1FE',
-      'surface-2': '#879BDD',
-    },
-    'stage-open': {
-      surface: '#EEE8F7',
-      'surface-2': '#E5DAF3',
-      'surface-3': '#E9F4F1',
-      'surface-4': '#D7E8E3',
-      'surface-5': '#F8EEE8',
-      'surface-6': '#EADBCE',
-    },
-    'history-link': {
-      ink: '#725587',
-      surface: '#E7DEF1',
-    },
-    node: {
-      'current-surface': '#855BB6',
-      'current-surface-2': '#EEE7F7',
-      ink: '#8C6DAF',
-      surface: '#CBB9DF',
-      done: {
-        surface: '#438E86',
-        'surface-2': '#60A198',
-      },
-    },
-    'path-summary': {
-      surface: '#F8F4FC',
-      'surface-2': '#E1D5ED',
-    },
-    P: {
-      ink: '#6F8E85',
-      'ink-2': '#BCC9E0',
-      'ink-3': '#4C5364',
-      'ink-4': '#B9C7E2',
-    },
-    'milestone-card': {
-      surface: 'rgba(255, 255, 255, 0.05)',
-      'surface-2': 'rgba(255, 255, 255, 0.08)',
-    },
-    card: {
-      teal: {
-        surface: '#D8EAE4',
-      },
-      warning: {
-        surface: '#F1E0BD',
-      },
-      surface: 'rgba(255, 255, 255, 0.04)',
-      'surface-2': 'rgba(255, 255, 255, 0.11)',
-    },
-    slide: {
-      surface: '#263B67',
-    },
-    metric: {
-      ink: '#B8CAFA',
-    },
-    INPUT: {
-      'surface-2': '#C06466',
-      ink: '#33425E',
-      surface: '#DCE3EE',
-      'ink-2': '#55617C',
-    },
-    'error-msg': {
-      ink: '#A04749',
-    },
-    reward: {
-      ink: '#F5BF57',
-    },
-    stat: {
-      surface: 'rgba(255, 255, 255, 0.04)',
-    },
-    SMALL: {
-      ink: '#99ACD0',
-    },
-    'coach-input': {
-      surface: '#DAE1EF',
-    },
-    'message-user': {
-      ink: '#4C62A5',
-      surface: '#EDF0FC',
-    },
-    message: {
-      ink: '#566279',
-      surface: '#F2F5FA',
-    },
-    'source-chip': {
-      ink: '#466395',
-      surface: '#F6F8FC',
-      'surface-2': '#DBE2EF',
-    },
-    keyboard: {
-      surface: '#DBE0E8',
-    },
-    skeleton: {
-      surface: '#E9EDF4',
-    },
-    avatar: {
-      ink: '#3752A2',
-      surface: '#DBE5F8',
-    },
-    done: {
-      surface: '#E69B43',
-    },
-    current: {
-      ink: '#B57230',
-      surface: '#FFF4E4',
-      'surface-2': '#D4A570',
-    },
-    'switch-on': {
-      surface: '#5372D3',
-    },
-    inline: {
-      ink: '#AEBDDA',
-    },
-    reading: {
-      rule: {
-        surface: '#E9E5EE',
-      },
-    },
-    byline: {
-      ink: '#6F7686',
-    },
-    STRONG: {
-      ink: '#53596B',
-    },
-    pullquote: {
-      ink: '#6F548B',
-    },
-    diagram: {
-      surface: '#F0EBF5',
-    },
-    checkpoint: {
-      surface: '#F1EBF8',
-      'surface-2': '#DFD2ED',
-    },
-    'btn-plum': {
-      ink: '#929CB0',
-      surface: '#E6EAF1',
-    },
-    'audio-cover': {
-      surface: '#EDE7F6',
-    },
-    skip: {
-      ink: '#596B88',
-    },
-    highlight: {
-      ink: '#6E528E',
-      surface: '#EEE6F8',
-    },
-    DIV: {
-      ink: '#B6C5E2',
-    },
-    brand: {
-      mark: {
-        surface: '#4262E5',
-      },
-    },
+  streak: {
+    ink: primitives.rust600,
+    surface: primitives.cream100,
+  },
+  badge: {
+    plum: {
+      surface: primitives.plum100,
+    },
+  },
+  hero: {
+    surface: primitives.lavender100,
   },
 } as const;
 
 export type Colors = typeof colors;
 ```
 
-This preserves every key path from both `theme/colors.ts` and `theme/colorsss.ts` unchanged (`colors.primary`, `colors.text.muted`, `colors.node.*`, `colors.stats.*` from the old `colorsss.ts`; `colors.text.primary`, `colors.surface.*`, `colors.action.*`, `colors.stage.*`, `colors.source.*` from the old `colors.ts`) — every existing call site keeps working once its import path is updated, with zero call-site logic changes.
+Every semantic key a component currently reads is preserved under its (possibly renamed) path — `text.primary/body/ink/muted`, `border`, `action.primary/lesson`, `surface.white/canvas`, `node.{completed,active,locked}.{base,rim,shadow,icon}`, `eyebrow.ink`, `streak.ink/surface`, `badge.plum.surface`, `hero.surface` — each now pointing at a named primitive instead of a literal. Two consumers need a key-path update (not just an import-path swap) because of the renames above: `colors.primary` → `colors.action.primary` in `BottomTabs.tsx` and `PathScreen.tsx`, and `colors.source.*` → the un-prefixed groups in `HomeHeader.tsx` and `HomeCard.tsx` — both are called out explicitly in Steps 5 and 8 below.
 
 - [ ] **Step 2: Move typography and delete the old theme files**
 
@@ -689,8 +331,22 @@ import { IconProps } from '../atoms/icons';
 ```tsx
 // before
 const BottomNavBar: React.FC<BottomNavBarProps> = ({
+  tabs,
+  activeTab,
+  onTabPress,
+  reserveSlot = false,
+  activeColor = colors.primary,
+  inactiveColor = colors.text.muted,
+}) => {
 // after
 const BottomTabs: React.FC<BottomNavBarProps> = ({
+  tabs,
+  activeTab,
+  onTabPress,
+  reserveSlot = false,
+  activeColor = colors.action.primary,
+  inactiveColor = colors.text.muted,
+}) => {
 ```
 
 ```ts
@@ -713,6 +369,17 @@ import { typography } from '../../tokens/typography';
 import { ActiveButton } from '../../atoms/ActiveButton';
 ```
 
+Also in `HomeCard.tsx`, update the two renamed key paths (the `source.` prefix is gone in the new token file):
+
+```ts
+// before
+colors.source.badge.plum.surface
+colors.source.hero.surface
+// after
+colors.badge.plum.surface
+colors.hero.surface
+```
+
 In `src/ui/organisms/home/HomeHeader.tsx`, update:
 
 ```ts
@@ -724,6 +391,19 @@ import {FlameIcon} from '../icons';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 import {FlameIcon} from '../../atoms/icons';
+```
+
+Also in `HomeHeader.tsx`, update the three renamed key paths:
+
+```ts
+// before
+colors.source.eyebrow.ink
+colors.source.streak.surface
+colors.source.streak.ink
+// after
+colors.eyebrow.ink
+colors.streak.surface
+colors.streak.ink
 ```
 
 In `src/ui/organisms/lesson/ArticleCard.tsx`, update:
@@ -839,7 +519,16 @@ import {
 } from '../../../ui/atoms/icons';
 ```
 
-And in its JSX, rename the usage from `<BottomNavBar ... />` to `<BottomTabs ... />` (this file's tag is self-closing, per the earlier read).
+And in its JSX, rename the usage from `<BottomNavBar ... />` to `<BottomTabs ... />` (this file's tag is self-closing, per the earlier read), and update the renamed color key it passes as a prop:
+
+```tsx
+// before
+activeColor={colors.primary}
+inactiveColor={colors.text.muted}
+// after
+activeColor={colors.action.primary}
+inactiveColor={colors.text.muted}
+```
 
 - [ ] **Step 9: Verify**
 
@@ -854,15 +543,22 @@ Expected: `renders correctly` test passes.
 ```bash
 git add -A
 git commit -m "$(cat <<'EOF'
-Move atoms/molecules/organisms into ui/, merge color tokens
+Move atoms/molecules/organisms into ui/, restructure color tokens
 
 Domain-specific pieces get a subfolder inside their tier
 (ui/organisms/home, ui/organisms/lesson, ui/organisms/roadmap,
 ui/molecules/roadmap, ui/atoms/ai); purely generic pieces stay at the
 tier root. colors.ts and colorsss.ts (previously both live and mixed
-together inside PathScreen) are merged into one ui/tokens/colors.ts —
-every existing key path is preserved, so this is an import-path change
-only, no call-site logic changes.
+together inside PathScreen) are merged into one ui/tokens/colors.ts,
+split into a primitives tier (raw values) and a semantic tier
+(rulebook Section 4.2) that components actually import. Only ~16 of
+the old colors.ts's source.* keys were ever read anywhere; the rest
+was unused Figma-export bulk output and is dropped rather than
+renamed. The duplicate primary blue (colors.primary vs
+colors.action.primary) is consolidated to one key, and the
+meaningless source.* prefix is dropped from the four groups actually
+in use (eyebrow, streak, badge, hero) — both changes are reflected at
+their call sites in this same commit.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
