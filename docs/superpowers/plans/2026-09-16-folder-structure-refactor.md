@@ -204,41 +204,45 @@ const primitives = {
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
+// Each key's comment names its current consumer(s) for discoverability —
+// names stay role-based, not screen-based, so a token doesn't need
+// renaming the moment a second screen reuses it.
 export const colors = {
   text: {
-    primary: primitives.slate900,
-    body: primitives.slate600,
-    ink: primitives.purple600,
-    muted: primitives.slate500,
+    primary: primitives.slate900, // used in: HomeCard, HomeHeader
+    body: primitives.slate600, // used in: HomeCard, HomeScreen
+    ink: primitives.purple600, // used in: HomeCard
+    muted: primitives.slate500, // used in: BottomTabs, PathScreen
   },
-  border: primitives.slate100,
+  border: primitives.slate100, // used in: BottomTabs
   action: {
-    primary: primitives.blue600,
-    lesson: primitives.purple500,
+    primary: primitives.blue600, // used in: HomeScreen, BottomTabs, PathScreen
+    lesson: primitives.purple500, // used in: ActiveButton
   },
   surface: {
-    white: primitives.white,
-    canvas: primitives.canvas,
+    white: primitives.white, // used in: HomeCard
+    canvas: primitives.canvas, // used in: HomeTemplate
   },
   node: {
+    // used in: RoadmapNode (PathScreen's lesson nodes)
     completed: { base: primitives.sky500, rim: primitives.navy800, shadow: primitives.navy800, icon: primitives.white },
     active: { base: primitives.green500, rim: primitives.sky700, shadow: primitives.navy800, icon: primitives.white },
     locked: { base: primitives.slate100, rim: primitives.slate300, shadow: primitives.slate400, icon: primitives.slate400 },
   },
   eyebrow: {
-    ink: primitives.slateBlue600,
+    ink: primitives.slateBlue600, // used in: HomeHeader
   },
   streak: {
-    ink: primitives.rust600,
-    surface: primitives.cream100,
+    ink: primitives.rust600, // used in: HomeHeader
+    surface: primitives.cream100, // used in: HomeHeader
   },
   badge: {
     plum: {
-      surface: primitives.plum100,
+      surface: primitives.plum100, // used in: HomeCard
     },
   },
   hero: {
-    surface: primitives.lavender100,
+    surface: primitives.lavender100, // used in: HomeCard
   },
 } as const;
 
