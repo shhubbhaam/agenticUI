@@ -7,6 +7,7 @@ import { colors } from '../../theme/colors';
 interface HomeTemplateProps {
   background?: React.ReactNode;
   homeHeader: React.ReactNode;
+  progressBar: React.ReactNode;
   headerBody: React.ReactNode;
   bottombar?: React.ReactNode;
 }
@@ -14,6 +15,7 @@ interface HomeTemplateProps {
 export const HomeTemplate: React.FC<HomeTemplateProps> = ({
   background,
   homeHeader,
+  progressBar,
   headerBody,
   bottombar,
 }) => {
@@ -22,6 +24,7 @@ export const HomeTemplate: React.FC<HomeTemplateProps> = ({
       {background}
       
       {homeHeader}
+      {progressBar}
       
       <ScrollView 
         showsVerticalScrollIndicator={false}

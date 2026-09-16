@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import tw from 'twrnc';
-
+import { ProgressBar } from '../../../components/molecules/ProgressBar';
 import { colors } from '../../../theme/colors';
 import { HomeTemplate } from '../../../components/templates/HomeTemplate';
 import { HomeCard } from '../../../components/organisms/HomeCard';
@@ -36,6 +36,7 @@ export default function Screen() {
           streakCount={12}
         />
       }
+      progressBar={<ProgressBar title="Your 15-minute space" totalSteps={6} completedSteps={2} remainingTimeText="~12 min left" />}
       headerBody={
         <HomeCard
           category="ARTICLE"
