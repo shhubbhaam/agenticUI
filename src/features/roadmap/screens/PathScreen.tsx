@@ -7,7 +7,7 @@ import { colors } from '../../../theme/colorsss';
 // Organisms, Molecules, Atoms & Template
 import { RoadmapTemplate } from '../../../components/templates/RoadmapTemplate';
 import { BackgroundAbstracts } from '../../../components/organisms/BackgroundAbstracts';
-import { RoadmapHeader } from '../../../components/organisms/RoadmapHeader';
+import { HomeHeader } from '../../../components/organisms/HomeHeader';
 import { UnitBanner } from '../../../components/organisms/UnitBanner';
 import { UnitCompletionCard } from '../../../components/organisms/UnitCompletionCard';
 import { RoadmapNode, NodeStatus } from '../../../components/molecules/RoadmapNode';
@@ -55,12 +55,9 @@ export default function PathScreen() {
     <RoadmapTemplate
       background={<BackgroundAbstracts />}
       header={
-        <RoadmapHeader
-          dayText="THURSDAY"
-          title="Today"
+        <HomeHeader
+          username="RM"
           streakCount={12}
-          pointsCount="1,480"
-          userInitials="RM"
         />
       }
       header2={<LessonCard
