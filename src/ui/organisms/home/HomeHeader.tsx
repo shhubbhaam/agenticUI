@@ -3,9 +3,9 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
-import {FlameIcon} from '../icons';
+import { colors } from '../../tokens/colors';
+import { typography } from '../../tokens/typography';
+import {FlameIcon} from '../../atoms/icons';
 
 interface HomeHeaderProps {
   username?: string;
@@ -35,9 +35,9 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
         <Text 
           style={[
             tw`tracking-wider`, 
-            { 
-              fontFamily: typography.fontFamily['jakarta-semibold'], 
-              color: colors.source.eyebrow.ink,
+            {
+              fontFamily: typography.fontFamily['jakarta-semibold'],
+              color: colors.eyebrow.ink,
               ...typography.fontSize['type-11'],
             }
           ]}
@@ -45,13 +45,13 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           {formattedDate}
         </Text>
         
-        <View style={[tw`flex-row items-center px-3 py-1.5 rounded-full`, { backgroundColor: colors.source.streak.surface }]}>
+        <View style={[tw`flex-row items-center px-3 py-1.5 rounded-full`, { backgroundColor: colors.streak.surface }]}>
           <View style={tw`mr-1`}><FlameIcon /></View>
-          <Text 
+          <Text
             style={[
-              { 
-                fontFamily: typography.fontFamily['jakarta-bold'], 
-                color: colors.source.streak.ink,
+              {
+                fontFamily: typography.fontFamily['jakarta-bold'],
+                color: colors.streak.ink,
                 ...typography.fontSize['type-12'],
               }
             ]}

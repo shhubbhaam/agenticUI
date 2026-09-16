@@ -4,8 +4,8 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
-import { colors } from '../theme/colorsss';
-import { IconProps } from './icons';
+import { colors } from '../tokens/colors';
+import { IconProps } from '../atoms/icons';
 
 export type TabItem = {
   key: string;
@@ -58,12 +58,12 @@ const NavItem: React.FC<{
   );
 };
 
-const BottomNavBar: React.FC<BottomNavBarProps> = ({
+const BottomTabs: React.FC<BottomNavBarProps> = ({
   tabs,
   activeTab,
   onTabPress,
   reserveSlot = false,
-  activeColor = colors.primary,
+  activeColor = colors.action.primary,
   inactiveColor = colors.text.muted,
 }) => {
   const insets = useSafeAreaInsets();
@@ -96,4 +96,4 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
   );
 };
 
-export default BottomNavBar;
+export default BottomTabs;

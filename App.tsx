@@ -1,7 +1,7 @@
 import React from 'react';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import MainStack from './src/screens/MainStack';
+import MainStack from './src/navigation/MainStack';
 
 function App() {
   const [fontsLoaded] = useFonts({

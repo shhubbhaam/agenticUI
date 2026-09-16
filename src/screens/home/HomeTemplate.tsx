@@ -1,8 +1,8 @@
-// src/components/templates/Template.tsx
+// src/screens/home/HomeTemplate.tsx
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import tw from 'twrnc';
-import { colors } from '../../theme/colors';
+import { colors } from '../../ui/tokens/colors';
 
 interface HomeTemplateProps {
   background?: React.ReactNode;

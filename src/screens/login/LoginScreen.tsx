@@ -14,7 +14,7 @@ import twrnc from 'twrnc';
 
 const s = twrnc;
 
-export default function Login() {
+export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
