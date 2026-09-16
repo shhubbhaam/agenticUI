@@ -2,8 +2,8 @@
 import React from 'react';
 import { TouchableOpacity, Text } from 'react-native';
 import tw from 'twrnc';
-import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { colors } from '../tokens/colors';
+import { typography } from '../tokens/typography';
 
 interface ActiveButtonProps {
   onPress: () => void;

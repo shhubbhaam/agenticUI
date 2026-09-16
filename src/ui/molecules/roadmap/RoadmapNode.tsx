@@ -2,9 +2,9 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import twrnc from 'twrnc';
-import { SphereButton } from '../atoms/SphereButton';
-import { Icon, IconType } from '../atoms/Icon';
-import { colors } from '../../theme/colorsss';
+import { SphereButton } from '../../atoms/SphereButton';
+import { Icon, IconType } from '../../atoms/Icon';
+import { colors } from '../../tokens/colors';
 
 const s = twrnc;
 

@@ -1,21 +1,21 @@
-// src/components/molecules/SpaceProgressBar.tsx
+// src/ui/molecules/ProgressBar.tsx
 import React from 'react';
 import { View, Text } from 'react-native';
 import tw from 'twrnc';
-import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { colors } from '../tokens/colors';
+import { typography } from '../tokens/typography';
 
 interface ProgressBarProps {
   title?: string;
   totalSteps?: number;
-  completedSteps?: number;      
+  completedSteps?: number;
   remainingTimeText?: string;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   title = 'Your 15-minute space',
   totalSteps = 5,
-  completedSteps = 1,           
+  completedSteps = 1,
   remainingTimeText = '~12 min left',
 }) => {
   return (
@@ -50,15 +50,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       {/* Segmented Progress Bars (State-Driven Logic) */}
       <View style={tw`flex-row items-center justify-between w-full`}>
         {Array.from({ length: totalSteps }).map((_, index) => {
-          const isDone = index < completedSteps;         
-          const isInProgress = index === completedSteps; 
+          const isDone = index < completedSteps;
+          const isInProgress = index === completedSteps;
 
           // Dynamically resolve color tokens based on state
-          let backgroundColor = colors.source.dot.surface; 
+          let backgroundColor: string = colors.dot.surface;
           if (isDone) {
-            backgroundColor = colors.source.dot.done.surface; 
+            backgroundColor = colors.dot.done.surface;
           } else if (isInProgress) {
-            backgroundColor = colors.source.dot.active.surface; // Highlight color for active step
+            backgroundColor = colors.dot.active.surface; // Highlight color for active step
           }
 
           return (

@@ -2,9 +2,9 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
 import tw from 'twrnc';
-import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
-import { ActiveButton } from '../atoms/ActiveButton';
+import { colors } from '../../tokens/colors';
+import { typography } from '../../tokens/typography';
+import { ActiveButton } from '../../atoms/ActiveButton';
 import { FileText, Clock } from 'lucide-react-native';
 
 interface HomeCardProps {
@@ -32,7 +32,7 @@ export const HomeCard: React.FC<HomeCardProps> = ({
   buttonIcon,
 }) => {``
   return (
-    <View style={[tw`w-full rounded-3xl overflow-hidden shadow-xlmb-4`, { backgroundColor: colors.source.hero.surface }]}>
+    <View style={[tw`w-full rounded-3xl overflow-hidden shadow-xlmb-4`, { backgroundColor: colors.hero.surface }]}>
       <View style={[tw`w-full h-36 justify-center shadow-2xl  items-center`]}>
         <Image
           source={{ uri: imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop' }}

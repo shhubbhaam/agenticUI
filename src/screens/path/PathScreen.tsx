@@ -2,27 +2,27 @@
 import React, { useState } from 'react';
 
 // Central Theme
-import { colors } from '../../../theme/colorsss';
+import { colors } from '../../ui/tokens/colors';
 
 // Organisms, Molecules, Atoms & Template
-import { RoadmapTemplate } from '../../../components/templates/RoadmapTemplate';
-import { BackgroundAbstracts } from '../../../components/organisms/BackgroundAbstracts';
-import { RoadmapHeader } from '../../../components/organisms/RoadmapHeader';
-import { UnitBanner } from '../../../components/organisms/UnitBanner';
-import { UnitCompletionCard } from '../../../components/organisms/UnitCompletionCard';
-import { RoadmapNode, NodeStatus } from '../../../components/molecules/RoadmapNode';
-import { AIFloatingButton } from '../../../components/atoms/AIFloatingButton';
-import { IconType } from '../../../components/atoms/Icon';
-import { LessonCard } from '../../../components/organisms/LessonCard';
+import { RoadmapTemplate } from './RoadmapTemplate';
+import { BackgroundAbstracts } from '../../ui/organisms/BackgroundAbstracts';
+import { HomeHeader } from '../../ui/organisms/home/HomeHeader';
+import { UnitBanner } from '../../ui/organisms/roadmap/UnitBanner';
+import { UnitCompletionCard } from '../../ui/organisms/roadmap/UnitCompletionCard';
+import { RoadmapNode, NodeStatus } from '../../ui/molecules/roadmap/RoadmapNode';
+import { AIFloatingButton } from '../../ui/atoms/ai/AIFloatingButton';
+import { IconType } from '../../ui/atoms/Icon';
+import { LessonCard } from '../../ui/organisms/lesson/LessonCard';
 
 // Bottom Navbar & Icons
-import BottomNavBar, { TabItem } from '../../../components/bottomnavbar';
+import BottomTabs, { TabItem } from '../../ui/organisms/BottomTabs';
 import {
   HomeIcon,
   PathIcon,
   PracticeIcon,
   YouIcon,
-} from '../../../components/icons';
+} from '../../ui/atoms/icons';
 
 type Lesson = {
   title: string;
@@ -55,12 +55,9 @@ export default function PathScreen() {
     <RoadmapTemplate
       background={<BackgroundAbstracts />}
       header={
-        <RoadmapHeader
-          dayText="THURSDAY"
-          title="Today"
+        <HomeHeader
+          username="RM"
           streakCount={12}
-          pointsCount="1,480"
-          userInitials="RM"
         />
       }
       header2={<LessonCard
@@ -92,15 +89,15 @@ export default function PathScreen() {
         />
       }
       bottomBar={
-        <BottomNavBar
+        <BottomTabs
           tabs={tabs}
           activeTab={activeTab}
           onTabPress={(key) => setActiveTab(key)}
           reserveSlot={true}
-          activeColor={colors.primary}
+          activeColor={colors.action.primary}
           inactiveColor={colors.text.muted}
         />
-        
+
       }
     />
   );

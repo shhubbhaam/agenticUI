@@ -1,20 +1,21 @@
-// src/features/roadmap/screens/Screen.tsx
+// src/screens/home/HomeScreen.tsx
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import tw from 'twrnc';
-import { ProgressBar } from '../../../components/molecules/ProgressBar';
-import { colors } from '../../../theme/colors';
-import { HomeTemplate } from '../../../components/templates/HomeTemplate';
-import { HomeCard } from '../../../components/organisms/HomeCard';
-import { HomeHeader } from '../../../components/organisms/HomeHeader';
 
-import BottomNavBar, { TabItem } from '../../../components/bottomnavbar';
+import { colors } from '../../ui/tokens/colors';
+import { HomeTemplate } from './HomeTemplate';
+import { HomeCard } from '../../ui/organisms/home/HomeCard';
+import { HomeHeader } from '../../ui/organisms/home/HomeHeader';
+import { ProgressBar } from '../../ui/molecules/ProgressBar';
+
+import BottomTabs, { TabItem } from '../../ui/organisms/BottomTabs';
 import {
   HomeIcon,
   PathIcon,
   PracticeIcon,
   YouIcon,
-} from '../../../components/icons';
+} from '../../ui/atoms/icons';
 
 const tabs: TabItem[] = [
   { key: 'home', label: 'Home', icon: HomeIcon },
@@ -23,7 +24,7 @@ const tabs: TabItem[] = [
   { key: 'you', label: 'You', icon: YouIcon },
 ];
 
-export default function Screen() {
+export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState('path');
 
   return (
@@ -49,7 +50,7 @@ export default function Screen() {
         />
       }
       bottombar={
-        <BottomNavBar
+        <BottomTabs
           tabs={tabs}
           activeTab={activeTab}
           onTabPress={(key) => setActiveTab(key)}
