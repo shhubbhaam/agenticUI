@@ -38,7 +38,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
             {
               fontFamily: typography.fontFamily['jakarta-semibold'],
               color: colors.eyebrow.ink,
-              ...typography.fontSize['type-11'],
+              ...typography.fontSize['type-11-tracked'],
             }
           ]}
         >
@@ -64,9 +64,9 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
       <Text 
         style={[
           { 
-            fontFamily: typography.fontFamily['jakarta-bold'], 
+            fontFamily: typography.fontFamily['jakarta-extrabold'], 
             color: colors.text.primary,
-            ...typography.fontSize['type-24'],
+            ...typography.fontSize['type-23'],
           }
         ]}
       >

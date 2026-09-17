@@ -33,7 +33,7 @@ export const HomeCard: React.FC<HomeCardProps> = ({
 }) => {``
   return (
     <View style={[tw`w-full rounded-3xl overflow-hidden shadow-xlmb-4`, { backgroundColor: colors.hero.surface }]}>
-      <View style={[tw`w-full h-36 justify-center shadow-2xl  items-center`]}>
+      <View style={[tw`w-full h-[35] justify-center shadow-md  items-center`]}>
         <Image
           source={{ uri: imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop' }}
           style={tw`w-full h-full`}
@@ -47,7 +47,7 @@ export const HomeCard: React.FC<HomeCardProps> = ({
       </View>
 
       <View style={tw`p-5`}>
-        <Text style={[tw`uppercase mb-1 tracking-wider`, { color: colors.text.ink, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-12'] }]}>
+        <Text style={[tw`uppercase mb-1 `, { color: colors.text.ink, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-11-tracked'] }]}>
           Pick up where you left off
         </Text>
         <Text style={[tw`mb-2`, { color: colors.text.primary, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-24'] }]}>

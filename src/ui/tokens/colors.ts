@@ -72,6 +72,13 @@ export const colors = {
       surface: primitives.indigo500, // used in: ProgressBar
     },
   },
+  icon: {
+      surface: primitives.lavender100, // used in: NextStepCard
+      ink: primitives.purple500, // used in: NextStepCard
+    },
+  iconchev: {
+      ink: primitives.slate400, // used in: NextStepCard
+    },
 } as const;
 
 export type Colors = typeof colors;

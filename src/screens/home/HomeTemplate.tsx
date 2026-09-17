@@ -1,39 +1,46 @@
 // src/screens/home/HomeTemplate.tsx
-import React from 'react';
-import { ScrollView, View } from 'react-native';
+import React, { ReactNode } from 'react';
+import { View, ScrollView } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../../ui/tokens/colors';
 
 interface HomeTemplateProps {
-  background?: React.ReactNode;
-  homeHeader: React.ReactNode;
-  progressBar: React.ReactNode;
-  headerBody: React.ReactNode;
-  bottombar?: React.ReactNode;
+  background?: ReactNode;
+  homeHeader?: ReactNode;
+  progressBar?: ReactNode;
+  mainCard?: ReactNode;  // Primary card slot (e.g., HomeCard)
+  sectionTitle?: ReactNode;    // Section title
+  nextStepSection?: ReactNode; // Separated container for next step elements
+  footerActions?: ReactNode;   // Bottom action filters/links
+  bottombar?: ReactNode;
 }
 
 export const HomeTemplate: React.FC<HomeTemplateProps> = ({
   background,
   homeHeader,
   progressBar,
-  headerBody,
+  mainCard,
+  sectionTitle,
+  nextStepSection,
+  footerActions,
   bottombar,
 }) => {
   return (
-    <View style={[tw`flex-1 relative`, { backgroundColor: colors.surface.canvas }]}>
+    <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
       {background}
-
       {homeHeader}
       {progressBar}
-
-      <ScrollView
+      
+      {/* Scrollable Content Container */}
+      <ScrollView 
+        contentContainerStyle={tw`px-4 pb-8`}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={tw`pb-32 px-4 pt-2`}
-        style={tw`flex-1`}
       >
-        <View style={tw`w-full mb-3`}>
-          {headerBody}
-        </View>
+        {/* Rendered conditionally or independently based on screen state */}
+        {mainCard && <View style={tw`mt-2`}>{mainCard}</View>}
+        {sectionTitle && <View >{sectionTitle}</View>}
+        {nextStepSection && <View >{nextStepSection}</View>}
+        {footerActions && <View style={tw`mt-4`}>{footerActions}</View>}
       </ScrollView>
 
       {bottombar}
