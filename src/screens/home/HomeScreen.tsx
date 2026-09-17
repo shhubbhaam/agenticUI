@@ -1,5 +1,5 @@
 // src/screens/home/HomeScreen.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { View } from 'react-native';
 import tw from 'twrnc';
 
@@ -9,23 +9,11 @@ import { HomeCard } from '../../ui/organisms/home/HomeCard';
 import { HomeHeader } from '../../ui/organisms/home/HomeHeader';
 import { ProgressBar } from '../../ui/molecules/ProgressBar';
 
-import BottomTabs, { TabItem } from '../../ui/organisms/BottomTabs';
-import {
-  HomeIcon,
-  PathIcon,
-  PracticeIcon,
-  YouIcon,
-} from '../../ui/atoms/icons';
-
-const tabs: TabItem[] = [
-  { key: 'home', label: 'Home', icon: HomeIcon },
-  { key: 'path', label: 'Path', icon: PathIcon },
-  { key: 'practice', label: 'Practice', icon: PracticeIcon },
-  { key: 'you', label: 'You', icon: YouIcon },
-];
+import BottomTabs from '../../ui/organisms/BottomTabs';
+import { useTabNavigation } from '../../navigation/useTabNavigation';
 
 export default function HomeScreen() {
-  const [activeTab, setActiveTab] = useState('path');
+  const { tabs, onTabPress } = useTabNavigation('home');
 
   return (
     <HomeTemplate
@@ -52,8 +40,8 @@ export default function HomeScreen() {
       bottombar={
         <BottomTabs
           tabs={tabs}
-          activeTab={activeTab}
-          onTabPress={(key) => setActiveTab(key)}
+          activeTab="home"
+          onTabPress={onTabPress}
           reserveSlot={true}
           activeColor={colors.action.primary}
           inactiveColor={colors.text.body}
