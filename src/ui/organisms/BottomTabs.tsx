@@ -47,9 +47,9 @@ const NavItem: React.FC<{
         />
       )}
       {IconComponent ? (
-        <IconComponent color={color} size={28} />
+        <IconComponent color={color} size={24} />
       ) : (
-        <View style={{ width: 28, height: 28 }} />
+        <View style={{ width: 24, height: 24 }} />
       )}
       <Text style={[tw`mt-1 text-xs font-semibold`, { color }]}>
         {tab.label}
