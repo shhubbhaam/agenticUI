@@ -33,7 +33,7 @@ export const HomeTemplate: React.FC<HomeTemplateProps> = ({
       
       {/* Scrollable Content Container */}
       <ScrollView 
-        contentContainerStyle={tw`px-4 pb-8`}
+        contentContainerStyle={tw`px-4 pb-4`}
         showsVerticalScrollIndicator={false}
       >
         {/* Rendered conditionally or independently based on screen state */}

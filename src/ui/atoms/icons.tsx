@@ -49,6 +49,12 @@ export const StarIcon = ({ size = 16 }: { size?: number }) => (
   </Svg>
 );
 
+export const PresentationIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
+<Svg width={size} height={size} viewBox="0 0 19 19" fill="none">
+<Path d="M4.49166 17.325H13.6583M9.075 13.6583V17.325M4.49166 4.49168H9.99166M4.49166 8.15835H13.6583M0.824997 0.825012H17.325V13.6583H0.824997V0.825012Z" stroke={color} stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+</Svg>
+);
+
 export const SparkleIcon = ({
   color = '#ffffff',
   size = 22,

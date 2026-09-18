@@ -75,6 +75,8 @@ export const colors = {
   icon: {
       surface: primitives.lavender100, // used in: NextStepCard
       ink: primitives.purple500, // used in: NextStepCard
+      ink2: primitives.indigo500, // used in: NextStepCard
+      surface2: primitives.slate100
     },
   iconchev: {
       ink: primitives.slate400, // used in: NextStepCard

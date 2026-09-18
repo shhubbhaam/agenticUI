@@ -5,6 +5,7 @@ import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 import { Presentation, ChevronRight } from 'lucide-react-native'; 
+import {PresentationIcon} from '../../atoms/icons';
 
 interface NextStepCardProps {
   title?: string;
@@ -40,10 +41,10 @@ export const NextStepCard: React.FC<NextStepCardProps> = ({
         <View 
           style={[
             tw`w-12 h-12 rounded-xl items-center justify-center mr-3.5`,
-            { backgroundColor: colors.icon.surface }
+            { backgroundColor: colors.icon.surface2 }
           ]}
         >
-          <Presentation width={24} height={24} color={colors.icon.ink} />
+          <PresentationIcon size={24} color={colors.icon.ink2} />
         </View>
 
         {/* Text Metadata */}

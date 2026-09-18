@@ -19,7 +19,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   remainingTimeText = '~12 min left',
 }) => {
   return (
-    <View style={tw`w-full px-4 mt-1.5 mb-4`}>
+    <View style={tw`w-full px-4 mt-3.5 mb-4`}>
       {/* Top Meta Header Row */}
       <View style={tw`flex-row justify-between items-center mb-1`}>
         <Text

@@ -27,7 +27,7 @@ export const ActionFooter: React.FC<ActionFooterProps> = ({
           tw`flex-row items-center px-4 rounded-xl border`,
           {
             minHeight: 48,
-            backgroundColor: colors.icon.surface,
+            backgroundColor: colors.surface.white,
             borderColor: colors.border,
           }
         ]}
@@ -35,12 +35,12 @@ export const ActionFooter: React.FC<ActionFooterProps> = ({
         accessibilityRole="button"
         accessibilityLabel={`Filter content by format. Current: ${formatLabel}`}
       >
-        <Headphones width={16} height={16} color={colors.icon.ink} style={tw`mr-2`} />
+        <Headphones width={16} height={16} color={colors.icon.ink2} style={tw`mr-2`} />
         <Text
           style={[
             {
               fontFamily: typography.fontFamily['jakarta-semibold'],
-              color: colors.icon.ink,
+              color: colors.text.muted,
             },
             typography.fontSize['type-13'],
           ]}
