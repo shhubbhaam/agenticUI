@@ -84,6 +84,16 @@ const primitives = {
   outcomeSurface: '#F8F4FC',
   outcomeBorder: '#E1D5ED',
   miniIconPlumSurface: '#EEE6F7',
+  // Auth flow (AI Launchpad — Mobile Design System, node 33-4794/4847/4899/4953)
+  alertErrorSurface: '#FCEEEE',
+  alertErrorSurface2: '#EFD7D7',
+  alertErrorInk: '#954B4F',
+  inputBorder: '#DCE3EE',
+  inputInk: '#33425E',
+  btnGhostInk: '#4A608B',
+  actionPrimaryShadow: '#2442A9',
+  brandMarkSurface: '#4262E5',
+  brandMarkShadow: '#2943A9',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -101,6 +111,8 @@ export const colors = {
   action: {
     primary: primitives.blue600, // used in: HomeScreen, BottomTabs, PathScreen
     lesson: primitives.purple500, // used in: ActiveButton
+    ghost: primitives.btnGhostInk, // used in: LoginScreen ghost links
+    primaryShadow: primitives.actionPrimaryShadow, // used in: LoginScreen primary CTA
   },
   surface: {
     white: primitives.white, // used in: HomeCard
@@ -115,6 +127,10 @@ export const colors = {
   },
   hero: {
     surface: primitives.lavender100, // used in: HomeCard
+    brandMark: {
+      surface: primitives.brandMarkSurface, // used in: LaunchpadScreen, LoginScreen
+      shadow: primitives.brandMarkShadow,
+    },
   },
   dot: {
     surface: primitives.slate200, // used in: ProgressBar
@@ -175,6 +191,17 @@ export const colors = {
     },
     outcome: { surface: primitives.outcomeSurface, border: primitives.outcomeBorder },
     miniIconPlum: primitives.miniIconPlumSurface,
+  },
+  alert: {
+    error: {
+      surface: primitives.alertErrorSurface, // used in: Alert (login error state)
+      border: primitives.alertErrorSurface2,
+      ink: primitives.alertErrorInk,
+    },
+  },
+  input: {
+    border: primitives.inputBorder, // used in: TextField (login)
+    ink: primitives.inputInk,
   },
 } as const;
 
