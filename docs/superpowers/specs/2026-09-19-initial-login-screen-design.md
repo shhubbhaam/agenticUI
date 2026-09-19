@@ -126,7 +126,7 @@ states on top of `'choice'`, tracked by the two provider fields above.
 | `LaunchpadScreen.tsx` | `screens/launchpad/` | New screen, mirrors existing `screens/<name>/<Name>Screen.tsx` convention (Section 10). |
 | `LoginScreen.tsx` | `screens/login/` (replaces existing prototype) | Screen composes `useLoginFlow` + UI; near-zero logic itself (Section 0/3.1). |
 | `TextField.tsx` (email/password input) | `screens/login/TextField.tsx` (screen-local, not exported beyond the screen) | Used twice, in one screen only — Rule of Three (3.5) says don't promote to a shared `ui/atoms/` tier yet. |
-| `testCredentials.ts` (reads `expo-constants` extra) | `screens/login/testCredentials.ts` | Plain inline helper — no `providers/` layer exists or should be built for this (Section 1). |
+| `testCredentials.ts` (reads `process.env.EXPO_PUBLIC_*`) | `screens/login/testCredentials.ts` | Plain inline helper — no `providers/` layer exists or should be built for this (Section 1). |
 | `Alert` (red Google-error banner) | `ui/molecules/Alert.tsx` — generic tier, no domain subfolder | Component catalog (3.5.1) already lists `Alert` (tone: info/warning) as confirmed recurring across flows *including auth* — this is exactly the case the catalog says earns the abstraction now, not a Rule-of-Three violation. |
 | `eye` / `eye-off` icons | Add to `ui/atoms/Icon.tsx`'s `IconType` union | Generic atom, consistent with existing lucide passthroughs (`dumbbell`, `play`, `lock`). |
 | `disabled` support on the CTA button | Extend `ui/atoms/ActiveButton.tsx` | Reuse over duplication (Section 6, step 1) — a plain boolean prop, not the variant-explosion Section 3.2/11 warns about. |
@@ -239,17 +239,21 @@ matches).
 
 ```ts
 export function getTestCredentials(): { email: string; password: string } {
-  const extra = Constants.expoConfig?.extra ?? {};
   return {
-    email: extra.testLoginEmail ?? '',
-    password: extra.testLoginPassword ?? '',
+    email: process.env.EXPO_PUBLIC_TEST_LOGIN_EMAIL ?? '',
+    password: process.env.EXPO_PUBLIC_TEST_LOGIN_PASSWORD ?? '',
   };
 }
 ```
 
-Backed by `app.json` → `expo.extra.testLoginEmail` / `testLoginPassword`
-(dev-only convenience values, not secrets — documented as such where
-they're set).
+**Revised from the original `expo-constants`/`app.json` idea**: Expo SDK
+49+ (this project is on 57) natively inlines any `EXPO_PUBLIC_*` var
+from a `.env` file into `process.env` at build time — no
+`expo-constants` dependency (which isn't in `package.json` today) and
+no `app.json` edit needed. `.env`/`.env.*` are already gitignored, so
+real values never get committed. Backed by `.env` (local, untracked) →
+`EXPO_PUBLIC_TEST_LOGIN_EMAIL` / `EXPO_PUBLIC_TEST_LOGIN_PASSWORD`, with
+a committed `.env.example` documenting the two keys with empty values.
 
 ### `screens/launchpad/LaunchpadScreen.tsx` (new)
 
