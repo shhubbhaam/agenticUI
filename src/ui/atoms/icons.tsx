@@ -8,56 +8,51 @@ export type IconProps = {
 };
 
 export const HomeIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M3 10.5L12 3L21 10.5V20C21 20.55 20.55 21 20 21H15V15C15 14.45 14.55 14 14 14H10C9.45 14 9 14.45 9 15V21H4C3.45 21 3 20.55 3 20V10.5Z"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
+  <Svg width={size} height={size} viewBox="0 0 17 17" fill="none">
+<Path d="M0.916672 6.74984L8.41667 0.916504L15.9167 6.74984V15.0832C15.9167 15.3042 15.8289 15.5161 15.6726 15.6724C15.5163 15.8287 15.3044 15.9165 15.0833 15.9165H10.9167V10.0832H5.91667V15.9165H1.75001C1.52899 15.9165 1.31703 15.8287 1.16075 15.6724C1.00447 15.5161 0.916672 15.3042 0.916672 15.0832V6.74984Z" fill="#ffffff" stroke={color} stroke-width="1.83333" stroke-linecap="round" stroke-linejoin="round"/>
+</Svg>
+
 );
 
 
 export const PathIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="7" cy="6.5" r="2.2" stroke={color} strokeWidth={2} />
-    <Path d="M8.6 8.3L15.5 15" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Circle cx="17" cy="17" r="2.2" stroke={color} strokeWidth={2} />
-  </Svg>
+ <Svg width={size} height={size} viewBox="0 0 17 17" fill="none" >
+<Path d="M4.08281 2.375C4.07185 1.93672 3.88864 1.52041 3.57287 1.21626C3.25711 0.912123 2.83422 0.74465 2.39583 0.75013C1.95745 0.755611 1.53888 0.933604 1.23081 1.24554C0.922747 1.55749 0.75 1.97825 0.75 2.41667C0.75 2.85509 0.922747 3.27585 1.23081 3.58779C1.53888 3.89973 1.95745 4.07772 2.39583 4.0832C2.83422 4.08868 3.25711 3.92121 3.57287 3.61707C3.88864 3.31293 4.07185 2.89661 4.08281 2.45833M12.4161 14.0417C12.4052 13.6034 12.222 13.1871 11.9062 12.8829C11.5904 12.5788 11.1675 12.4113 10.7292 12.4168C10.2908 12.4223 9.87221 12.6003 9.56415 12.9122C9.25608 13.2242 9.08333 13.6449 9.08333 14.0833C9.08333 14.5218 9.25608 14.9425 9.56415 15.2545C9.87221 15.5664 10.2908 15.7444 10.7292 15.7499C11.1675 15.7553 11.5904 15.5879 11.9062 15.2837C12.222 14.9796 12.4052 14.5633 12.4161 14.125M4.08281 4.875V7.375C4.08281 8.03804 4.3462 8.67393 4.81505 9.14277C5.28389 9.61161 5.91977 9.875 6.58281 9.875H9.91615C10.5792 9.875 11.2151 10.1384 11.6839 10.6072C12.1528 11.0761 12.4161 11.712 12.4161 12.375" stroke={color} stroke-width="1.83333" stroke-linecap="round" stroke-linejoin="round"/>
+</Svg>
+
 );
 
 export const PracticeIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={1.8} />
-    <Circle cx="12" cy="12" r="5.4" stroke={color} strokeWidth={1.8} />
-    <Circle cx="12" cy="12" r="2" fill={color} />
-  </Svg>
+<Svg width={size} height={size} viewBox="0 0 15 19" fill="none" >
+<Path d="M9.08333 0.75L0.75 10.75H6.58333L5.75 17.4167L14.0833 7.41667H8.25L9.08333 0.75Z" stroke={color} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</Svg>
+
 );
 
 export const YouIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="8" r="3.4" stroke={color} strokeWidth={2} />
-    <Path
-      d="M5 20c1.2-4 3.9-6 7-6s5.8 2 7 6"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-    />
-  </Svg>
+<Svg width={size} height={size} viewBox="0 0 15 17" fill="none">
+<Path d="M0.75 15.75V13.25C0.75 11.9239 1.27678 10.6521 2.21447 9.71447C3.15215 8.77678 4.42392 8.25 5.75 8.25H9.08333C10.4094 8.25 11.6812 8.77678 12.6189 9.71447C13.5565 10.6521 14.0833 11.9239 14.0833 13.25V15.75M10.75 4.08333C10.75 4.96739 10.3988 5.81523 9.77369 6.44036C9.14857 7.06548 8.30072 7.41667 7.41667 7.41667C6.53261 7.41667 5.68477 7.06548 5.05964 6.44036C4.43452 5.81523 4.08333 4.96739 4.08333 4.08333C4.08333 3.19928 4.43452 2.35143 5.05964 1.72631C5.68477 1.10119 6.53261 0.75 7.41667 0.75C8.30072 0.75 9.14857 1.10119 9.77369 1.72631C10.3988 2.35143 10.75 3.19928 10.75 4.08333Z" stroke={color} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</Svg>
+
 );
 
 export const FlameIcon = ({ size = 16 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="#f97316">
-    <Path d="M12 23c-4.97 0-9-4.03-9-9 0-4.06 2.7-7.48 6.5-8.62-.12.92-.05 1.83.21 2.69.41 1.34 1.29 2.45 2.47 3.12.18-1.57.85-3.03 1.93-4.19 1.63-1.74 3.09-3.9 3.09-6 3.65 2.15 6 6.13 6 10.68 0 6.25-5.07 11.32-11.2 11.32z" />
-  </Svg>
+<Svg width={size} height={size} viewBox="0 0 12 16" fill="#f97316">
+<Path d="M5.59583 0.63765C7.0125 4.88765 10.5542 6.30432 10.5542 9.84598C10.5542 11.161 10.0318 12.4222 9.1019 13.3521C8.17203 14.2819 6.91086 14.8043 5.59583 14.8043C4.2808 14.8043 3.01963 14.2819 2.08976 13.3521C1.15989 12.4222 0.637497 11.161 0.637497 9.84598C0.637497 7.72098 2.05416 6.30432 3.47083 4.17932C3.47083 6.30432 4.17916 7.01265 4.8875 7.01265C6.30416 5.59598 6.30416 3.47098 5.59583 0.63765Z" fill="#FFB64F" stroke="#D77B21" stroke-width="1.275" stroke-linecap="round" stroke-linejoin="round"/>
+</Svg>
+
 );
 
 export const StarIcon = ({ size = 16 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="#eab308">
     <Path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
   </Svg>
+);
+
+export const PresentationIcon: React.FC<IconProps> = ({ color, size = 24 }) => (
+<Svg width={size} height={size} viewBox="0 0 19 19" fill="none">
+<Path d="M4.49166 17.325H13.6583M9.075 13.6583V17.325M4.49166 4.49168H9.99166M4.49166 8.15835H13.6583M0.824997 0.825012H17.325V13.6583H0.824997V0.825012Z" stroke={color} stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+</Svg>
 );
 
 export const SparkleIcon = ({

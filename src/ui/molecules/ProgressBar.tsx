@@ -19,15 +19,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   remainingTimeText = '~12 min left',
 }) => {
   return (
-    <View style={tw`w-full px-4 mb-4`}>
+    <View style={tw`w-full px-4 mt-3.5 mb-4`}>
       {/* Top Meta Header Row */}
-      <View style={tw`flex-row justify-between items-center mb-2.5`}>
+      <View style={tw`flex-row justify-between items-center mb-1`}>
         <Text
           style={[
             {
               fontFamily: typography.fontFamily['jakarta-bold'],
-              color: colors.text.primary,
-              ...typography.fontSize['type-16'],
+              color: colors.text.muted,
+              ...typography.fontSize['type-14'],
             },
           ]}
         >
