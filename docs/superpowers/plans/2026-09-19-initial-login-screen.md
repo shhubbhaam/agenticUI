@@ -1519,6 +1519,22 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   org: 'Sign in with your organization',
 };
 
+function GhostLink({ label, onPress, compact = false }: { label: string; onPress: () => void; compact?: boolean }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={compact ? tw`items-start` : tw`items-center py-3`}>
+      <Text
+        style={{
+          fontFamily: typography.fontFamily['jakarta-bold'],
+          color: colors.action.ghost,
+          ...(compact ? typography.fontSize['type-12'] : typography.fontSize['type-14-base']),
+        }}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 function Footer() {
   return (
     <Text style={[tw`text-center mt-4`, { fontFamily: typography.fontFamily.jakarta, color: colors.eyebrow.ink, ...typography.fontSize['type-12-base'] }]}>
@@ -1576,11 +1592,7 @@ export default function LoginScreen() {
                 onPress={() => flow.onContinueWithProvider(provider)}
               />
             ))}
-            <TouchableOpacity onPress={flow.onUseEmailInstead} style={tw`items-center py-3`}>
-              <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.action.ghost, ...typography.fontSize['type-14-base'] }}>
-                Use your email instead
-              </Text>
-            </TouchableOpacity>
+            <GhostLink label="Use your email instead" onPress={flow.onUseEmailInstead} />
             <View style={[tw`w-full`, { height: 1, backgroundColor: colors.path.stage.locked.base }]} />
             <ActiveButton
               variant="secondary"
@@ -1613,11 +1625,7 @@ export default function LoginScreen() {
                 secureTextEntry
               />
             )}
-            <TouchableOpacity onPress={flow.onFillTestCreds} style={tw`items-start`}>
-              <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.action.ghost, ...typography.fontSize['type-12'] }}>
-                Test creds
-              </Text>
-            </TouchableOpacity>
+            <GhostLink label="Test creds" onPress={flow.onFillTestCreds} compact />
             <View
               style={{
                 shadowColor: colors.action.primaryShadow,
@@ -1634,11 +1642,7 @@ export default function LoginScreen() {
                 onPress={flow.onSubmit}
               />
             </View>
-            <TouchableOpacity onPress={flow.onBackToChoice} style={tw`items-center py-3`}>
-              <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.action.ghost, ...typography.fontSize['type-14-base'] }}>
-                Other sign-in options
-              </Text>
-            </TouchableOpacity>
+            <GhostLink label="Other sign-in options" onPress={flow.onBackToChoice} />
             <Footer />
           </View>
         )}
