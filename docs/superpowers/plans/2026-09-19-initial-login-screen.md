@@ -856,9 +856,12 @@ import { TextField } from './TextField';
 describe('TextField', () => {
   it('renders the label and calls onChangeText as the user types', () => {
     const onChangeText = jest.fn();
-    const tree = ReactTestRenderer.create(
-      <TextField label="Email address" value="" onChangeText={onChangeText} />
-    );
+    let tree: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = ReactTestRenderer.create(
+        <TextField label="Email address" value="" onChangeText={onChangeText} />
+      );
+    });
     act(() => {
       tree.root.findByType(TextInput).props.onChangeText('a@b.com');
     });
@@ -866,17 +869,23 @@ describe('TextField', () => {
   });
 
   it('shows the error message when provided', () => {
-    const tree = ReactTestRenderer.create(
-      <TextField label="Email address" value="" onChangeText={jest.fn()} error="Please enter a valid email address" />
-    );
+    let tree: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = ReactTestRenderer.create(
+        <TextField label="Email address" value="" onChangeText={jest.fn()} error="Please enter a valid email address" />
+      );
+    });
     const texts = tree.root.findAllByType(Text).map((n) => n.props.children);
     expect(texts).toContain('Please enter a valid email address');
   });
 
   it('hides text by default and reveals it when the eye icon is pressed, in secure mode', () => {
-    const tree = ReactTestRenderer.create(
-      <TextField label="Password" value="hunter2" onChangeText={jest.fn()} secureTextEntry testID="password-field" />
-    );
+    let tree: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = ReactTestRenderer.create(
+        <TextField label="Password" value="hunter2" onChangeText={jest.fn()} secureTextEntry testID="password-field" />
+      );
+    });
     const input = tree.root.findByType(TextInput);
     expect(input.props.secureTextEntry).toBe(true);
 
@@ -1238,7 +1247,10 @@ describe('useLoginFlow state machine', () => {
 
   it('goes choice -> connecting -> errored for the pressed provider only', () => {
     let flow: ReturnType<typeof useLoginFlow>;
-    const renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
+    });
 
     act(() => { flow!.onContinueWithProvider('google'); });
     renderer.update(<Harness onReady={(f) => { flow = f; }} />);
@@ -1253,7 +1265,10 @@ describe('useLoginFlow state machine', () => {
 
   it('moves to the email step and reveals the password field after a valid email submit', () => {
     let flow: ReturnType<typeof useLoginFlow>;
-    const renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
+    });
 
     act(() => { flow!.onUseEmailInstead(); });
     renderer.update(<Harness onReady={(f) => { flow = f; }} />);
@@ -1272,7 +1287,10 @@ describe('useLoginFlow state machine', () => {
 
   it('navigates home once a valid password is submitted', () => {
     let flow: ReturnType<typeof useLoginFlow>;
-    const renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
+    });
 
     act(() => {
       flow!.onUseEmailInstead();
@@ -1339,11 +1357,14 @@ import LaunchpadScreen from './LaunchpadScreen';
 
 describe('LaunchpadScreen', () => {
   it('renders the wordmark and a Continue link', () => {
-    const tree = ReactTestRenderer.create(
-      <NavigationContainer>
-        <LaunchpadScreen />
-      </NavigationContainer>
-    );
+    let tree: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = ReactTestRenderer.create(
+        <NavigationContainer>
+          <LaunchpadScreen />
+        </NavigationContainer>
+      );
+    });
     const texts = tree.root.findAllByType(require('react-native').Text).map((n) => n.props.children);
     expect(texts).toContain('AI Launchpad');
     expect(texts).toContain('Continue');
@@ -1451,11 +1472,15 @@ import { Text, TouchableOpacity } from 'react-native';
 import LoginScreen from './LoginScreen';
 
 function renderScreen() {
-  return ReactTestRenderer.create(
-    <NavigationContainer>
-      <LoginScreen />
-    </NavigationContainer>
-  );
+  let tree: ReactTestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = ReactTestRenderer.create(
+      <NavigationContainer>
+        <LoginScreen />
+      </NavigationContainer>
+    );
+  });
+  return tree!;
 }
 
 describe('LoginScreen', () => {
