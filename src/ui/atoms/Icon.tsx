@@ -1,11 +1,13 @@
 import React from 'react';
-import { Dumbbell, Play, LockKeyhole } from 'lucide-react-native';
+import { Dumbbell, Play, LockKeyhole, Eye, EyeOff } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 
 export type IconType =
   | 'dumbbell'
   | 'play'
   | 'lock'
+  | 'eye'
+  | 'eye-off'
   // Path screen redesign glyphs — hand-converted from the exact Figma-exported
   // SVGs (source: AI Launchpad — Mobile Design System, node 18:407/18:107/18:604).
   // No svg-transformer is configured in metro.config.js, so raw .svg files can't
@@ -26,7 +28,10 @@ export type IconType =
   | 'headphones'
   | 'arrow'
   | 'plus'
-  | 'route';
+  | 'route'
+  // Auth flow glyph (source: AI Launchpad — Mobile Design System, node 33:4794,
+  // "Sign in with your organization" button icon).
+  | 'building';
 
 export interface IconProps {
   name: IconType;
@@ -52,6 +57,7 @@ const FIGMA_PATHS: Partial<Record<IconType, { viewBox: string; d: string; stroke
   arrow: { viewBox: '0 0 18 18', strokeWidth: 1.35, d: 'M3 9H15M10.5 13.5L15 9L10.5 4.5' },
   plus: { viewBox: '0 0 15 15', strokeWidth: 1.125, d: 'M7.5 2.5V12.5M2.5 7.5H12.5' },
   route: { viewBox: '0 0 20 20', strokeWidth: 1.83333, d: 'M5.83333 3.33333C5.82237 2.89505 5.63916 2.47874 5.32339 2.1746C5.00763 1.87046 4.58474 1.70298 4.14635 1.70846C3.70797 1.71394 3.2894 1.89194 2.98133 2.20388C2.67327 2.51582 2.50052 2.93658 2.50052 3.375C2.50052 3.81342 2.67327 4.23418 2.98133 4.54612C3.2894 4.85806 3.70797 5.03606 4.14635 5.04154C4.58474 5.04702 5.00763 4.87954 5.32339 4.5754C5.63916 4.27126 5.82237 3.85495 5.83333 3.41667M14.1667 15C14.1557 14.5617 13.9725 14.1454 13.6567 13.8413C13.341 13.5371 12.9181 13.3696 12.4797 13.3751C12.0413 13.3806 11.6227 13.5586 11.3147 13.8705C11.0066 14.1825 10.8339 14.6032 10.8339 15.0417C10.8339 15.4801 11.0066 15.9008 11.3147 16.2128C11.6227 16.5247 12.0413 16.7027 12.4797 16.7082C12.9181 16.7137 13.341 16.5462 13.6567 16.2421C13.9725 15.9379 14.1557 15.5216 14.1667 15.0833M5.83333 5.83333V8.33333C5.83333 8.99637 6.09673 9.63226 6.56557 10.1011C7.03441 10.5699 7.67029 10.8333 8.33333 10.8333H11.6667C12.3297 10.8333 12.9656 11.0967 13.4344 11.5656C13.9033 12.0344 14.1667 12.6703 14.1667 13.3333' },
+  building: { viewBox: '0 0 18 18', strokeWidth: 1.35, d: 'M6.75 5.25H6.7575M11.25 5.25H11.2575M6.75 8.25H6.7575M11.25 8.25H11.2575M6.75 11.25H6.7575M11.25 11.25H11.2575M7.5 16.5V13.5H10.5V16.5M3.75 2.25H14.25V16.5H3.75V2.25Z' },
 };
 
 export const Icon: React.FC<IconProps> = ({ name, color, size = 24 }) => {
@@ -62,6 +68,10 @@ export const Icon: React.FC<IconProps> = ({ name, color, size = 24 }) => {
       return <Play size={size} color={color} fill={color} strokeWidth={2} />;
     case 'lock':
       return <LockKeyhole size={size} color={color} strokeWidth={2.4} />;
+    case 'eye':
+      return <Eye size={size} color={color} strokeWidth={2} />;
+    case 'eye-off':
+      return <EyeOff size={size} color={color} strokeWidth={2} />;
     default: {
       const spec = FIGMA_PATHS[name];
       if (!spec) return null;
