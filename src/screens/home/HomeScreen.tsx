@@ -1,5 +1,5 @@
 // src/screens/home/HomeScreen.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { View } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../../ui/tokens/colors';
@@ -11,24 +11,11 @@ import { NextStepCard } from '../../ui/molecules/home/NextStepCard';
 import { ActionFooter } from '../../ui/molecules/home/ActionFooter';
 import { SectionTitle } from '../../ui/molecules/home/SectionTitle';
 
-import BottomTabs, { TabItem } from '../../ui/organisms/BottomTabs';
-import {
-  HomeIcon,
-  PathIcon,
-  PracticeIcon,
-  YouIcon,
-} from '../../ui/atoms/icons';
-
-const tabs: TabItem[] = [
-  { key: 'home', label: 'Home', icon: HomeIcon },
-  { key: 'path', label: 'Path', icon: PathIcon },
-  { key: 'practice', label: 'Practice', icon: PracticeIcon },
-  { key: 'you', label: 'You', icon: YouIcon },
-];
+import BottomTabs from '../../ui/organisms/BottomTabs';
+import { useTabNavigation } from '../../navigation/useTabNavigation';
 
 export default function HomeScreen() {
-  const [activeTab, setActiveTab] = useState('path');
-  const [hasCompletedNextStep] = useState(false); // Example state toggle
+  const { tabs, onTabPress } = useTabNavigation('home');
 
   return (
     <HomeTemplate
@@ -83,8 +70,8 @@ export default function HomeScreen() {
       bottombar={
         <BottomTabs
           tabs={tabs}
-          activeTab={activeTab}
-          onTabPress={(key) => setActiveTab(key)}
+          activeTab="home"
+          onTabPress={onTabPress}
           reserveSlot={true}
           activeColor={colors.action.primary}
           inactiveColor={colors.text.body}
