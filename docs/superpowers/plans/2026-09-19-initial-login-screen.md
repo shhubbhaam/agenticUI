@@ -334,7 +334,6 @@ describe('ActiveButton disabled state', () => {
     const tree = ReactTestRenderer.create(
       <ActiveButton label="Continue" onPress={onPress} disabled />
     );
-    const touchable = tree.root.findByProps({ testID: undefined }).parent!;
     act(() => {
       tree.root.findByType(require('react-native').TouchableOpacity).props.onPress?.();
     });
@@ -1087,7 +1086,7 @@ Expected: FAIL — `Cannot find module './useLoginFlow'`.
 
 ```tsx
 // src/screens/login/useLoginFlow.ts
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation/MainStack';
@@ -1126,6 +1125,12 @@ export function useLoginFlow() {
   const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
   const [showPasswordField, setShowPasswordField] = useState(false);
   const connectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (connectTimer.current) clearTimeout(connectTimer.current);
+    };
+  }, []);
 
   const onContinueWithProvider = useCallback((provider: Provider) => {
     if (connectingProvider !== null) return;
