@@ -38,14 +38,6 @@ const NavItem: React.FC<{
       activeOpacity={0.7}
       style={tw`flex-1 items-center pt-2 pb-1`}
     >
-      {isActive && (
-        <View
-          style={[
-            tw`absolute top-0 h-1 w-10 rounded-full`,
-            { backgroundColor: activeColor },
-          ]}
-        />
-      )}
       {IconComponent ? (
         <IconComponent color={color} size={28} />
       ) : (
