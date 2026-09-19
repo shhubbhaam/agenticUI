@@ -17,7 +17,7 @@
 - All new UI reads colors/spacing/fonts only from `ui/tokens/colors.ts` / `ui/tokens/typography.ts` — never a hardcoded hex or literal font size (Section 4.2, 4.3).
 - No hardcoded absolute widths from Figma — use `flex`/`w-full` inside `w-[350px]`-padded containers so it renders pixel-identical to the Figma 390px baseline (Section 4.1).
 - Every icon/image comes from an existing `Icon.tsx` case (Figma-exported path data, never hand-drawn from memory) — Section 3.6. No new image files: the design needs no raster/SVG asset beyond icon glyphs already in or added to `Icon.tsx`.
-- Reuse the shared `ActiveButton`/`Icon` atoms; extend with a plain `disabled` boolean rather than a new variant or a copy (Section 3.2, Section 6 step 1).
+- Reuse the shared `ActiveButton`/`Icon`/`StageCrest` atoms; extend each with a plain prop (`disabled`, new `IconType` cases, a new `size`) rather than a new variant or a copy (Section 3.2, Section 6 step 1) — verified against the actual codebase (no existing `TextInput`/`Alert`/divider component was missed; `StageCrest` was found to be reusable despite living in a `roadmap/` domain subfolder, since Section 1 explicitly allows cross-domain reuse of domain-folder components).
 - `TextField` stays screen-local (`screens/login/TextField.tsx`), not promoted to `ui/atoms/` — Rule of Three (3.5), only 2 uses so far.
 - One component per file, `PascalCase.tsx` filenames matching Figma's annotated React Native name where one exists (Section 10): `Alert`, `Icon`, `TextField`, `Button`(→`ActiveButton`, already named).
 
@@ -196,7 +196,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: nothing new (existing `IconProps { name, color, size? }`).
-- Produces: `IconType` gains `'eye' | 'eye-off' | 'building'` — `TextField` (Task 7) uses `'eye'`/`'eye-off'`, `LoginScreen` (Task 10) uses `'building'`.
+- Produces: `IconType` gains `'eye' | 'eye-off' | 'building'` — `TextField` (Task 8) uses `'eye'`/`'eye-off'`, `LoginScreen` (Task 11) uses `'building'`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -318,7 +318,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Test: Create `src/ui/atoms/ActiveButton.test.tsx`
 
 **Interfaces:**
-- Produces: `ActiveButtonProps` gains `disabled?: boolean` (default `false`) — `LoginScreen` (Task 10) uses this on the connecting provider's button and the email/password CTA.
+- Produces: `ActiveButtonProps` gains `disabled?: boolean` (default `false`) — `LoginScreen` (Task 11) uses this on the connecting provider's button and the email/password CTA.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -469,14 +469,180 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: `ui/molecules/Alert.tsx` (new, generic tier)
+### Task 5: Extend `ui/atoms/roadmap/StageCrest.tsx` with an `'xl'` size
+
+**Why this task exists:** the login/launchpad hero icon (a plum rounded
+square with a "layers" icon and a hard drop shadow) is visually
+identical in *shape* to the existing `StageCrest` atom — just at a
+bigger size (75×78 vs the existing 39×41/47×49) with a slightly deeper
+shadow offset (5px vs 3/4px). Per Section 6 step 1 ("check `ui/` — does
+something close enough already exist? If yes, extend it with a
+variant, don't create a new one") and Section 1's own reuse note
+("reuse doesn't move the answer" — a domain-folder component can still
+be imported from another domain), the right move is extending this
+component with a new size, not hand-rolling a second icon-crest View
+in `screens/login`/`screens/launchpad`. Hand-rolling would also have
+silently dropped the inner-ring highlight `View` this component
+already draws.
+
+**Files:**
+- Modify: `src/ui/atoms/roadmap/StageCrest.tsx`
+- Test: Create `src/ui/atoms/roadmap/StageCrest.test.tsx`
+
+**Interfaces:**
+- Produces: `StageCrestProps.size` gains `'xl'` — `LoginScreen`
+  (Task 11) renders `<StageCrest tone="plum" icon="layers" size="xl" />`
+  (the splash `LaunchpadScreen`, Task 10, has no crest icon in Figma —
+  only the brand-mark "Λ" square — so it doesn't use this).
+- Existing consumers (`StagesBehindSummary.tsx`, `StageRow.tsx`,
+  `StageDetailPanel.tsx`, all using `size="sm"`/`"lg"`) must render
+  byte-identical output after this change — verified in Step 5.
+
+- [ ] **Step 1: Run the app and locate current usages (Section 7 step 1/2)**
+
+Run: `grep -rn "StageCrest" src --include="*.tsx" | grep -v "ui/atoms/roadmap/StageCrest"`
+Expected: 3 call sites, all passing `size="sm"` or `size="lg"` — confirms this change only needs to *add* a case, not touch existing behavior.
+
+- [ ] **Step 2: Write the failing test**
+
+```tsx
+// src/ui/atoms/roadmap/StageCrest.test.tsx
+import React from 'react';
+import ReactTestRenderer from 'react-test-renderer';
+import { View } from 'react-native';
+import { StageCrest } from './StageCrest';
+
+describe('StageCrest', () => {
+  it('renders at the existing sm/lg sizes unchanged', () => {
+    const sm = ReactTestRenderer.create(<StageCrest tone="plum" icon="layers" size="sm" />);
+    const smBox = sm.root.findAllByType(View)[0];
+    expect(smBox.props.style[1]).toMatchObject({ width: 39, height: 41 });
+
+    const lg = ReactTestRenderer.create(<StageCrest tone="plum" icon="layers" size="lg" />);
+    const lgBox = lg.root.findAllByType(View)[0];
+    expect(lgBox.props.style[1]).toMatchObject({ width: 47, height: 49 });
+  });
+
+  it('renders at the new xl size (75x78) for the auth hero icon', () => {
+    const tree = ReactTestRenderer.create(<StageCrest tone="plum" icon="layers" size="xl" />);
+    const box = tree.root.findAllByType(View)[0];
+    expect(box.props.style[1]).toMatchObject({ width: 75, height: 78, borderRadius: 23 });
+  });
+});
+```
+
+- [ ] **Step 3: Run test to verify it fails**
+
+Run: `npx jest src/ui/atoms/roadmap/StageCrest.test.tsx`
+Expected: FAIL — TypeScript error, `"xl"` is not assignable to `size`.
+
+- [ ] **Step 4: Extend the component**
+
+```tsx
+// src/ui/atoms/roadmap/StageCrest.tsx
+import React from 'react';
+import { View } from 'react-native';
+import tw from 'twrnc';
+import { colors } from '../../tokens/colors';
+import { Icon, IconType } from '../Icon';
+
+export type StageTone = 'indigo' | 'teal' | 'plum';
+
+interface StageCrestProps {
+  tone: StageTone;
+  icon: IconType;
+  size?: 'sm' | 'lg' | 'xl';
+  locked?: boolean;
+}
+
+// Figma: height = icon (25, sm/lg) + 2×vertical padding — 39×41 (sm),
+// 47×49 (lg). Width (box) is an independent, given value, not derived.
+// xl (75×78) is the auth/launchpad hero crest (node 33-4794 etc.):
+// icon 38, padding 20 — same formula, bigger numbers, plus a deeper
+// unlocked shadow offset (5px, vs sm/lg's 4px) per that frame's source.
+const DIMENSIONS = {
+  sm: { box: 39, radius: 12, icon: 25, padding: 8, shadowOffsetY: { locked: 3, unlocked: 4 } },
+  lg: { box: 47, radius: 15, icon: 25, padding: 12, shadowOffsetY: { locked: 3, unlocked: 4 } },
+  xl: { box: 75, radius: 23, icon: 38, padding: 20, shadowOffsetY: { locked: 3, unlocked: 5 } },
+};
+
+export const StageCrest: React.FC<StageCrestProps> = ({ tone, icon, size = 'sm', locked = false }) => {
+  const dims = DIMENSIONS[size];
+  const stage = colors.path.stage[tone];
+
+  return (
+    <View
+      style={[
+        tw`items-center justify-center border`,
+        {
+          width: dims.box,
+          height: dims.icon + dims.padding * 2,
+          borderRadius: dims.radius,
+          borderWidth: 0.8,
+          backgroundColor: locked ? colors.path.stage.locked.base : stage.base,
+          borderColor: locked ? colors.path.stage.locked.border : colors.path.stage.ring,
+          shadowColor: locked ? colors.path.stage.locked.shadow : stage.shadow,
+          shadowOffset: { width: 0, height: locked ? dims.shadowOffsetY.locked : dims.shadowOffsetY.unlocked },
+          shadowOpacity: 1,
+          shadowRadius: 0,
+          elevation: 3,
+        },
+      ]}
+    >
+      <Icon name={icon} size={dims.icon} color={locked ? colors.path.stage.locked.shadow : '#ffffff'} />
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 2.2,
+          left: 2.2,
+          right: 2.2,
+          bottom: 2.2,
+          borderRadius: dims.radius - 3,
+          borderTopWidth: 0.8,
+          borderColor: colors.path.stage.ringInner,
+        }}
+      />
+    </View>
+  );
+};
+```
+
+- [ ] **Step 5: Run test to verify it passes, including the unchanged-sm/lg assertions**
+
+Run: `npx jest src/ui/atoms/roadmap/StageCrest.test.tsx`
+Expected: PASS — sm/lg produce the exact same `width`/`height`/shadow numbers as before this change (verifies Section 7 step 5's "no partially-migrated components" concern doesn't apply here, since nothing about sm/lg's *output* changed, only how it's computed internally).
+
+- [ ] **Step 6: Run the full suite (confirms the 3 existing StageCrest call sites — StagesBehindSummary, StageRow, StageDetailPanel — still render correctly)**
+
+Run: `npx jest`
+Expected: PASS
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/ui/atoms/roadmap/StageCrest.tsx src/ui/atoms/roadmap/StageCrest.test.tsx
+git commit -m "feat(stage-crest): add xl size for the auth/launchpad hero icon
+
+Reuses the existing icon-crest atom instead of duplicating its shadow +
+inner-ring-highlight rendering in the new login screens (Section 6
+step 1: extend an existing close-enough component with a variant
+rather than hand-roll a new one). sm/lg output is byte-identical to
+before.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: `ui/molecules/Alert.tsx` (new, generic tier)
 
 **Files:**
 - Create: `src/ui/molecules/Alert.tsx`
 - Test: Create `src/ui/molecules/Alert.test.tsx`
 
 **Interfaces:**
-- Produces: `Alert({ tone: 'info' | 'warning', message: string })` — `LoginScreen` (Task 10) imports `{ Alert }` from `../../ui/molecules/Alert`.
+- Produces: `Alert({ tone: 'info' | 'warning', message: string })` — `LoginScreen` (Task 11) imports `{ Alert }` from `../../ui/molecules/Alert`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -576,7 +742,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Test credentials via `EXPO_PUBLIC_*` env vars
+### Task 7: Test credentials via `EXPO_PUBLIC_*` env vars
 
 **Files:**
 - Create: `.env.example`
@@ -584,7 +750,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Test: Create `src/screens/login/testCredentials.test.ts`
 
 **Interfaces:**
-- Produces: `getTestCredentials(): { email: string; password: string }` — `useLoginFlow` (Task 8) imports and calls this from `onFillTestCreds`.
+- Produces: `getTestCredentials(): { email: string; password: string }` — `useLoginFlow` (Task 9) imports and calls this from `onFillTestCreds`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -669,7 +835,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 7: `screens/login/TextField.tsx` (new, screen-local)
+### Task 8: `screens/login/TextField.tsx` (new, screen-local)
 
 **Files:**
 - Create: `src/screens/login/TextField.tsx`
@@ -677,7 +843,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `Icon` from `../../ui/atoms/Icon` (names `'eye'`/`'eye-off'`, Task 3), `colors`/`typography` tokens.
-- Produces: `TextField({ label, value, onChangeText, error?, secureTextEntry?, keyboardType?, testID? })` — `LoginScreen` (Task 10) renders two instances (email, password).
+- Produces: `TextField({ label, value, onChangeText, error?, secureTextEntry?, keyboardType?, testID? })` — `LoginScreen` (Task 11) renders two instances (email, password).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -846,15 +1012,15 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 8: `screens/login/useLoginFlow.ts` — validation + state machine
+### Task 9: `screens/login/useLoginFlow.ts` — validation + state machine
 
 **Files:**
 - Create: `src/screens/login/useLoginFlow.ts`
 - Test: Create `src/screens/login/useLoginFlow.test.tsx`
 
 **Interfaces:**
-- Consumes: `getTestCredentials` from `./testCredentials` (Task 6); `useNavigation` from `@react-navigation/native`; `RootStackParamList` from `../../navigation/MainStack` (Task 11 adds `Launchpad` to this type, but `Login`/`HomeScreen` already exist there today, so this task can proceed against the current type and Task 11 will not need to touch this file again).
-- Produces (consumed by `LoginScreen`, Task 10):
+- Consumes: `getTestCredentials` from `./testCredentials` (Task 7); `useNavigation` from `@react-navigation/native`; `RootStackParamList` from `../../navigation/MainStack` (Task 12 adds `Launchpad` to this type, but `Login`/`HomeScreen` already exist there today, so this task can proceed against the current type and Task 12 will not need to touch this file again).
+- Produces (consumed by `LoginScreen`, Task 11):
   ```typescript
   export type Provider = 'google' | 'linkedin' | 'org';
   export function validateEmail(email: string): string | undefined;
@@ -880,7 +1046,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
   export function useLoginFlow(): LoginFlowState;
   ```
   Note: password-reveal (eye toggle) state is **not** duplicated here —
-  `TextField` (Task 7) already owns that as its own local `useState`,
+  `TextField` (Task 8) already owns that as its own local `useState`,
   since it's pure presentation with no bearing on submission/validation.
   Giving the hook its own `isPasswordVisible` would be dead, duplicate
   state nothing reads.
@@ -1147,15 +1313,15 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 9: `screens/launchpad/LaunchpadScreen.tsx` (new)
+### Task 10: `screens/launchpad/LaunchpadScreen.tsx` (new)
 
 **Files:**
 - Create: `src/screens/launchpad/LaunchpadScreen.tsx`
 - Test: Create `src/screens/launchpad/LaunchpadScreen.test.tsx`
 
 **Interfaces:**
-- Consumes: `useNavigation` typed against `RootStackParamList` (current type already has `Login`; Task 11 adds `Launchpad` — this file's own route name literal `'Login'` doesn't depend on that addition).
-- Produces: default-exported `LaunchpadScreen` component — `MainStack.tsx` (Task 11) imports and registers it.
+- Consumes: `useNavigation` typed against `RootStackParamList` (current type already has `Login`; Task 12 adds `Launchpad` — this file's own route name literal `'Login'` doesn't depend on that addition).
+- Produces: default-exported `LaunchpadScreen` component — `MainStack.tsx` (Task 12) imports and registers it.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1259,15 +1425,15 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 10: `screens/login/LoginScreen.tsx` (replaces the old prototype)
+### Task 11: `screens/login/LoginScreen.tsx` (replaces the old prototype)
 
 **Files:**
 - Modify (full replace): `src/screens/login/LoginScreen.tsx`
 - Test: Create `src/screens/login/LoginScreen.test.tsx`
 
 **Interfaces:**
-- Consumes: `useLoginFlow` (Task 8), `TextField` (Task 7), `Alert` (Task 5), `ActiveButton` (Task 4), `Icon` (Task 3), `colors`/`typography`.
-- Produces: default-exported `LoginScreen` — already registered as `Login` in `MainStack.tsx` today (no navigation change needed for this task; Task 11 only adds `Launchpad`).
+- Consumes: `useLoginFlow` (Task 9), `TextField` (Task 8), `Alert` (Task 6), `ActiveButton` (Task 4), `Icon` (Task 3), `StageCrest` (Task 5, `size="xl"`), `colors`/`typography`.
+- Produces: default-exported `LoginScreen` — already registered as `Login` in `MainStack.tsx` today (no navigation change needed for this task; Task 12 only adds `Launchpad`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1342,6 +1508,7 @@ import { colors } from '../../ui/tokens/colors';
 import { typography } from '../../ui/tokens/typography';
 import { ActiveButton } from '../../ui/atoms/ActiveButton';
 import { Icon } from '../../ui/atoms/Icon';
+import { StageCrest } from '../../ui/atoms/roadmap/StageCrest';
 import { Alert } from '../../ui/molecules/Alert';
 import { TextField } from './TextField';
 import { useLoginFlow, type Provider } from './useLoginFlow';
@@ -1391,22 +1558,8 @@ export default function LoginScreen() {
           Practical AI, one useful step at a time.
         </Text>
 
-        <View
-          style={[
-            tw`items-center justify-center rounded-3xl mb-7`,
-            {
-              width: 75,
-              height: 78,
-              backgroundColor: colors.path.stage.plum.base,
-              shadowColor: colors.path.stage.plum.shadow,
-              shadowOffset: { width: 0, height: 5 },
-              shadowOpacity: 1,
-              shadowRadius: 0,
-              elevation: 4,
-            },
-          ]}
-        >
-          <Icon name="layers" color={colors.surface.white} size={38} />
+        <View style={tw`mb-7`}>
+          <StageCrest tone="plum" icon="layers" size="xl" />
         </View>
 
         {flow.step === 'choice' ? (
@@ -1520,15 +1673,15 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 11: Wire `Launchpad` into navigation
+### Task 12: Wire `Launchpad` into navigation
 
 **Files:**
 - Modify: `src/navigation/MainStack.tsx`
-- Test: existing `__tests__/App.test.tsx` (no new test file — this is a wiring change verified by the existing smoke test plus manual verification in Task 12)
+- Test: existing `__tests__/App.test.tsx` (no new test file — this is a wiring change verified by the existing smoke test plus manual verification in Task 13)
 
 **Interfaces:**
-- Consumes: `LaunchpadScreen` (Task 9, default export).
-- Produces: `RootStackParamList` gains `Launchpad: undefined`; `initialRouteName` becomes `"Launchpad"`. `useLoginFlow.ts` (Task 8) and `LaunchpadScreen.tsx` (Task 9) already import `RootStackParamList` from this file by name, so this is purely additive to that type — no other file needs changes.
+- Consumes: `LaunchpadScreen` (Task 10, default export).
+- Produces: `RootStackParamList` gains `Launchpad: undefined`; `initialRouteName` becomes `"Launchpad"`. `useLoginFlow.ts` (Task 9) and `LaunchpadScreen.tsx` (Task 10) already import `RootStackParamList` from this file by name, so this is purely additive to that type — no other file needs changes.
 
 - [ ] **Step 1: Run the existing smoke test to see the current baseline**
 
@@ -1614,7 +1767,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 12: Manual live verification (Section 5/6 of the rulebook)
+### Task 13: Manual live verification (Section 5/6 of the rulebook)
 
 **Files:** none (verification only, no code changes)
 
