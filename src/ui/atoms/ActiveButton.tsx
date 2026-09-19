@@ -13,6 +13,7 @@ interface ActiveButtonProps {
   // 'secondary': the Path screen's bordered white CTA (Figma "Button · secondary",
   // approved source class "btn") — exact height/radius/ink per source tokens.
   variant?: 'primary' | 'secondary';
+  disabled?: boolean;
 }
 
 export const ActiveButton: React.FC<ActiveButtonProps> = ({
@@ -20,12 +21,14 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
   label,
   icon,
   variant = 'primary',
+  disabled = false,
 }) => {
   if (variant === 'secondary') {
     return (
       <TouchableOpacity
-        onPress={onPress}
+        onPress={disabled ? undefined : onPress}
         activeOpacity={0.75}
+        disabled={disabled}
         style={[
           tw`flex-row items-center justify-center rounded-2xl border w-full`,
           {
@@ -34,6 +37,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
             backgroundColor: colors.path.btnSecondary.surface,
             borderColor: colors.path.btnSecondary.border,
             borderWidth: 0.8,
+            opacity: disabled ? 0.6 : 1,
           },
         ]}
       >
@@ -53,10 +57,11 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
       style={[
         tw`flex-row items-center justify-center py-4 px-6 rounded-2xl w-full`,
-        { backgroundColor: colors.action.lesson }
+        { backgroundColor: colors.action.lesson, opacity: disabled ? 0.6 : 1 }
       ]}
     >
       {icon ? <Text style={tw`mr-2`}>{icon}</Text> : null}
