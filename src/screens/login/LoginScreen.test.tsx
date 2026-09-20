@@ -5,7 +5,7 @@ import { Text } from 'react-native';
 import LoginScreen from './LoginScreen';
 
 function renderScreen() {
-  let tree: ReactTestRenderer.ReactTestRenderer;
+  let tree!: ReactTestRenderer.ReactTestRenderer;
   act(() => {
     tree = ReactTestRenderer.create(
       <NavigationContainer>
@@ -13,7 +13,7 @@ function renderScreen() {
       </NavigationContainer>
     );
   });
-  return tree!;
+  return tree;
 }
 
 // RN's TouchableOpacity renders through several intermediate host/composite

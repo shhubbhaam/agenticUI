@@ -5,7 +5,7 @@ import LaunchpadScreen from './LaunchpadScreen';
 
 describe('LaunchpadScreen', () => {
   it('renders the wordmark and a Continue link', () => {
-    let tree: ReactTestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       tree = ReactTestRenderer.create(
         <NavigationContainer>

@@ -61,7 +61,7 @@ export default function LoginScreen() {
           <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.text.primary, ...typography.fontSize['type-15'] }}>AI Launchpad</Text>
         </View>
 
-        <Text style={[tw`mb-1`, { fontFamily: typography.fontFamily['jakarta-bold'], color: colors.eyebrow.ink, letterSpacing: 1, ...typography.fontSize['type-11-tracked'] }]}>
+        <Text style={[tw`mb-1`, { fontFamily: typography.fontFamily['jakarta-bold'], color: colors.eyebrow.ink, ...typography.fontSize['type-11-tracked'] }]}>
           A LITTLE LEARNING. A LOT OF POSSIBILITY.
         </Text>
         <Text style={[tw`mb-2`, { fontFamily: typography.fontFamily['jakarta-extrabold'], color: colors.text.primary, ...typography.fontSize['type-31'] }]}>

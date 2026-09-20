@@ -52,7 +52,7 @@ describe('useLoginFlow state machine', () => {
 
   it('goes choice -> connecting -> errored for the pressed provider only', () => {
     let flow: ReturnType<typeof useLoginFlow>;
-    let renderer: ReactTestRenderer.ReactTestRenderer;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
     });
@@ -70,7 +70,7 @@ describe('useLoginFlow state machine', () => {
 
   it('moves to the email step and reveals the password field after a valid email submit', () => {
     let flow: ReturnType<typeof useLoginFlow>;
-    let renderer: ReactTestRenderer.ReactTestRenderer;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
     });
@@ -96,7 +96,7 @@ describe('useLoginFlow state machine', () => {
 
   it('navigates home once a valid password is submitted', () => {
     let flow: ReturnType<typeof useLoginFlow>;
-    let renderer: ReactTestRenderer.ReactTestRenderer;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
     });

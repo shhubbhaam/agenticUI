@@ -6,7 +6,7 @@ import { TextField } from './TextField';
 describe('TextField', () => {
   it('renders the label and calls onChangeText as the user types', () => {
     const onChangeText = jest.fn();
-    let tree: ReactTestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       tree = ReactTestRenderer.create(
         <TextField label="Email address" value="" onChangeText={onChangeText} />
@@ -19,7 +19,7 @@ describe('TextField', () => {
   });
 
   it('shows the error message when provided', () => {
-    let tree: ReactTestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       tree = ReactTestRenderer.create(
         <TextField label="Email address" value="" onChangeText={jest.fn()} error="Please enter a valid email address" />
@@ -30,7 +30,7 @@ describe('TextField', () => {
   });
 
   it('hides text by default and reveals it when the eye icon is pressed, in secure mode', () => {
-    let tree: ReactTestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       tree = ReactTestRenderer.create(
         <TextField label="Password" value="hunter2" onChangeText={jest.fn()} secureTextEntry testID="password-field" />
