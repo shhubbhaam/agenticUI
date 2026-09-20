@@ -1,6 +1,7 @@
 import React from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import LaunchpadScreen from '../screens/launchpad/LaunchpadScreen';
 import LoginScreen from '../screens/login/LoginScreen';
 import PathScreen from '../screens/path/PathScreen';
 import HomeScreen from '../screens/home/HomeScreen';
@@ -13,6 +14,7 @@ import YouScreen from '../screens/you/YouScreen';
 type TabScreenParams = { direction?: 'forward' | 'backward' } | undefined;
 
 export type RootStackParamList = {
+  Launchpad: undefined;
   Login: undefined;
   PathScreen: TabScreenParams;
   HomeScreen: TabScreenParams;
@@ -29,7 +31,8 @@ const tabScreenOptions = ({ route }: { route: { params?: TabScreenParams } }) =>
 export default function MainStack() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="HomeScreen" screenOptions={{headerShown: false}}>
+      <Stack.Navigator initialRouteName="Launchpad" screenOptions={{headerShown: false}}>
+        <Stack.Screen name="Launchpad" component={LaunchpadScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="PathScreen" component={PathScreen} options={tabScreenOptions} />
         <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
