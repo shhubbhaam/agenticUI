@@ -120,4 +120,25 @@ describe('useLoginFlow state machine', () => {
     act(() => { flow!.onSubmit(); });
     expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'HomeScreen' }] });
   });
+
+  it('clears a stale emailError when Test creds is used to fill the form', () => {
+    let flow: ReturnType<typeof useLoginFlow>;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />);
+    });
+
+    act(() => { flow!.onUseEmailInstead(); });
+    renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+
+    act(() => { flow!.onChangeEmail('not-an-email'); });
+    renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+    act(() => { flow!.onSubmit(); });
+    renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+    expect(flow!.emailError).toBe('Please enter a valid email address');
+
+    act(() => { flow!.onFillTestCreds(); });
+    renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+    expect(flow!.emailError).toBeUndefined();
+  });
 });

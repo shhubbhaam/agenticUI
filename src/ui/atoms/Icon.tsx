@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dumbbell, Play, LockKeyhole, Eye, EyeOff } from 'lucide-react-native';
+import { Dumbbell, Play, LockKeyhole, Eye, EyeOff, TriangleAlert } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 
 export type IconType =
@@ -8,6 +8,7 @@ export type IconType =
   | 'lock'
   | 'eye'
   | 'eye-off'
+  | 'warning'
   // Path screen redesign glyphs — hand-converted from the exact Figma-exported
   // SVGs (source: AI Launchpad — Mobile Design System, node 18:407/18:107/18:604).
   // No svg-transformer is configured in metro.config.js, so raw .svg files can't
@@ -72,6 +73,8 @@ export const Icon: React.FC<IconProps> = ({ name, color, size = 24 }) => {
       return <Eye size={size} color={color} strokeWidth={2} />;
     case 'eye-off':
       return <EyeOff size={size} color={color} strokeWidth={2} />;
+    case 'warning':
+      return <TriangleAlert size={size} color={color} strokeWidth={2} />;
     default: {
       const spec = FIGMA_PATHS[name];
       if (!spec) return null;

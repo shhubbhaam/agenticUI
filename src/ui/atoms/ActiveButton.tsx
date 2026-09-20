@@ -14,6 +14,10 @@ interface ActiveButtonProps {
   // approved source class "btn") — exact height/radius/ink per source tokens.
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
+  // Optional background color override for the 'primary' variant only.
+  // Leaves the shared purple fill (colors.action.lesson) untouched when
+  // omitted, so other primary-variant call sites are unaffected.
+  fillColor?: string;
 }
 
 export const ActiveButton: React.FC<ActiveButtonProps> = ({
@@ -22,6 +26,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
   icon,
   variant = 'primary',
   disabled = false,
+  fillColor,
 }) => {
   if (variant === 'secondary') {
     return (
@@ -61,7 +66,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
       disabled={disabled}
       style={[
         tw`flex-row items-center justify-center py-4 px-6 rounded-2xl w-full`,
-        { backgroundColor: colors.action.lesson, opacity: disabled ? 0.6 : 1 }
+        { backgroundColor: fillColor ?? colors.action.lesson, opacity: disabled ? 0.6 : 1 }
       ]}
     >
       {icon ? <Text style={tw`mr-2`}>{icon}</Text> : null}

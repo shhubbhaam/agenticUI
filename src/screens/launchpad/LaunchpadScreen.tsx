@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,7 +12,7 @@ export default function LaunchpadScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   return (
-    <SafeAreaView style={[tw`flex-1 items-center justify-center px-5`, { backgroundColor: colors.surface.canvas }]}>
+    <SafeAreaView style={[tw`flex-1 items-center justify-center px-5`, { backgroundColor: colors.surface.canvas }]} edges={['top']}>
       <View
         style={[
           tw`items-center justify-center rounded-3xl mb-5`,

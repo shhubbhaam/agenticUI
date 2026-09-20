@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { colors } from '../../ui/tokens/colors';
 import { typography } from '../../ui/tokens/typography';
@@ -47,7 +48,7 @@ export default function LoginScreen() {
   const flow = useLoginFlow();
 
   return (
-    <SafeAreaView style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
+    <SafeAreaView style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]} edges={['top']}>
       <ScrollView contentContainerStyle={tw`px-5 pt-9 pb-8`} keyboardShouldPersistTaps="handled">
         <View style={tw`flex-row items-center gap-2 mb-8`}>
           <View
@@ -122,7 +123,9 @@ export default function LoginScreen() {
                 secureTextEntry
               />
             )}
-            <GhostLink label="Test creds" onPress={flow.onFillTestCreds} compact />
+            {__DEV__ && (
+              <GhostLink label="Test creds" onPress={flow.onFillTestCreds} compact />
+            )}
             <View
               style={{
                 shadowColor: colors.action.primaryShadow,
@@ -137,6 +140,7 @@ export default function LoginScreen() {
                 label={flow.ctaLabel}
                 icon={<Icon name="arrow" color={colors.surface.white} size={18} />}
                 onPress={flow.onSubmit}
+                fillColor={colors.action.primary}
               />
             </View>
             <GhostLink label="Other sign-in options" onPress={flow.onBackToChoice} />

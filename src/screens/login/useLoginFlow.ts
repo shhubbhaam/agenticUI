@@ -94,6 +94,8 @@ export function useLoginFlow(): LoginFlowState {
   const onFillTestCreds = useCallback(() => {
     const creds = getTestCredentials();
     setEmail(creds.email);
+    setEmailError(undefined);
+    setPasswordError(undefined);
     if (showPasswordField) {
       setPassword(creds.password);
     }
