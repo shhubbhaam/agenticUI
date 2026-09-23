@@ -106,6 +106,9 @@ export default function LoginScreen() {
             <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.text.primary, ...typography.fontSize['type-20-alt'] }}>
               Welcome back.
             </Text>
+            {flow.formError && (
+              <Alert tone="warning" message={flow.formError} />
+            )}
             <TextField
               label="Email address"
               placeholder="you@example.com"
@@ -137,7 +140,8 @@ export default function LoginScreen() {
             >
               <ActiveButton
                 variant="primary"
-                label={flow.ctaLabel}
+                label={flow.isSubmitting ? 'Signing in…' : flow.ctaLabel}
+                disabled={flow.isSubmitting}
                 icon={<Icon name="arrow" color={colors.surface.white} size={18} />}
                 onPress={flow.onSubmit}
                 fillColor={colors.action.primary}

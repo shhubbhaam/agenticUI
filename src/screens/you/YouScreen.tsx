@@ -12,10 +12,12 @@ import { ActiveButton } from '../../ui/atoms/ActiveButton';
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
 import type { RootStackParamList } from '../../navigation/MainStack';
+import { useSessionStore } from '../../state/useSessionStore';
 
 export default function YouScreen() {
   const { tabs, onTabPress } = useTabNavigation('you');
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const signOut = useSessionStore((s) => s.signOut);
 
   return (
     <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
@@ -43,7 +45,16 @@ export default function YouScreen() {
           <ActiveButton
             variant="secondary"
             label="Log out"
-            onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}
+            onPress={() => {
+              signOut()
+                .catch(() => {
+                  // Best-effort — always land back on Login even if
+                  // clearing the local session hit an unexpected error.
+                })
+                .finally(() => {
+                  navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                });
+            }}
           />
         </View>
       </SafeAreaView>

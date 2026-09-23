@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MainStack from './src/navigation/MainStack';
+import { useSessionStore } from './src/state/useSessionStore';
 
 function App() {
+  useEffect(() => {
+    useSessionStore.getState().hydrate();
+  }, []);
+
   const [fontsLoaded] = useFonts({
     'PlusJakartaSans-Regular': require('./assets/fonts/PlusJakartaSans-Regular.ttf'),
     'PlusJakartaSans-Italic': require('./assets/fonts/PlusJakartaSans-Italic.ttf'),

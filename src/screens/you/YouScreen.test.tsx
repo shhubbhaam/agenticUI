@@ -11,6 +11,11 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ reset: mockReset }),
 }));
 
+const mockSignOut = jest.fn();
+jest.mock('../../state/useSessionStore', () => ({
+  useSessionStore: (selector: (state: unknown) => unknown) => selector({ signOut: mockSignOut }),
+}));
+
 const initialMetrics = {
   frame: { x: 0, y: 0, width: 0, height: 0 },
   insets: { top: 0, left: 0, right: 0, bottom: 0 },
@@ -40,12 +45,30 @@ function renderScreen() {
 }
 
 describe('YouScreen', () => {
-  it('renders a Log out button that resets navigation to Login', () => {
+  it('signs out and resets navigation to Login', async () => {
     mockReset.mockClear();
+    mockSignOut.mockReset().mockResolvedValue(undefined);
     const tree = renderScreen();
 
-    act(() => {
+    await act(async () => {
       pressByLabel(tree, 'Log out');
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSignOut).toHaveBeenCalled();
+    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'Login' }] });
+  });
+
+  it('still navigates to Login even if signOut rejects', async () => {
+    mockReset.mockClear();
+    mockSignOut.mockReset().mockRejectedValue(new Error('network error'));
+    const tree = renderScreen();
+
+    await act(async () => {
+      pressByLabel(tree, 'Log out');
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'Login' }] });
