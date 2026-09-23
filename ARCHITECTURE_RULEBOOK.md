@@ -160,6 +160,7 @@ src/
 | `ui/organisms/` | Whole recognizable sections | Generic: `BottomTabs`, `BackgroundAbstracts`. Domain: `home/HomeCard`, `home/HomeHeader`, `roadmap/PathHeader`, `roadmap/PathStagesList`, `roadmap/StageDetailPanel`, `lesson/ArticleCard`, `lesson/LessonCard`, `lesson/SlideCard` |
 | `data/learnhouse/` | Talks to the real LearnHouse backend (Section 2 rule 2, now built) | `client.ts` (fetch wrapper, typed `ApiError`), `schemas.ts` (Zod, validated at this boundary per Section 4.2), `authApi.ts` (login/oauth/session/logout), `secureToken.ts` (SecureStore-backed JWT storage) |
 | `state/` | Cross-cutting state owned by no single screen (Section 9, now built) | `useSessionStore.ts` — auth status + signed-in identity (user/org), Zustand + MMKV `persist` for the identity snapshot only |
+| `core/learning/` | Product meaning for courses/chapters/activities — zero React Native or network imports (Section 2, now built) | `types.ts` (`Course`/`Chapter`/`Activity` domain entities), `deriveProgress.ts` (pure status/streak/next-activity derivation) |
 
 **Known tech debt — don't copy these, they're inconsistencies to fix, not
 the convention:**
@@ -172,23 +173,25 @@ the convention:**
 
 ### The Clean Architecture layers — planned, not yet built
 
-`core/` and `providers/` still don't exist in the repo. They're still the
-intended direction once their specific trigger fires (Section 2) — but
-nothing today should import from these paths, and no screen should be
-written as though a repository or DI container already exists behind it.
+`providers/` still doesn't exist in the repo. It's still the intended
+direction once its specific trigger fires (Section 2) — but nothing today
+should import from this path, and no screen should be written as though a
+DI container already exists behind it.
 
 | Folder | Purpose (once built) |
 |---|---|
-| `core/learning/` | Product meaning — zero React Native or network imports, ever. `Lesson`, `LearningPathway`, `PathwayNode` entities + a `LearningRepository` interface |
 | `providers/` | Wiring, nothing else — DI container, `QueryProvider` (TanStack Query, once server data beyond auth/session exists) |
 
-`data/` and `state/` **are** built now — auth (login, Google OAuth
-exchange, `/users/session`) was the real backend/state need Section 2
-was waiting on. See `data/learnhouse/` and `state/useSessionStore.ts`
-in the table above. This doesn't pull `data/mock/` or TanStack Query
-forward with it — lesson/pathway content still has no backend, and
-still gets fetched or hardcoded directly where a screen needs it (see
-`HomeScreen.tsx`) until that specific need shows up too.
+`data/`, `state/`, and `core/learning/` **are** built now — auth (login,
+Google OAuth exchange, `/users/session`) was the backend/state need Section 2
+was waiting on, and course progress derivation (status, streak, next-activity
+logic from the LearnHouse endpoint) is the product-domain need now met. See
+`data/learnhouse/`, `state/useSessionStore.ts` in the table above, and
+`core/learning/types.ts` and `core/learning/deriveProgress.ts` in the folder
+structure. This doesn't pull `data/mock/` or TanStack Query forward with it —
+lesson/pathway content still has no backend, and still gets fetched or
+hardcoded directly where a screen needs it (see `HomeScreen.tsx`) until that
+specific need shows up too.
 
 ### The three rules that decide where anything new goes
 
@@ -643,7 +646,7 @@ re-litigated the day it's first needed.
 
 | Kind of state | Goes in | Example from this app |
 |---|---|---|
-| Server data | TanStack Query (not wired in yet) | lesson content, pathway progress from LearnHouse |
+| Server data | TanStack Query (wired in for course progress; lesson/pathway content still hardcoded) | course/chapter/activity progress from LearnHouse |
 | Global client state | Zustand (small, scoped) | `useSessionStore`: auth status, signed-in user + org (built); future: theme, XP/streak |
 | Local UI state | `useState` | which tab of `SegmentedControl` is active |
 | Complex multi-step workflow | State pattern / XState | assessment lifecycle, exercise submission |
