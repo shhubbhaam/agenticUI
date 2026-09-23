@@ -44,3 +44,44 @@ export type UserSession = z.infer<typeof userSessionSchema>;
 // validated against a real instance.
 export const authResponseSchema = z.record(z.string(), z.unknown());
 export type AuthResponse = z.infer<typeof authResponseSchema>;
+
+// Trail/progress response (GET /api/v1/admin/{org_slug}/trails/{user_id}) —
+// only the fields progressApi.ts's mapper actually consumes are required;
+// everything else the real API returns (published, teacher_verified,
+// grade, chapter_id, activity_id, activity_sub_type, ...) is simply not
+// declared here and ignored by .parse(), not rejected.
+export const trailActivitySchema = z.object({
+  activity_uuid: z.string(),
+  name: z.string(),
+  activity_type: z.string(),
+  order: z.number(),
+  completed: z.boolean(),
+  completed_at: z.string().nullable(),
+});
+
+export const trailChapterSchema = z.object({
+  chapter_uuid: z.string(),
+  name: z.string(),
+  order: z.number(),
+  total_activities: z.number(),
+  completed_activities: z.number(),
+  activities: z.array(trailActivitySchema),
+});
+
+export const trailCourseSchema = z.object({
+  course_uuid: z.string(),
+  course_name: z.string(),
+  status: z.string().nullable(),
+  enrolled_at: z.string().nullable(),
+  total_activities: z.number(),
+  completed_activities: z.number(),
+  completion_percentage: z.number(),
+  chapters: z.array(trailChapterSchema),
+});
+
+export const trailResponseSchema = z.object({
+  courses: z.array(trailCourseSchema),
+});
+
+export type TrailCourse = z.infer<typeof trailCourseSchema>;
+export type TrailResponse = z.infer<typeof trailResponseSchema>;
