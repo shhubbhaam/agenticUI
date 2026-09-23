@@ -141,10 +141,10 @@ src/
 │   └── learnhouse/            (real API client — login/session, Section 9's trigger fired)
 ├── state/
 │   └── useSessionStore.ts     (Zustand + MMKV — auth/session identity)
+├── core/
+│   └── learning/              (course/chapter/activity entities, progress derivation)
 │
 │  — not yet built, planned (see note above) —
-├── core/
-│   └── learning/
 └── providers/
 ```
 
@@ -236,11 +236,13 @@ real API access exists.
 ## 2. Decision tree — where does new code go?
 
 Ask these questions, in order, every time you're about to create a file.
-**Note on 1**: `core/` isn't built yet (Section 1) — code that would
-belong there today lives inline in the screen or a co-located hook,
-same accepted interim as before. `data/` and `state/` are now real
-(auth/session), but that doesn't change how you decide something new
-belongs there — still ask the same question each time.
+**Note on 1**: `core/learning/` is now built (Section 1, types and
+progress derivation), but the rest of `core/` (gamification, progression,
+repository interfaces) isn't yet — code that would belong in those modules
+today lives inline in the screen or a co-located hook, same accepted interim
+as before. `data/` and `state/` are now real (auth/session), but that doesn't
+change how you decide something new belongs there — still ask the same question
+each time.
 
 1. **Is this a fact about the product's meaning** (what a lesson is, how
    XP is computed, what "locked" means)? → `core/` (once built). No
