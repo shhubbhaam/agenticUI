@@ -3,6 +3,7 @@ import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MainStack from './src/navigation/MainStack';
 import { useSessionStore } from './src/state/useSessionStore';
+import { QueryProvider } from './src/providers/QueryProvider';
 
 function App() {
   useEffect(() => {
@@ -31,9 +32,11 @@ function App() {
   }
 
   return (
-    <SafeAreaProvider>
+    <QueryProvider>
+      <SafeAreaProvider>
         <MainStack />
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </QueryProvider>
   );
 }
 
