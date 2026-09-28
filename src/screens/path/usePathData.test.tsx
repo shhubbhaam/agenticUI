@@ -19,8 +19,10 @@ jest.mock('../../state/useSessionStore', () => ({
 }));
 
 const mockGetMyTrail = jest.fn();
-jest.mock('../../data/learnhouse/progressApi', () => ({
-  getMyTrail: (...args: unknown[]) => mockGetMyTrail(...args),
+const mockClearTrailCache = jest.fn();
+jest.mock('../../data/learnhouse/trailCache', () => ({
+  getMyTrailCached: (...args: unknown[]) => mockGetMyTrail(...args),
+  clearTrailCache: () => mockClearTrailCache(),
 }));
 
 function Harness({ onReady }: { onReady: (data: ReturnType<typeof usePathData>) => void }) {
@@ -94,6 +96,7 @@ const COURSE = {
 describe('usePathData', () => {
   beforeEach(() => {
     mockGetMyTrail.mockReset();
+    mockClearTrailCache.mockReset();
   });
 
   it('maps chapters to stages, activities to lessons, and computes course totals', async () => {
@@ -140,5 +143,21 @@ describe('usePathData', () => {
     await flushMicrotasks();
     updateRenderer();
     expect(data.status).toBe('error');
+  });
+
+  it('onRetry clears the shared trail cache before refetching', async () => {
+    mockGetMyTrail.mockRejectedValue(new Error('network error'));
+    let data!: ReturnType<typeof usePathData>;
+    const { updateRenderer } = setupTest((d) => { data = d; });
+    await flushMicrotasks();
+    updateRenderer();
+    expect(data.status).toBe('error');
+
+    await act(async () => {
+      data.onRetry();
+    });
+    await flushMicrotasks();
+    updateRenderer();
+    expect(mockClearTrailCache).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from '../../state/useSessionStore';
-import { getMyTrail } from '../../data/learnhouse/progressApi';
+import { getMyTrailCached, clearTrailCache } from '../../data/learnhouse/trailCache';
 import {
   selectActiveCourse,
   findCurrentChapter,
@@ -54,7 +54,7 @@ export function useHomeData(): HomeData {
   useEffect(() => {
     if (!identity) return;
     let cancelled = false;
-    getMyTrail(identity.orgSlug, identity.userId)
+    getMyTrailCached(identity.orgSlug, identity.userId)
       .then((result) => {
         if (!cancelled) setCourses(result);
       })
@@ -67,6 +67,7 @@ export function useHomeData(): HomeData {
   }, [identity, retryCount]);
 
   const onRetry = () => {
+    clearTrailCache();
     setError(false);
     setCourses(null);
     setRetryCount((c) => c + 1);

@@ -3,6 +3,7 @@ import { persist, createJSONStorage, type StateStorage } from 'zustand/middlewar
 import { createMMKV } from 'react-native-mmkv';
 import { loginWithPassword, exchangeGoogleToken, fetchSession, logout as apiLogout } from '../data/learnhouse/authApi';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../data/learnhouse/secureToken';
+import { clearTrailCache } from '../data/learnhouse/trailCache';
 import type { UserSession } from '../data/learnhouse/schemas';
 
 const storage = createMMKV({ id: 'session-store' });
@@ -114,6 +115,7 @@ export const useSessionStore = create<SessionState>()(
           await apiLogout(token);
         }
         await clearStoredToken();
+        clearTrailCache();
         set({ status: 'signedOut', identity: null });
       },
     }),
