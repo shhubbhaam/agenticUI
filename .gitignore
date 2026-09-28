@@ -218,3 +218,4 @@ vite.config.ts.timestamp-*
 .vite/
 
 .worktrees/
+.superpowers/
