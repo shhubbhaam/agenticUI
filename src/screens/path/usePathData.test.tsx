@@ -29,8 +29,12 @@ function Harness({ onReady }: { onReady: (data: ReturnType<typeof usePathData>) 
   return null;
 }
 
+let currentClient: QueryClient | undefined;
+let currentRenderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
 function setupTest(onReady: (data: ReturnType<typeof usePathData>) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  currentClient = client;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   act(() => {
     renderer = ReactTestRenderer.create(
@@ -39,6 +43,7 @@ function setupTest(onReady: (data: ReturnType<typeof usePathData>) => void) {
       </QueryClientProvider>
     );
   });
+  currentRenderer = renderer;
   const updateRenderer = () => {
     act(() => {
       renderer.update(
@@ -50,6 +55,15 @@ function setupTest(onReady: (data: ReturnType<typeof usePathData>) => void) {
   };
   return { renderer, updateRenderer };
 }
+
+afterEach(() => {
+  act(() => {
+    currentRenderer?.unmount();
+  });
+  currentClient?.clear();
+  currentRenderer = undefined;
+  currentClient = undefined;
+});
 
 async function flushMicrotasks() {
   await act(async () => {
@@ -114,6 +128,9 @@ describe('usePathData', () => {
     const [stage1, stage2] = data.stages;
     expect(stage1.status).toBe('completed');
     expect(stage2.status).toBe('current');
+    // Current stage's stageNumber gets the uppercase "· N OF M COMPLETE"
+    // suffix; non-current stages don't.
+    expect(stage2.stageNumber).toBe('STAGE 2 · 0 OF 2 COMPLETE');
     expect(stage2.lessons).toEqual([
       { id: 'activity-2', title: 'Read the brief', meta: 'Document', status: 'current', icon: 'file', size: 'large' },
       { id: 'activity-3', title: 'Submit worksheet', meta: 'Assignment', status: 'locked', icon: 'edit', size: 'default' },

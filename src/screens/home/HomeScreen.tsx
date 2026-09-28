@@ -48,6 +48,8 @@ export default function HomeScreen() {
           <Text style={bodyTextStyle}>You're not enrolled in a course yet — contact your organization.</Text>
         ) : homeData.status === 'loading' ? (
           <Text style={bodyTextStyle}>Loading your progress…</Text>
+        ) : homeData.status === 'complete' ? (
+          <Text style={bodyTextStyle}>You've completed {homeData.courseName}! 🎉</Text>
         ) : homeData.status === 'ready' && homeData.nextActivity ? (
           <HomeCard
             category={homeData.nextActivity.category}

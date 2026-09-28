@@ -40,14 +40,22 @@ export default function PathScreen() {
   return (
     <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
       <SafeAreaView style={tw`flex-1`} edges={['top']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={tw`pb-8 px-5`}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={tw`pb-8`}>
           {pathData.status === 'error' && (
-            <Alert tone="warning" message={pathData.errorMessage ?? 'Something went wrong.'} />
+            <View style={tw`px-5`}>
+              <Alert tone="warning" message={pathData.errorMessage ?? 'Something went wrong.'} />
+            </View>
           )}
           {pathData.status === 'empty' && (
-            <Text style={bodyTextStyle}>You're not enrolled in a course yet — contact your organization.</Text>
+            <View style={tw`px-5`}>
+              <Text style={bodyTextStyle}>You're not enrolled in a course yet — contact your organization.</Text>
+            </View>
           )}
-          {pathData.status === 'loading' && <Text style={bodyTextStyle}>Loading your path…</Text>}
+          {pathData.status === 'loading' && (
+            <View style={tw`px-5`}>
+              <Text style={bodyTextStyle}>Loading your path…</Text>
+            </View>
+          )}
           {pathData.status === 'ready' && (
             <>
               <PathHeader

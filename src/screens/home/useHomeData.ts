@@ -10,7 +10,7 @@ import {
 } from '../../core/learning/deriveProgress';
 import { activityTypeLabel } from '../../ui/atoms/activityDisplay';
 
-export type HomeDataStatus = 'loading' | 'error' | 'empty' | 'ready';
+export type HomeDataStatus = 'loading' | 'error' | 'empty' | 'ready' | 'complete';
 
 export interface HomeNextActivity {
   category: string;
@@ -24,6 +24,7 @@ export interface HomeData {
   status: HomeDataStatus;
   errorMessage: string | null;
   onRetry: () => void;
+  courseName: string;
   streakCount: number;
   currentStageTotal: number;
   currentStageCompleted: number;
@@ -33,6 +34,7 @@ export interface HomeData {
 }
 
 const EMPTY_FIELDS = {
+  courseName: '',
   streakCount: 0,
   currentStageTotal: 0,
   currentStageCompleted: 0,
@@ -74,11 +76,28 @@ export function useHomeData(): HomeData {
   const currentChapter = findCurrentChapter(course);
   const [first, second] = findNextActivities(course, 2);
 
+  if (!first) {
+    return {
+      username,
+      status: 'complete',
+      errorMessage: null,
+      onRetry,
+      courseName: course.courseName,
+      streakCount: computeStreak(allCompletionDates(course)),
+      currentStageTotal: currentChapter?.totalActivities ?? 0,
+      currentStageCompleted: currentChapter?.completedActivities ?? 0,
+      nextActivity: null,
+      secondNextActivityTitle: null,
+      secondNextActivitySubtitle: null,
+    };
+  }
+
   return {
     username,
     status: 'ready',
     errorMessage: null,
     onRetry,
+    courseName: course.courseName,
     streakCount: computeStreak(allCompletionDates(course)),
     currentStageTotal: currentChapter?.totalActivities ?? 0,
     currentStageCompleted: currentChapter?.completedActivities ?? 0,

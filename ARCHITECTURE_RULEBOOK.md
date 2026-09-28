@@ -108,10 +108,14 @@ domain-specific components ended up living directly inside the matching
 (`ui/organisms/home/`, `ui/molecules/roadmap/`), not in a separate
 `features/` tree. This section now documents that as the real
 convention, not the aspiration. The Clean Architecture layers
-(`core/`, `data/`, `state/`, `providers/`) are kept below, clearly
-marked **planned, not yet built** — that direction hasn't been dropped,
-it's just genuinely not implemented yet, and no code should be written
-today as if it already exists.
+(`core/`, `data/`, `state/`, `providers/`) are kept below — `core/learning/`,
+`data/`, `state/`, and `providers/` are all now built (auth/session, course
+progress, and the TanStack Query wiring that course progress needed all
+surfaced the real need for each of them). What's still genuinely not built
+is the rest of `core/` (gamification, progression), a real DI
+container/repository-interface layer inside `providers/`, and a backend for
+lesson/pathway content — no code should be written today as if those
+specifically already exist.
 
 Routing is a real difference too: this app uses **React Navigation**
 (`@react-navigation/native-stack`), not Expo Router — so there is no
@@ -138,14 +142,13 @@ src/
 │   └── organisms/
 │       └── <domain>/         (e.g. home/, roadmap/, lesson/)
 ├── data/
-│   └── learnhouse/            (real API client — login/session, Section 9's trigger fired)
+│   └── learnhouse/            (real API client — login/session, course progress, Section 9's trigger fired)
 ├── state/
 │   └── useSessionStore.ts     (Zustand + MMKV — auth/session identity)
 ├── core/
 │   └── learning/              (course/chapter/activity entities, progress derivation)
-│
-│  — not yet built, planned (see note above) —
 └── providers/
+    └── QueryProvider.tsx      (TanStack Query, wired in for course progress)
 ```
 
 ### What each folder is for, and what's actually in it right now
@@ -158,9 +161,22 @@ src/
 | `ui/atoms/` | Smallest reusable pieces | Generic: `ActiveButton`, `Icon`, `icons.tsx`, `FloatingScrollButton`. Domain (`ui/atoms/<domain>/`): `roadmap/Badge`, `roadmap/IconButton`, `roadmap/StageCrest`, `ai/AIFloatingButton` |
 | `ui/molecules/` | Small groupings of atoms doing one job | Generic: `ProgressBar`, `StatBadge`. Domain: `home/ActionFooter`, `home/NextStepCard`, `home/SectionTitle`, `roadmap/LessonStep`, `roadmap/OutcomeSummary`, `roadmap/PathProgressBar`, `roadmap/SegmentedControl`, `roadmap/StageRow`, `roadmap/StagesBehindSummary` |
 | `ui/organisms/` | Whole recognizable sections | Generic: `BottomTabs`, `BackgroundAbstracts`. Domain: `home/HomeCard`, `home/HomeHeader`, `roadmap/PathHeader`, `roadmap/PathStagesList`, `roadmap/StageDetailPanel`, `lesson/ArticleCard`, `lesson/LessonCard`, `lesson/SlideCard` |
-| `data/learnhouse/` | Talks to the real LearnHouse backend (Section 2 rule 2, now built) | `client.ts` (fetch wrapper, typed `ApiError`), `schemas.ts` (Zod, validated at this boundary per Section 4.2), `authApi.ts` (login/oauth/session/logout), `secureToken.ts` (SecureStore-backed JWT storage) |
+| `data/learnhouse/` | Talks to the real LearnHouse backend (Section 2 rule 2, now built) | `client.ts` (fetch wrapper, typed `ApiError`), `schemas.ts` (Zod, validated at this boundary per Section 4.2), `authApi.ts` (login/oauth/session/logout), `progressApi.ts` (course/chapter/activity progress, maps into `core/learning/types.ts`), `secureToken.ts` (SecureStore-backed JWT storage), `adminToken.ts` (testing-phase-only org API token — see isolation rule below) |
 | `state/` | Cross-cutting state owned by no single screen (Section 9, now built) | `useSessionStore.ts` — auth status + signed-in identity (user/org), Zustand + MMKV `persist` for the identity snapshot only |
-| `core/learning/` | Product meaning for courses/chapters/activities — zero React Native or network imports (Section 2, now built) | `types.ts` (`Course`/`Chapter`/`Activity` domain entities), `deriveProgress.ts` (pure status/streak/next-activity derivation) |
+| `core/learning/` | Product meaning for courses/chapters/activities — zero React Native or network imports (Section 2, now built) | `types.ts` (`CourseProgress`/`Chapter`/`Activity` domain entities — note the course-level type is `CourseProgress`, not `Course`), `deriveProgress.ts` (pure status/streak/next-activity derivation) |
+| `providers/` | Wiring, nothing else — DI container (not yet built), `QueryProvider` (now built) | `QueryProvider.tsx` — wraps the app in a `QueryClientProvider`, imported and used by `App.tsx` |
+
+**The admin-token isolation rule** (`data/learnhouse/adminToken.ts`): this
+reads an org-wide LearnHouse API token directly into the client bundle via
+`EXPO_PUBLIC_*`, which is plaintext-extractable from any installed build — a
+leaked copy grants read/write access to every user's progress in the entire
+org, not just this app's current user. Acceptable only because this app
+hasn't shipped to any store or real user yet. Two hard rules while that
+stays true: it is imported **only** by `progressApi.ts`, never merged into
+`client.ts`/`authApi.ts`, and it **must** be replaced by a backend-for-frontend
+(a server holding this token, exposing a user-scoped endpoint) before any
+real distribution. See the design spec's "The admin-token isolation" section
+for the full rationale.
 
 **Known tech debt — don't copy these, they're inconsistencies to fix, not
 the convention:**
@@ -171,27 +187,26 @@ the convention:**
   entirely. Per this section's own convention it belongs at
   `ui/organisms/roadmap/RoadmapHeader.tsx`.
 
-### The Clean Architecture layers — planned, not yet built
+### The Clean Architecture layers — mostly built now
 
-`providers/` still doesn't exist in the repo. It's still the intended
-direction once its specific trigger fires (Section 2) — but nothing today
-should import from this path, and no screen should be written as though a
-DI container already exists behind it.
+`data/`, `state/`, `core/learning/`, and `providers/` **are all built now** —
+auth (login, Google OAuth exchange, `/users/session`) was the backend/state
+need Section 2 was waiting on, course progress derivation (status, streak,
+next-activity logic from the LearnHouse endpoint) is the product-domain need
+now met, and `providers/QueryProvider.tsx` (TanStack Query) is wired into
+`App.tsx` to serve that course-progress data. See `data/learnhouse/`,
+`state/useSessionStore.ts`, `providers/QueryProvider.tsx` in the table above,
+and `core/learning/types.ts` and `core/learning/deriveProgress.ts` in the
+folder structure.
 
-| Folder | Purpose (once built) |
-|---|---|
-| `providers/` | Wiring, nothing else — DI container, `QueryProvider` (TanStack Query, once server data beyond auth/session exists) |
+| Folder | Purpose | Still missing |
+|---|---|---|
+| `providers/` | Wiring, nothing else. `QueryProvider` (TanStack Query) is built. | A DI container — nothing today should import as though one already exists behind this path. |
 
-`data/`, `state/`, and `core/learning/` **are** built now — auth (login,
-Google OAuth exchange, `/users/session`) was the backend/state need Section 2
-was waiting on, and course progress derivation (status, streak, next-activity
-logic from the LearnHouse endpoint) is the product-domain need now met. See
-`data/learnhouse/`, `state/useSessionStore.ts` in the table above, and
-`core/learning/types.ts` and `core/learning/deriveProgress.ts` in the folder
-structure. This doesn't pull `data/mock/` or TanStack Query forward with it —
-lesson/pathway content still has no backend, and still gets fetched or
-hardcoded directly where a screen needs it (see `HomeScreen.tsx`) until that
-specific need shows up too.
+This doesn't pull `data/mock/` forward with it, and it doesn't extend
+TanStack Query beyond course progress either — lesson/pathway content still
+has no backend, and still gets fetched or hardcoded directly wherever a
+screen needs it until that specific need shows up too.
 
 ### The three rules that decide where anything new goes
 
@@ -225,11 +240,15 @@ real future modules — but only once a "submit answer" / "complete
 lesson" flow actually needs them. Until then, those values are simply
 *given*, not derived.
 
-**A real backend doesn't exist yet.** `data/learnhouse/`,
-`data/schemas/`, and `data/mappers/` would all be written against a
-response shape nobody has actually inspected — that's guessing, not the
-validation Section 4.2 requires. `data/mock/` is what stands in until
-real API access exists.
+**A real backend exists now for auth and course progress — but not yet
+for lesson/pathway content.** `data/learnhouse/` already talks to the real
+LearnHouse backend for login/session (`authApi.ts`) and course/chapter/
+activity progress (`progressApi.ts`), validated with Zod (`schemas.ts`) per
+Section 4.2. Lesson and pathway *content* (lesson bodies, slides, path
+structure beyond progress numbers) is a different story: writing
+`data/schemas/` or `data/mappers/` for that content today would still be
+guessing at a response shape nobody has actually inspected. `data/mock/` is
+what stands in for that content until real API access for it exists.
 
 ---
 
@@ -639,11 +658,13 @@ components directly into the matching `ui/<tier>/<domain>/` subfolders
 **Partially built.** Zustand, MMKV, and SecureStore are now wired in —
 `state/useSessionStore.ts` (auth status + signed-in identity), backed by
 MMKV `persist` for the identity snapshot and SecureStore for the JWT
-(Section 9.1). TanStack Query, SQLite, and React Hook Form are still not
-wired in — there's no server content or forms yet that need them. All
-other state in the app (e.g. `useTabNavigation`) remains plain React
-state/hooks. This section documents where each kind goes once its real
-need exists, so the decision is made once, in advance, rather than
+(Section 9.1). TanStack Query is now wired in too, for course progress
+(`providers/QueryProvider.tsx`, consumed by `useHomeData`/`usePathData`) —
+but not for anything beyond that yet. SQLite and React Hook Form are still
+not wired in — there's no offline/structured local data or forms yet that
+need them. All other state in the app (e.g. `useTabNavigation`) remains
+plain React state/hooks. This section documents where each kind goes once
+its real need exists, so the decision is made once, in advance, rather than
 re-litigated the day it's first needed.
 
 | Kind of state | Goes in | Example from this app |
