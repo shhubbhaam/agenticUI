@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useSessionStore } from '../../state/useSessionStore';
 import { getMyTrail } from '../../data/learnhouse/progressApi';
 import {
@@ -9,6 +9,7 @@ import {
   computeStreak,
 } from '../../core/learning/deriveProgress';
 import { activityTypeLabel } from '../../ui/atoms/activityDisplay';
+import type { CourseProgress } from '../../core/learning/types';
 
 export type HomeDataStatus = 'loading' | 'error' | 'empty' | 'ready' | 'complete';
 
@@ -45,20 +46,36 @@ const EMPTY_FIELDS = {
 
 export function useHomeData(): HomeData {
   const identity = useSessionStore((s) => s.identity);
-  const query = useQuery({
-    queryKey: ['myTrail', identity?.orgSlug, identity?.userId],
-    queryFn: () => getMyTrail(identity!.orgSlug, identity!.userId),
-    enabled: !!identity,
-  });
+  const [courses, setCourses] = useState<CourseProgress[] | null>(null);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const username = identity?.fullName.split(' ')[0] ?? '';
+
+  useEffect(() => {
+    if (!identity) return;
+    let cancelled = false;
+    getMyTrail(identity.orgSlug, identity.userId)
+      .then((result) => {
+        if (!cancelled) setCourses(result);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [identity, retryCount]);
+
   const onRetry = () => {
-    query.refetch();
+    setError(false);
+    setCourses(null);
+    setRetryCount((c) => c + 1);
   };
 
-  if (query.isPending) {
+  if (!identity || (courses === null && !error)) {
     return { username, status: 'loading', errorMessage: null, onRetry, ...EMPTY_FIELDS };
   }
-  if (query.isError) {
+  if (error) {
     return {
       username,
       status: 'error',
@@ -68,7 +85,7 @@ export function useHomeData(): HomeData {
     };
   }
 
-  const course = selectActiveCourse(query.data);
+  const course = selectActiveCourse(courses!);
   if (!course) {
     return { username, status: 'empty', errorMessage: null, onRetry, ...EMPTY_FIELDS };
   }

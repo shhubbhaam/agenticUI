@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { usePathData } from './usePathData';
 
 jest.mock('../../state/useSessionStore', () => ({
@@ -29,28 +28,17 @@ function Harness({ onReady }: { onReady: (data: ReturnType<typeof usePathData>) 
   return null;
 }
 
-let currentClient: QueryClient | undefined;
 let currentRenderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
 function setupTest(onReady: (data: ReturnType<typeof usePathData>) => void) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  currentClient = client;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = ReactTestRenderer.create(
-      <QueryClientProvider client={client}>
-        <Harness onReady={onReady} />
-      </QueryClientProvider>
-    );
+    renderer = ReactTestRenderer.create(<Harness onReady={onReady} />);
   });
   currentRenderer = renderer;
   const updateRenderer = () => {
     act(() => {
-      renderer.update(
-        <QueryClientProvider client={client}>
-          <Harness onReady={onReady} />
-        </QueryClientProvider>
-      );
+      renderer.update(<Harness onReady={onReady} />);
     });
   };
   return { renderer, updateRenderer };
@@ -60,9 +48,7 @@ afterEach(() => {
   act(() => {
     currentRenderer?.unmount();
   });
-  currentClient?.clear();
   currentRenderer = undefined;
-  currentClient = undefined;
 });
 
 async function flushMicrotasks() {
@@ -116,7 +102,6 @@ describe('usePathData', () => {
     const { updateRenderer } = setupTest((d) => { data = d; });
     await flushMicrotasks();
     updateRenderer();
-    await flushMicrotasks();
 
     expect(data.status).toBe('ready');
     expect(data.courseName).toBe('Applied AI');
@@ -144,18 +129,16 @@ describe('usePathData', () => {
     const { updateRenderer } = setupTest((d) => { data = d; });
     await flushMicrotasks();
     updateRenderer();
-    await flushMicrotasks();
     expect(data.status).toBe('empty');
     expect(data.stages).toEqual([]);
   });
 
-  it('returns error status when the query rejects', async () => {
+  it('returns error status when the fetch rejects', async () => {
     mockGetMyTrail.mockRejectedValue(new Error('network error'));
     let data!: ReturnType<typeof usePathData>;
     const { updateRenderer } = setupTest((d) => { data = d; });
     await flushMicrotasks();
     updateRenderer();
-    await flushMicrotasks();
     expect(data.status).toBe('error');
   });
 });

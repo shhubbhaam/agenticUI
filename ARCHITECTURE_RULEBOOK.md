@@ -109,13 +109,16 @@ domain-specific components ended up living directly inside the matching
 `features/` tree. This section now documents that as the real
 convention, not the aspiration. The Clean Architecture layers
 (`core/`, `data/`, `state/`, `providers/`) are kept below — `core/learning/`,
-`data/`, `state/`, and `providers/` are all now built (auth/session, course
-progress, and the TanStack Query wiring that course progress needed all
-surfaced the real need for each of them). What's still genuinely not built
-is the rest of `core/` (gamification, progression), a real DI
-container/repository-interface layer inside `providers/`, and a backend for
-lesson/pathway content — no code should be written today as if those
-specifically already exist.
+`data/`, and `state/` are now built (auth/session and course progress
+surfaced the real need for each of them). `providers/` is not built —
+course progress is fetched with a plain `useEffect`/`useState` in each
+screen's headless hook, not a shared query layer (a deliberate
+simplification; the earlier TanStack Query provider was tried and removed
+as over-engineered for what's needed right now). What's still genuinely
+not built is the rest of `core/` (gamification, progression), any DI
+container/repository-interface layer, and a backend for lesson/pathway
+content — no code should be written today as if those specifically
+already exist.
 
 Routing is a real difference too: this app uses **React Navigation**
 (`@react-navigation/native-stack`), not Expo Router — so there is no
@@ -147,8 +150,9 @@ src/
 │   └── useSessionStore.ts     (Zustand + MMKV — auth/session identity)
 ├── core/
 │   └── learning/              (course/chapter/activity entities, progress derivation)
+│
+│  — not yet built, planned (see note above) —
 └── providers/
-    └── QueryProvider.tsx      (TanStack Query, wired in for course progress)
 ```
 
 ### What each folder is for, and what's actually in it right now
@@ -164,7 +168,6 @@ src/
 | `data/learnhouse/` | Talks to the real LearnHouse backend (Section 2 rule 2, now built) | `client.ts` (fetch wrapper, typed `ApiError`), `schemas.ts` (Zod, validated at this boundary per Section 4.2), `authApi.ts` (login/oauth/session/logout), `progressApi.ts` (course/chapter/activity progress, maps into `core/learning/types.ts`), `secureToken.ts` (SecureStore-backed JWT storage), `adminToken.ts` (testing-phase-only org API token — see isolation rule below) |
 | `state/` | Cross-cutting state owned by no single screen (Section 9, now built) | `useSessionStore.ts` — auth status + signed-in identity (user/org), Zustand + MMKV `persist` for the identity snapshot only |
 | `core/learning/` | Product meaning for courses/chapters/activities — zero React Native or network imports (Section 2, now built) | `types.ts` (`CourseProgress`/`Chapter`/`Activity` domain entities — note the course-level type is `CourseProgress`, not `Course`), `deriveProgress.ts` (pure status/streak/next-activity derivation) |
-| `providers/` | Wiring, nothing else — DI container (not yet built), `QueryProvider` (now built) | `QueryProvider.tsx` — wraps the app in a `QueryClientProvider`, imported and used by `App.tsx` |
 
 **The admin-token isolation rule** (`data/learnhouse/adminToken.ts`): this
 reads an org-wide LearnHouse API token directly into the client bundle via
@@ -187,26 +190,37 @@ the convention:**
   entirely. Per this section's own convention it belongs at
   `ui/organisms/roadmap/RoadmapHeader.tsx`.
 
-### The Clean Architecture layers — mostly built now
+### The Clean Architecture layers — partially built now
 
-`data/`, `state/`, `core/learning/`, and `providers/` **are all built now** —
-auth (login, Google OAuth exchange, `/users/session`) was the backend/state
-need Section 2 was waiting on, course progress derivation (status, streak,
-next-activity logic from the LearnHouse endpoint) is the product-domain need
-now met, and `providers/QueryProvider.tsx` (TanStack Query) is wired into
-`App.tsx` to serve that course-progress data. See `data/learnhouse/`,
-`state/useSessionStore.ts`, `providers/QueryProvider.tsx` in the table above,
-and `core/learning/types.ts` and `core/learning/deriveProgress.ts` in the
-folder structure.
+`data/`, `state/`, and `core/learning/` **are built now** — auth (login,
+Google OAuth exchange, `/users/session`) was the backend/state need
+Section 2 was waiting on, and course progress derivation (status, streak,
+next-activity logic from the LearnHouse endpoint) is the product-domain
+need now met. See `data/learnhouse/`, `state/useSessionStore.ts` in the
+table above, and `core/learning/types.ts` and `core/learning/deriveProgress.ts`
+in the folder structure.
+
+`providers/` is **not** built. A TanStack Query provider was built and
+wired in briefly to serve course-progress data to `useHomeData`/
+`usePathData`, then deliberately removed — it added a real layer of
+machinery (a shared query client, cache keys, provider nesting, a whole
+extra test-teardown concern) for a screen-count and API-call-volume that
+didn't need it yet. `useHomeData.ts`/`usePathData.ts` now fetch with a
+plain `useEffect`/`useState` each, independently — the trade-off is that
+navigating between Home and Path re-fetches each time rather than sharing
+one cached result, which is an accepted cost for now, not an oversight.
+If a real need for shared/cached server state resurfaces (more screens
+consuming the same data, or a real performance cost from the duplicate
+fetches), TanStack Query is still the documented choice in Section 9 — it
+just isn't wired in today.
 
 | Folder | Purpose | Still missing |
 |---|---|---|
-| `providers/` | Wiring, nothing else. `QueryProvider` (TanStack Query) is built. | A DI container — nothing today should import as though one already exists behind this path. |
+| `providers/` | Wiring, nothing else — DI container, and (if the need resurfaces) a shared server-state client. | The whole folder — nothing today should import as though anything exists behind this path. |
 
-This doesn't pull `data/mock/` forward with it, and it doesn't extend
-TanStack Query beyond course progress either — lesson/pathway content still
-has no backend, and still gets fetched or hardcoded directly wherever a
-screen needs it until that specific need shows up too.
+This doesn't pull `data/mock/` forward with it — lesson/pathway content
+still has no backend, and still gets fetched or hardcoded directly
+wherever a screen needs it until that specific need shows up too.
 
 ### The three rules that decide where anything new goes
 
@@ -658,18 +672,21 @@ components directly into the matching `ui/<tier>/<domain>/` subfolders
 **Partially built.** Zustand, MMKV, and SecureStore are now wired in —
 `state/useSessionStore.ts` (auth status + signed-in identity), backed by
 MMKV `persist` for the identity snapshot and SecureStore for the JWT
-(Section 9.1). TanStack Query is now wired in too, for course progress
-(`providers/QueryProvider.tsx`, consumed by `useHomeData`/`usePathData`) —
-but not for anything beyond that yet. SQLite and React Hook Form are still
-not wired in — there's no offline/structured local data or forms yet that
-need them. All other state in the app (e.g. `useTabNavigation`) remains
-plain React state/hooks. This section documents where each kind goes once
-its real need exists, so the decision is made once, in advance, rather than
-re-litigated the day it's first needed.
+(Section 9.1). TanStack Query is **not** wired in — it was tried for course
+progress (`useHomeData`/`usePathData`) and deliberately removed in favor of
+plain `useEffect`/`useState` fetching per screen, since a shared query
+cache wasn't worth its complexity yet (see Section 1's "Clean Architecture
+layers" note). It remains the documented destination for server data if a
+real need for shared/cached state resurfaces. SQLite and React Hook Form
+are also still not wired in — there's no offline/structured local data or
+forms yet that need them. All other state in the app (e.g.
+`useTabNavigation`) remains plain React state/hooks. This section documents
+where each kind goes once its real need exists, so the decision is made
+once, in advance, rather than re-litigated the day it's first needed.
 
 | Kind of state | Goes in | Example from this app |
 |---|---|---|
-| Server data | TanStack Query (wired in for course progress; lesson/pathway content still hardcoded) | course/chapter/activity progress from LearnHouse |
+| Server data | TanStack Query (not wired in — course progress currently fetched with plain useEffect/useState instead; see Section 1) | course/chapter/activity progress from LearnHouse |
 | Global client state | Zustand (small, scoped) | `useSessionStore`: auth status, signed-in user + org (built); future: theme, XP/streak |
 | Local UI state | `useState` | which tab of `SegmentedControl` is active |
 | Complex multi-step workflow | State pattern / XState | assessment lifecycle, exercise submission |

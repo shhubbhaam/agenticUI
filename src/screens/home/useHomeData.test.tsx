@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useHomeData } from './useHomeData';
 
 jest.mock('../../state/useSessionStore', () => ({
@@ -29,28 +28,17 @@ function Harness({ onReady }: { onReady: (data: ReturnType<typeof useHomeData>) 
   return null;
 }
 
-let currentClient: QueryClient | undefined;
 let currentRenderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
 function setupTest(onReady: (data: ReturnType<typeof useHomeData>) => void) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  currentClient = client;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = ReactTestRenderer.create(
-      <QueryClientProvider client={client}>
-        <Harness onReady={onReady} />
-      </QueryClientProvider>
-    );
+    renderer = ReactTestRenderer.create(<Harness onReady={onReady} />);
   });
   currentRenderer = renderer;
   const updateRenderer = () => {
     act(() => {
-      renderer.update(
-        <QueryClientProvider client={client}>
-          <Harness onReady={onReady} />
-        </QueryClientProvider>
-      );
+      renderer.update(<Harness onReady={onReady} />);
     });
   };
   return { renderer, updateRenderer };
@@ -60,9 +48,7 @@ afterEach(() => {
   act(() => {
     currentRenderer?.unmount();
   });
-  currentClient?.clear();
   currentRenderer = undefined;
-  currentClient = undefined;
 });
 
 async function flushMicrotasks() {
@@ -143,12 +129,9 @@ describe('useHomeData', () => {
     mockGetMyTrail.mockReset();
   });
 
-  it('returns loading status with the username already available before the query resolves', async () => {
-    // Settled at the end of the test (not left permanently pending): an
-    // in-flight query left unresolved when the test ends leaks past
-    // afterEach's unmount/clear into TanStack Query's retry/gc machinery,
-    // which is exactly the kind of leaked timer this suite's teardown is
-    // meant to prevent.
+  it('returns loading status with the username already available before the fetch resolves', async () => {
+    // Settled at the end of the test (not left permanently pending), so an
+    // in-flight fetch doesn't leak past afterEach's unmount into a later test.
     let resolveTrail!: (value: unknown[]) => void;
     mockGetMyTrail.mockReturnValue(new Promise((resolve) => { resolveTrail = resolve; }));
     let data!: ReturnType<typeof useHomeData>;
@@ -165,7 +148,6 @@ describe('useHomeData', () => {
     const { updateRenderer } = setupTest((d) => { data = d; });
     await flushMicrotasks();
     updateRenderer();
-    await flushMicrotasks();
     expect(data.status).toBe('ready');
     // Current-chapter totals (chapter 2: 2 total / 1 completed), not the
     // whole course's totals (3 total / 2 completed) — proves chapter-level
@@ -187,18 +169,16 @@ describe('useHomeData', () => {
     const { updateRenderer } = setupTest((d) => { data = d; });
     await flushMicrotasks();
     updateRenderer();
-    await flushMicrotasks();
     expect(data.status).toBe('empty');
     expect(data.nextActivity).toBeNull();
   });
 
-  it('returns error status when the query rejects', async () => {
+  it('returns error status when the fetch rejects', async () => {
     mockGetMyTrail.mockRejectedValue(new Error('network error'));
     let data!: ReturnType<typeof useHomeData>;
     const { updateRenderer } = setupTest((d) => { data = d; });
     await flushMicrotasks();
     updateRenderer();
-    await flushMicrotasks();
     expect(data.status).toBe('error');
     expect(data.errorMessage).toBe("We couldn't load your progress. Please try again.");
   });
@@ -209,7 +189,6 @@ describe('useHomeData', () => {
     const { updateRenderer } = setupTest((d) => { data = d; });
     await flushMicrotasks();
     updateRenderer();
-    await flushMicrotasks();
     expect(data.status).toBe('complete');
     expect(data.courseName).toBe('Finished Course');
   });

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useSessionStore } from '../../state/useSessionStore';
 import { getMyTrail } from '../../data/learnhouse/progressApi';
 import {
@@ -10,6 +10,7 @@ import {
 import { activityTypeLabel, activityIcon } from '../../ui/atoms/activityDisplay';
 import type { PathStageData } from '../../ui/molecules/roadmap/types';
 import type { StageTone } from '../../ui/atoms/roadmap/StageCrest';
+import type { CourseProgress } from '../../core/learning/types';
 
 export type PathDataStatus = 'loading' | 'error' | 'empty' | 'ready';
 
@@ -38,19 +39,35 @@ const EMPTY_FIELDS = {
 
 export function usePathData(): PathData {
   const identity = useSessionStore((s) => s.identity);
-  const query = useQuery({
-    queryKey: ['myTrail', identity?.orgSlug, identity?.userId],
-    queryFn: () => getMyTrail(identity!.orgSlug, identity!.userId),
-    enabled: !!identity,
-  });
+  const [courses, setCourses] = useState<CourseProgress[] | null>(null);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (!identity) return;
+    let cancelled = false;
+    getMyTrail(identity.orgSlug, identity.userId)
+      .then((result) => {
+        if (!cancelled) setCourses(result);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [identity, retryCount]);
+
   const onRetry = () => {
-    query.refetch();
+    setError(false);
+    setCourses(null);
+    setRetryCount((c) => c + 1);
   };
 
-  if (query.isPending) {
+  if (!identity || (courses === null && !error)) {
     return { status: 'loading', errorMessage: null, onRetry, ...EMPTY_FIELDS };
   }
-  if (query.isError) {
+  if (error) {
     return {
       status: 'error',
       errorMessage: "We couldn't load your progress. Please try again.",
@@ -59,7 +76,7 @@ export function usePathData(): PathData {
     };
   }
 
-  const course = selectActiveCourse(query.data);
+  const course = selectActiveCourse(courses!);
   if (!course) {
     return { status: 'empty', errorMessage: null, onRetry, ...EMPTY_FIELDS };
   }
