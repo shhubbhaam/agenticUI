@@ -29,6 +29,7 @@ export const StageDetailPanel: React.FC<StageDetailPanelProps> = ({
 }) => {
   const panel = colors.path.panel[stage.tone];
   const isCurrent = stage.status === 'current';
+  const isLocked = stage.status === 'locked';
 
   return (
     <View
@@ -38,7 +39,7 @@ export const StageDetailPanel: React.FC<StageDetailPanelProps> = ({
       ]}
     >
       <View style={[tw`flex-row items-center`, { gap: 13 }]}>
-        <StageCrest tone={stage.tone} icon={stage.icon} size="lg" />
+        <StageCrest tone={stage.tone} icon={stage.icon} size="lg" locked={isLocked} />
         <View style={tw`flex-1`}>
           <Text
             style={{
@@ -62,6 +63,19 @@ export const StageDetailPanel: React.FC<StageDetailPanelProps> = ({
           >
             {stage.title}
           </Text>
+          {isLocked && !!stage.subtitleCollapsed && (
+            // Preview only — remind the learner why the lessons aren't open yet.
+            <Text
+              style={{
+                fontFamily: typography.fontFamily.jakarta,
+                color: panel.ink,
+                marginTop: 2,
+                ...typography.fontSize['type-12-alt'],
+              }}
+            >
+              {stage.subtitleCollapsed}
+            </Text>
+          )}
         </View>
       </View>
 

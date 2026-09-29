@@ -1,163 +1,112 @@
 // src/screens/path/PathScreen.tsx
-import React, { useState } from 'react';
-import { View, ScrollView } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, ScrollView, ActivityIndicator, Text, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { colors } from '../../ui/tokens/colors';
 import { PathHeader } from '../../ui/organisms/roadmap/PathHeader';
 import { PathStagesList } from '../../ui/organisms/roadmap/PathStagesList';
-import { PathStageData } from '../../ui/molecules/roadmap/types';
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
-
-const STAGES: PathStageData[] = [
-  {
-    id: 'stage-01',
-    stageNumber: 'STAGE 01',
-    title: 'AI Foundations',
-    subtitleCollapsed: '8 of 8 complete',
-    tone: 'indigo',
-    icon: 'blocks',
-    status: 'completed',
-    reviewCtaLabel: 'Return to current stage',
-    lessons: [
-      { id: 's1-l1', title: 'What large language models do', meta: 'Completed · ready to revisit', status: 'completed', icon: 'check' },
-      { id: 's1-l2', title: 'Prompts, tokens & context', meta: 'Completed · ready to revisit', status: 'completed', icon: 'check' },
-    ],
-  },
-  {
-    id: 'stage-02',
-    stageNumber: 'STAGE 02',
-    title: 'Prompting at Work',
-    subtitleCollapsed: '9 of 9 complete · 2 to revisit',
-    tone: 'teal',
-    icon: 'brief',
-    status: 'completed',
-    description: 'A good prompt starts with a clear brief.',
-    badgeLabel: '9 of 9 complete',
-    reviewCtaLabel: 'Return to current stage',
-    lessons: [
-      { id: 's2-l1', title: 'Ask for the shape of the answer', meta: 'Completed · ready to revisit', status: 'completed', icon: 'check' },
-      { id: 's2-l2', title: 'Rewriting a weak prompt', meta: 'Due for review', status: 'due', icon: 'headphones' },
-      { id: 's2-l3', title: 'Prompt patterns at work', meta: 'Completed · ready to revisit', status: 'completed', icon: 'check' },
-      { id: 's2-l4', title: 'Your first reusable brief', meta: 'Due for review', status: 'due', icon: 'file' },
-      { id: 's2-l5', title: 'Stage check', meta: 'Completed · ready to revisit', status: 'completed', icon: 'check' },
-    ],
-  },
-  {
-    id: 'stage-03',
-    stageNumber: 'STAGE 03 · 4 OF 9 COMPLETE',
-    title: 'Working with Context',
-    subtitleCollapsed: '4 of 9 complete',
-    tone: 'plum',
-    icon: 'layers',
-    status: 'current',
-    description: 'Build a brief that gives AI what it needs.',
-    historyText: '4 lessons completed · Review',
-    optionalBranchLabel: 'Flashcards · optional',
-    outcome: { title: 'Something you can use.', text: 'Your own cost-per-report brief' },
-    lessons: [
-      { id: 's3-l1', title: 'Context windows, plainly', meta: 'Article · ~4 min left', status: 'current', icon: 'file', size: 'large' },
-      { id: 's3-l2', title: 'What tokens cost', meta: 'Slides', status: 'locked', icon: 'slides' },
-      { id: 's3-l3', title: 'Your cost-per-report brief', meta: 'Worksheet', status: 'locked', icon: 'edit' },
-    ],
-  },
-  {
-    id: 'stage-04',
-    stageNumber: 'STAGE 04',
-    title: 'Workflow Automation',
-    subtitleCollapsed: 'Opens after Working with Context',
-    tone: 'plum',
-    icon: 'workflow',
-    status: 'locked',
-  },
-  {
-    id: 'stage-05',
-    stageNumber: 'STAGE 05',
-    title: 'AI Agents',
-    subtitleCollapsed: '8 lessons ahead',
-    tone: 'plum',
-    icon: 'agents',
-    status: 'locked',
-  },
-  {
-    id: 'stage-06',
-    stageNumber: 'STAGE 06',
-    title: 'Data & Privacy Basics',
-    subtitleCollapsed: '7 lessons ahead',
-    tone: 'plum',
-    icon: 'shield',
-    status: 'locked',
-  },
-  {
-    id: 'stage-07',
-    stageNumber: 'STAGE 07',
-    title: 'Measuring Value',
-    subtitleCollapsed: '8 lessons ahead',
-    tone: 'plum',
-    icon: 'chart',
-    status: 'locked',
-  },
-  {
-    id: 'stage-08',
-    stageNumber: 'CAPSTONE',
-    title: 'Marketing Copilot',
-    subtitleCollapsed: '4 lessons ahead',
-    tone: 'plum',
-    icon: 'capstone',
-    status: 'locked',
-  },
-];
-
-const DEFAULT_EXPANDED_ID = STAGES.find((stage) => stage.status === 'current')?.id ?? null;
+import { usePathData } from './usePathData';
 
 export default function PathScreen() {
   const { tabs, onTabPress } = useTabNavigation('path');
   const [view, setView] = useState('Map');
-  const [expandedStageId, setExpandedStageId] = useState<string | null>(DEFAULT_EXPANDED_ID);
+  const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
 
-  const totalLessons = 62;
-  const completedLessons = 21;
-  const percent = Math.round((completedLessons / totalLessons) * 100);
+  const { status, data, error, refreshing, refresh, retry } = usePathData();
+
+  // Open the current stage once, the first time data arrives.
+  const didAutoExpand = useRef(false);
+  useEffect(() => {
+    if (data && !didAutoExpand.current) {
+      didAutoExpand.current = true;
+      setExpandedStageId(data.currentStageId);
+    }
+  }, [data]);
 
   const handleStagePress = (stageId: string) => {
     setExpandedStageId((current) => (current === stageId ? null : stageId));
   };
 
+  const tabBar = (
+    <BottomTabs
+      tabs={tabs}
+      activeTab="path"
+      onTabPress={onTabPress}
+      reserveSlot
+      activeColor={colors.action.primary}
+      inactiveColor={colors.text.muted}
+    />
+  );
+
+  // First load, or a hard failure with nothing to show yet.
+  if (!data) {
+    return (
+      <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
+        <SafeAreaView style={tw`flex-1 items-center justify-center px-8`} edges={['top']}>
+          {status === 'error' ? (
+            <>
+              <Text style={[tw`text-base text-center mb-2`, { color: colors.text.body }]}>
+                Couldn't load your path.
+              </Text>
+              <Text style={[tw`text-xs text-center mb-4`, { color: colors.text.muted }]}>{error}</Text>
+              <Pressable
+                onPress={retry}
+                style={[tw`px-5 py-2 rounded-full`, { backgroundColor: colors.action.primary }]}
+              >
+                <Text style={tw`text-white font-semibold`}>Try again</Text>
+              </Pressable>
+            </>
+          ) : (
+            <ActivityIndicator color={colors.action.primary} />
+          )}
+        </SafeAreaView>
+        {tabBar}
+      </View>
+    );
+  }
+
   return (
     <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
       <SafeAreaView style={tw`flex-1`} edges={['top']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={tw`pb-8`}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={tw`pb-8`}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.action.primary} />
+          }
+        >
+          {status === 'error' && (
+            // Refresh failed but we still have the last good data.
+            <Text style={[tw`text-xs text-center py-2`, { color: colors.text.muted }]}>
+              Couldn't refresh — showing last loaded progress.
+            </Text>
+          )}
           <PathHeader
             title="Your next chapter."
-            subtitle="Marketing Manager → AI Workflow Builder"
-            completedLessons={completedLessons}
-            totalLessons={totalLessons}
-            percent={percent}
+            subtitle={data.subtitle}
+            completedLessons={data.completedLessons}
+            totalLessons={data.totalLessons}
+            percent={data.percent}
             view={view}
             onViewChange={setView}
             onWholeJourneyPress={() => setExpandedStageId(null)}
           />
           <PathStagesList
-            stages={STAGES}
+            stages={data.stages}
             expandedStageId={expandedStageId}
             onStagePress={handleStagePress}
-            onReviewCtaPress={() => setExpandedStageId(DEFAULT_EXPANDED_ID)}
-            onOutcomeCtaPress={() => console.log('Continue current stage')}
+            onReviewCtaPress={() => setExpandedStageId(data.currentStageId)}
+            onOutcomeCtaPress={() => console.log('Continue current stage', data.currentActivityUuid)}
             onOptionalBranchPress={() => console.log('Open flashcards')}
-            onLessonContinuePress={() => console.log('Continue lesson')}
+            onLessonContinuePress={() => console.log('Continue lesson', data.currentActivityUuid)}
           />
         </ScrollView>
       </SafeAreaView>
-      <BottomTabs
-        tabs={tabs}
-        activeTab="path"
-        onTabPress={onTabPress}
-        reserveSlot
-        activeColor={colors.action.primary}
-        inactiveColor={colors.text.muted}
-      />
+      {tabBar}
     </View>
   );
 }
