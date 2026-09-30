@@ -43,31 +43,7 @@ export default function PathScreen() {
   );
 
   // First load, or a hard failure with nothing to show yet.
-  if (!data) {
-    return (
-      <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
-        <SafeAreaView style={tw`flex-1 items-center justify-center px-8`} edges={['top']}>
-          {status === 'error' ? (
-            <>
-              <Text style={[tw`text-base text-center mb-2`, { color: colors.text.body }]}>
-                Couldn't load your path.
-              </Text>
-              <Text style={[tw`text-xs text-center mb-4`, { color: colors.text.muted }]}>{error}</Text>
-              <Pressable
-                onPress={retry}
-                style={[tw`px-5 py-2 rounded-full`, { backgroundColor: colors.action.primary }]}
-              >
-                <Text style={tw`text-white font-semibold`}>Try again</Text>
-              </Pressable>
-            </>
-          ) : (
-            <ActivityIndicator color={colors.action.primary} />
-          )}
-        </SafeAreaView>
-        {tabBar}
-      </View>
-    );
-  }
+ if (!data) return null;
 
   return (
     <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>

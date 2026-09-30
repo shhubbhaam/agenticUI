@@ -60,11 +60,7 @@ export function usePathData() {
 
       if (!mounted.current) return;
 
-      if (__DEV__) {
-        console.log('[LearnHouse] trail', trailRes.ok ? trailRes.value : trailRes.error);
-        console.log('[LearnHouse] meta', metaRes.ok ? metaRes.value : metaRes.error);
-      }
-
+  
       if (!trailRes.ok) {
         const message = errorMessage(trailRes.error);
         setState((prev) => ({
