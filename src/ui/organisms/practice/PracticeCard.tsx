@@ -27,7 +27,7 @@ export const PracticeCard: React.FC<PracticeCardProps> = ({
   return (
     <View
       style={[
-        tw`w-full rounded-3xl p-6 mb-4 `,
+        tw`w-full rounded-3xl p-5 mb-4 overflow-hidden `,
         {
           backgroundColor: colors.hero.surface, // lavender100 (#F1ECF8)
           borderColor: colors.path.optionalBranch.border,
