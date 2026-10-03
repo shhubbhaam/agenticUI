@@ -7,11 +7,11 @@ import { colors } from '../../ui/tokens/colors';
 interface PracticeTemplateProps {
   background?: ReactNode;
   practiceHeader?: ReactNode;
-  practiceCard?: ReactNode;       // Main interactive practice card slot
-  practiceNotification?: ReactNode; // Blue notification banner slot
-  sectionTitle?: ReactNode;       // Revisit section title/badge slot
-  revisitList?: ReactNode;        // List of items to revisit slot
-  nextSection?: ReactNode;        // Subsequent sections (e.g., "One idea to strengthen")
+  practiceCard?: ReactNode;
+  practiceNotification?: ReactNode;
+  sectionTitle?: ReactNode;
+  revisitList?: ReactNode;
+  nextSection?: ReactNode;
   bottombar?: ReactNode;
 }
 
@@ -28,21 +28,22 @@ export const PracticeTemplate: React.FC<PracticeTemplateProps> = ({
   return (
     <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
       {background}
-      
 
-      {practiceHeader}
-    
-      {/* Scrollable Content Container */}
-      <ScrollView 
-        contentContainerStyle={tw`px-4 pb-10`}
+      <ScrollView
+        contentContainerStyle={tw`pb-10`}   
         showsVerticalScrollIndicator={false}
       >
         
-        {practiceCard && <View style={tw`mt-2`}>{practiceCard}</View>}
-        {practiceNotification && <View>{practiceNotification}</View>}
-        {sectionTitle && <View>{sectionTitle}</View>}
-        {revisitList && <View>{revisitList}</View>}
-        {nextSection && <View style={tw`mt-2`}>{nextSection}</View>}
+        {practiceHeader}
+
+        {/* Padded body content */}
+        <View style={tw`px-4`}>
+          {practiceCard && <View style={tw`mt-2`}>{practiceCard}</View>}
+          {practiceNotification && <View>{practiceNotification}</View>}
+          {sectionTitle && <View>{sectionTitle}</View>}
+          {revisitList && <View>{revisitList}</View>}
+          {nextSection && <View style={tw`mt-2`}>{nextSection}</View>}
+        </View>
       </ScrollView>
 
       {bottombar}

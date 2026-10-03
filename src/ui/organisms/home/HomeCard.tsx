@@ -29,10 +29,19 @@ export const HomeCard: React.FC<HomeCardProps> = ({
   imageUrl,
   buttonLabel = 'Continue reading',
   buttonIcon,
-}) => {``
+}) => {
+  // M8: Create a unified, natural-sounding label for the screen reader
+  const screenReaderLabel = `${stage}, ${category}. Pick up where you left off. ${title}. ${subtitle}. Reading time: ${readTime}.`;
+
   return (
-    <View style={[tw`w-full rounded-3xl overflow-hidden `, { backgroundColor: colors.hero.surface }]}>
-      <View style={[tw`w-full h-[40] justify-center shadow-md  items-center`]}>
+    <View style={[tw`w-full rounded-3xl overflow-hidden`, { backgroundColor: colors.hero.surface }]}>
+      
+      {/* M8: Hide the decorative image section from screen readers to reduce noise using accessibilityElementsHidden */}
+      <View 
+        style={[tw`w-full h-[40] justify-center shadow-md items-center`]}
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden={true}
+      >
         <Image
           source={{ uri: imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop' }}
           style={tw`w-full h-full`}
@@ -46,26 +55,38 @@ export const HomeCard: React.FC<HomeCardProps> = ({
       </View>
 
       <View style={tw`p-5`}>
-        <Text style={[tw`uppercase mb-1 `, { color: colors.text.ink, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-11-tracked'] }]}>
-          Pick up where you left off
-        </Text>
-        <Text style={[tw`mb-2`, { color: colors.text.primary, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-24'] }]}>
-          {title}
-        </Text>
-        <Text style={[tw`mb-4`, { color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-14'] }]}>
-          {subtitle}
-        </Text>
-
-        <View style={tw`flex-row items-center mb-5`}>
-          <Text style={{ color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-11'] }}>
-            <FileText size={14} color="#334155" strokeWidth={1.8} /> Article    <Clock size={14} color="#334155" strokeWidth={1.8} />  {readTime}
+        {/* M8: Group all text into ONE focusable element. Screen readers will read the `accessibilityLabel` instead of stuttering through each child text node. */}
+        <View
+          accessible={true}
+          accessibilityRole="text"
+          accessibilityLabel={screenReaderLabel}
+        >
+          <Text style={[tw`uppercase mb-1 `, { color: colors.text.ink, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-11-tracked'] }]}>
+            Pick up where you left off
           </Text>
+          <Text style={[tw`mb-2`, { color: colors.text.primary, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-24'] }]}>
+            {title}
+          </Text>
+          <Text style={[tw`mb-4`, { color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-14'] }]}>
+            {subtitle}
+          </Text>
+
+          <View style={tw`flex-row items-center mb-5`}>
+            <Text style={{ color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-11'] }}>
+              <FileText size={14} color="#334155" strokeWidth={1.8} /> Article    <Clock size={14} color="#334155" strokeWidth={1.8} />  {readTime}
+            </Text>
+          </View>
         </View>
 
+        {/* M8: The button remains a separate focusable element for the user to interact with after hearing the card's context. */}
         <ActiveButton
           label={buttonLabel}
           onPress={onPressButton}
           icon={buttonIcon} 
+          // If your ActiveButton supports passing these props down to its internal TouchableOpacity:
+          accessibilityRole="button"
+          accessibilityLabel={buttonLabel}
+          accessibilityHint={`Double tap to ${buttonLabel.toLowerCase()}`}
         />
       </View>
     </View>

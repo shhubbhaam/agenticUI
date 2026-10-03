@@ -1,17 +1,15 @@
 // src/components/atoms/ActiveButton.tsx
 import React from 'react';
-import { TouchableOpacity, Text, View } from 'react-native';
+import { TouchableOpacity, Text, View, AccessibilityProps } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
 
-interface ActiveButtonProps {
+// Extend React Native's AccessibilityProps to pass tags down from parents
+interface ActiveButtonProps extends AccessibilityProps {
   onPress?: () => void;
   label: string;
-  icon?: React.ReactNode; // Optional icon prop, defaults to empty
-  // 'primary' (default): full-width filled purple CTA used across lesson screens.
-  // 'secondary': the Path screen's bordered white CTA (Figma "Button · secondary",
-  // approved source class "btn") — exact height/radius/ink per source tokens.
+  icon?: React.ReactNode; 
   variant?: 'primary' | 'secondary';
 }
 
@@ -20,6 +18,8 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
   label,
   icon,
   variant = 'primary',
+  // Destructure the rest to catch accessibility tags (like accessibilityLabel/Hint)
+  ...accessibilityProps
 }) => {
   if (variant === 'secondary') {
     return (
@@ -36,6 +36,11 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
             borderWidth: 0.8,
           },
         ]}
+        // --- M8 Accessibility Tags ---
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityProps.accessibilityLabel || label}
+        {...accessibilityProps}
       >
         {icon}
         <Text
@@ -51,13 +56,18 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
     );
   }
 
-return (
+  return (
     <TouchableOpacity
       onPress={onPress}
       style={[
         tw`flex-row items-center justify-center py-4 px-6 rounded-2xl w-full`,
         { backgroundColor: colors.action.lesson }
       ]}
+      // --- M8 Accessibility Tags ---
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityProps.accessibilityLabel || label}
+      {...accessibilityProps}
     >
       {icon ? <View style={tw`mr-2 justify-center items-center`}>{icon}</View> : null}
       <Text
