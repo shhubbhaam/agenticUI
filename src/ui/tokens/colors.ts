@@ -94,6 +94,28 @@ const primitives = {
   actionPrimaryShadow: '#2442A9',
   brandMarkSurface: '#4262E5',
   brandMarkShadow: '#2943A9',
+  // Onboarding questionnaire (AI Launchpad — Mobile Design System, nodes 33-5062..36-915)
+  choiceBorder: '#DDE4EF',
+  choiceInk: '#44516B',
+  choiceSelectedSurface: '#F0F3FD',
+  choiceSelectedBorder: '#758BDA',
+  choiceSelectedInk: '#314FA9',
+  radioBorder: '#C7D0DF',
+  radioSelected: '#5270D2',
+  spanInk: '#8290A4',
+  badgeNeutralSurface: '#F0F3F8',
+  badgeNeutralInk: '#596982',
+  alertInfoSurface: '#EDF3FF',
+  alertInfoBorder: '#D7E3FA',
+  alertInfoInk: '#4F6388',
+  budgetBorder: '#E0E5EF',
+  budgetInk: '#77859D',
+  budgetSelectedSurface: '#EDF1FE',
+  budgetSelectedBorder: '#879BDD',
+  budgetSelectedInk: '#3656B0',
+  rhythmCardSurface: '#F0EAF8',
+  rhythmCardBorder: '#E4D8F0',
+  miniIconSurface: '#E9EEF9',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -198,6 +220,29 @@ export const colors = {
       border: primitives.alertErrorSurface2,
       ink: primitives.alertErrorInk,
     },
+  },
+  onboarding: {
+    // used in: ChoiceCard, Radio, BackHeader, Badge (neutral), Alert (info), BudgetPicker, BudgetScreen
+    choice: {
+      border: primitives.choiceBorder,
+      ink: primitives.choiceInk,
+      selectedSurface: primitives.choiceSelectedSurface,
+      selectedBorder: primitives.choiceSelectedBorder,
+      selectedInk: primitives.choiceSelectedInk,
+    },
+    radio: { border: primitives.radioBorder, selected: primitives.radioSelected },
+    spanInk: primitives.spanInk,
+    badge: { surface: primitives.badgeNeutralSurface, ink: primitives.badgeNeutralInk },
+    alertInfo: { surface: primitives.alertInfoSurface, border: primitives.alertInfoBorder, ink: primitives.alertInfoInk },
+    budget: {
+      border: primitives.budgetBorder,
+      ink: primitives.budgetInk,
+      selectedSurface: primitives.budgetSelectedSurface,
+      selectedBorder: primitives.budgetSelectedBorder,
+      selectedInk: primitives.budgetSelectedInk,
+    },
+    rhythmCard: { surface: primitives.rhythmCardSurface, border: primitives.rhythmCardBorder },
+    miniIconSurface: primitives.miniIconSurface,
   },
   input: {
     border: primitives.inputBorder, // used in: TextField (login)
