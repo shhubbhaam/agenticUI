@@ -218,3 +218,4 @@ vite.config.ts.timestamp-*
 .vite/
 # LearnHouse test credentials
 src/core/api/learnhouse/config.ts
+.env
