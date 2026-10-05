@@ -26,14 +26,17 @@ describe('ChoiceCard', () => {
 
   it('exposes selected state and shows a radio only for the row variant', () => {
     const grid = render(<ChoiceCard variant="grid" title="A" selected onPress={() => {}} testID="g" />);
-    // Verify grid doesn't show radio (selected state is controlled by parent component)
+    // ChoiceCard component and TouchableOpacity both have testID; findAllByProps gets both, element is last
+    expect(grid.root.findAllByProps({ testID: 'g' }).pop()!.props.accessibilityState).toEqual({ selected: true });
     expect(grid.root.findAllByProps({ testID: 'radio' })).toHaveLength(0);
 
     const row = render(<ChoiceCard variant="row" title="B" selected={false} onPress={() => {}} testID="r" />);
-    // Verify row shows a radio and it exposes the selected state correctly
-    const radios = row.root.findAllByProps({ testID: 'radio' });
-    expect(radios.length).toBeGreaterThan(0);
-    expect(radios[0].props.accessibilityState).toEqual({ selected: false });
+    expect(row.root.findAllByProps({ testID: 'r' }).pop()!.props.accessibilityState).toEqual({ selected: false });
+    expect(row.root.findAllByProps({ testID: 'radio' }).length).toBeGreaterThan(0);
+
+    const rowSelected = render(<ChoiceCard variant="row" title="C" selected onPress={() => {}} testID="rs" />);
+    expect(rowSelected.root.findAllByProps({ testID: 'rs' }).pop()!.props.accessibilityState).toEqual({ selected: true });
+    expect(rowSelected.root.findAllByProps({ testID: 'radio' }).length).toBeGreaterThan(0);
   });
 
   it('works without a caption or icon (diagnostic rows)', () => {
