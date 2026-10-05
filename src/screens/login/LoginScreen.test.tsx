@@ -77,4 +77,12 @@ describe('LoginScreen', () => {
     expect(texts).toContain('Continue');
     jest.useRealTimers();
   });
+
+  it('shows the organization sign-in view from the org button', () => {
+    const tree = renderScreen();
+    act(() => { pressByLabel(tree, 'Sign in with your organization'); });
+    const texts = tree.root.findAllByType(Text).map((n) => n.props.children);
+    expect(texts).toEqual(expect.arrayContaining(['Your team\u2019s learning starts here.', 'Work email', 'Continue with email', 'Other sign-in options']));
+    expect(tree.root.findAllByProps({ placeholder: 'priya@company.com' }).length).toBeGreaterThan(0);
+  });
 });

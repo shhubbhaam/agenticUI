@@ -101,6 +101,39 @@ export default function LoginScreen() {
             />
             <Footer />
           </View>
+        ) : flow.step === 'org' ? (
+          <View style={tw`gap-4`}>
+            <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.text.primary, ...typography.fontSize['type-20-alt'] }}>
+              {'Your team\u2019s learning starts here.'}
+            </Text>
+            <TextField
+              label="Work email"
+              placeholder="priya@company.com"
+              value={flow.email}
+              onChangeText={flow.onChangeEmail}
+              error={flow.emailError}
+              keyboardType="email-address"
+            />
+            <View
+              style={{
+                shadowColor: colors.action.primaryShadow,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 1,
+                shadowRadius: 0,
+                elevation: 3,
+              }}
+            >
+              <ActiveButton
+                variant="primary"
+                label="Continue with email"
+                icon={<Icon name="arrow" color={colors.surface.white} size={18} />}
+                onPress={flow.onSubmitOrgEmail}
+                fillColor={colors.action.primary}
+              />
+            </View>
+            <GhostLink label="Other sign-in options" onPress={flow.onBackToChoice} />
+            <Footer />
+          </View>
         ) : (
           <View style={tw`gap-4`}>
             <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.text.primary, ...typography.fontSize['type-20-alt'] }}>

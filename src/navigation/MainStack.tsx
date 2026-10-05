@@ -7,6 +7,13 @@ import PathScreen from '../screens/path/PathScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import PracticeScreen from '../screens/practice/PracticeScreen';
 import YouScreen from '../screens/you/YouScreen';
+import RoleScreen from '../screens/onboarding/RoleScreen';
+import ExperienceScreen from '../screens/onboarding/ExperienceScreen';
+import GoalScreen from '../screens/onboarding/GoalScreen';
+import BudgetScreen from '../screens/onboarding/BudgetScreen';
+import FormatsScreen from '../screens/onboarding/FormatsScreen';
+import DiagnosticScreen from '../screens/onboarding/DiagnosticScreen';
+import { diagnosticScreenId } from '../screens/onboarding/useDiagnosticFlow';
 import type { DiagnosticQuestionNumber } from '../core/onboarding/types';
 
 // Bottom-bar tab screens carry an optional `direction`, set by
@@ -45,6 +52,12 @@ export default function MainStack() {
         <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
         <Stack.Screen name="PracticeScreen" component={PracticeScreen} options={tabScreenOptions} />
         <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
+        <Stack.Screen name="OnboardingRole" component={RoleScreen} />
+        <Stack.Screen name="OnboardingExperience" component={ExperienceScreen} />
+        <Stack.Screen name="OnboardingGoal" component={GoalScreen} />
+        <Stack.Screen name="OnboardingBudget" component={BudgetScreen} />
+        <Stack.Screen name="OnboardingFormats" component={FormatsScreen} />
+        <Stack.Screen name="OnboardingDiagnostic" component={DiagnosticScreen} getId={({ params }) => diagnosticScreenId(params)} />
       </Stack.Navigator>
     </NavigationContainer>
   );

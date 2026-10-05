@@ -25,6 +25,12 @@ jest.mock('../../state/useSessionStore', () => ({
     }),
 }));
 
+let mockEveryLogin = true;
+jest.mock('../../config/featureFlags', () => ({
+  get ONBOARDING_EVERY_LOGIN() { return mockEveryLogin; },
+}));
+import { useOnboardingStore, emptyAnswers } from '../../state/useOnboardingStore';
+
 const mockGetGoogleAccessToken = jest.fn();
 jest.mock('./googleSignIn', () => ({
   getGoogleAccessToken: () => mockGetGoogleAccessToken(),
@@ -65,6 +71,8 @@ describe('useLoginFlow state machine', () => {
   const mockReset = jest.fn();
   beforeEach(() => {
     mockReset.mockClear();
+    mockEveryLogin = true;
+    useOnboardingStore.setState({ answers: emptyAnswers(), completed: false });
     mockSignInWithPassword.mockReset();
     mockSignInWithGoogle.mockReset();
     mockGetGoogleAccessToken.mockReset();
@@ -76,7 +84,7 @@ describe('useLoginFlow state machine', () => {
     jest.restoreAllMocks();
   });
 
-  it('goes choice -> connecting -> errored for the pressed provider only (linkedin/org stay simulated)', () => {
+  it('goes choice -> connecting -> errored for the pressed provider only (linkedin stays simulated)', () => {
     let flow: ReturnType<typeof useLoginFlow>;
     let renderer!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
@@ -128,7 +136,7 @@ describe('useLoginFlow state machine', () => {
     renderer.update(<Harness onReady={(f) => { flow = f; }} />);
 
     expect(mockSignInWithGoogle).toHaveBeenCalledWith('a@b.com', 'google-token');
-    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'HomeScreen' }] });
+    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'OnboardingRole' }] });
     expect(flow!.erroredProvider).toBeNull();
   });
 
@@ -189,7 +197,7 @@ describe('useLoginFlow state machine', () => {
     await flushMicrotasks();
     renderer.update(<Harness onReady={(f) => { flow = f; }} />);
     expect(mockSignInWithPassword).toHaveBeenCalledWith('a@b.com', 'longenough');
-    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'HomeScreen' }] });
+    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'OnboardingRole' }] });
     expect(flow!.isSubmitting).toBe(false);
   });
 
@@ -242,5 +250,58 @@ describe('useLoginFlow state machine', () => {
     act(() => { flow!.onFillTestCreds(); });
     renderer.update(<Harness onReady={(f) => { flow = f; }} />);
     expect(flow!.emailError).toBeUndefined();
+  });
+
+  it('goes straight Home after sign-in when the flag is off and onboarding is already completed', async () => {
+    mockEveryLogin = false;
+    useOnboardingStore.setState({ completed: true });
+    mockGetGoogleAccessToken.mockResolvedValue({ email: 'a@b.com', accessToken: 't' });
+    mockSignInWithGoogle.mockResolvedValue(undefined);
+    let flow!: ReturnType<typeof useLoginFlow>;
+    act(() => { ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+    act(() => { flow.onContinueWithProvider('google'); });
+    await flushMicrotasks();
+    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'HomeScreen' }] });
+  });
+
+  it('still shows onboarding when the flag is off but the user has not completed it', async () => {
+    mockEveryLogin = false;
+    useOnboardingStore.setState({ completed: false });
+    mockGetGoogleAccessToken.mockResolvedValue({ email: 'a@b.com', accessToken: 't' });
+    mockSignInWithGoogle.mockResolvedValue(undefined);
+    let flow!: ReturnType<typeof useLoginFlow>;
+    act(() => { ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+    act(() => { flow.onContinueWithProvider('google'); });
+    await flushMicrotasks();
+    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'OnboardingRole' }] });
+  });
+
+  it('opens the org step immediately for the org provider', () => {
+    let flow!: ReturnType<typeof useLoginFlow>;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    act(() => { renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+    act(() => { flow.onContinueWithProvider('org'); });
+    renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+    expect(flow.step).toBe('org');
+    expect(flow.connectingProvider).toBeNull();
+  });
+
+  it('org step: rejects an invalid work email, accepts a valid one by continuing to the email step with the password field', () => {
+    let flow!: ReturnType<typeof useLoginFlow>;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    const rerender = () => renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+    act(() => { renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+    act(() => { flow.onContinueWithProvider('org'); }); rerender();
+
+    act(() => { flow.onChangeEmail('nope'); }); rerender();
+    act(() => { flow.onSubmitOrgEmail(); }); rerender();
+    expect(flow.emailError).toBe('Please enter a valid email address');
+    expect(flow.step).toBe('org');
+
+    act(() => { flow.onChangeEmail('priya@company.com'); }); rerender();
+    act(() => { flow.onSubmitOrgEmail(); }); rerender();
+    expect(flow.step).toBe('email');
+    expect(flow.showPasswordField).toBe(true);
+    expect(flow.email).toBe('priya@company.com');
   });
 });

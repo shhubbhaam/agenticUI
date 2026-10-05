@@ -6,6 +6,8 @@ import { getTestCredentials } from './testCredentials';
 import { getGoogleAccessToken } from './googleSignIn';
 import { useSessionStore } from '../../state/useSessionStore';
 import { ApiError } from '../../data/learnhouse/client';
+import { shouldShowOnboarding } from '../../core/onboarding/gate';
+import { useOnboardingStore } from '../../state/useOnboardingStore';
 
 export type Provider = 'google' | 'linkedin' | 'org';
 
@@ -26,8 +28,8 @@ export function validatePassword(password: string): string | undefined {
   return undefined;
 }
 
-// LinkedIn and org sign-in have no backend support yet, so they keep the
-// original fake connecting->error simulation. Only Google is wired to a
+// LinkedIn sign-in has no backend support yet, so it keeps the original fake
+// connecting->error simulation (org opens its own email step). Only Google is wired to a
 // real call (via googleSignIn.ts, currently a stub).
 const CONNECT_SIMULATION_MS = 1500;
 
@@ -50,7 +52,7 @@ function mapAuthErrorMessage(error: unknown): string {
 }
 
 export interface LoginFlowState {
-  step: 'choice' | 'email';
+  step: 'choice' | 'email' | 'org';
   connectingProvider: Provider | null;
   erroredProvider: Provider | null;
   email: string;
@@ -68,6 +70,7 @@ export interface LoginFlowState {
   onChangePassword: (value: string) => void;
   onFillTestCreds: () => void;
   onSubmit: () => void;
+  onSubmitOrgEmail: () => void;
 }
 
 export function useLoginFlow(): LoginFlowState {
@@ -75,7 +78,7 @@ export function useLoginFlow(): LoginFlowState {
   const signInWithPassword = useSessionStore((s) => s.signInWithPassword);
   const signInWithGoogle = useSessionStore((s) => s.signInWithGoogle);
 
-  const [step, setStep] = useState<'choice' | 'email'>('choice');
+  const [step, setStep] = useState<'choice' | 'email' | 'org'>('choice');
   const [connectingProvider, setConnectingProvider] = useState<Provider | null>(null);
   const [erroredProvider, setErroredProvider] = useState<Provider | null>(null);
   const [email, setEmail] = useState('');
@@ -93,8 +96,21 @@ export function useLoginFlow(): LoginFlowState {
     };
   }, []);
 
+  const goAfterSignIn = useCallback(() => {
+    const { completed } = useOnboardingStore.getState();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: shouldShowOnboarding(completed) ? 'OnboardingRole' : 'HomeScreen' }],
+    });
+  }, [navigation]);
+
   const onContinueWithProvider = useCallback((provider: Provider) => {
     if (connectingProvider !== null) return;
+    if (provider === 'org') {
+      setErroredProvider(null);
+      setStep('org');
+      return;
+    }
     setErroredProvider(null);
     setConnectingProvider(provider);
 
@@ -103,7 +119,7 @@ export function useLoginFlow(): LoginFlowState {
         .then(({ email: googleEmail, accessToken }) => signInWithGoogle(googleEmail, accessToken))
         .then(() => {
           setConnectingProvider(null);
-          navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
+          goAfterSignIn();
         })
         .catch((err: unknown) => {
           console.error('[useLoginFlow] google sign-in failed:', err);
@@ -117,7 +133,7 @@ export function useLoginFlow(): LoginFlowState {
       setConnectingProvider(null);
       setErroredProvider(provider);
     }, CONNECT_SIMULATION_MS);
-  }, [connectingProvider, navigation, signInWithGoogle]);
+  }, [connectingProvider, goAfterSignIn, signInWithGoogle]);
 
   const onUseEmailInstead = useCallback(() => {
     setStep('email');
@@ -171,7 +187,7 @@ export function useLoginFlow(): LoginFlowState {
     setIsSubmitting(true);
     signInWithPassword(email, password)
       .then(() => {
-        navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
+        goAfterSignIn();
       })
       .catch((err: unknown) => {
         // The banner only ever shows a mapped, user-safe message — log the
@@ -182,7 +198,19 @@ export function useLoginFlow(): LoginFlowState {
       .finally(() => {
         setIsSubmitting(false);
       });
-  }, [email, password, showPasswordField, isSubmitting, navigation, signInWithPassword]);
+  }, [email, password, showPasswordField, isSubmitting, goAfterSignIn, signInWithPassword]);
+
+  const onSubmitOrgEmail = useCallback(() => {
+    const error = validateEmail(email);
+    if (error) {
+      setEmailError(error);
+      return;
+    }
+    // Org SSO has no backend yet: carry the work email over to the regular
+    // email + password step.
+    setShowPasswordField(true);
+    setStep('email');
+  }, [email]);
 
   return {
     step,
@@ -203,5 +231,6 @@ export function useLoginFlow(): LoginFlowState {
     onChangePassword,
     onFillTestCreds,
     onSubmit,
+    onSubmitOrgEmail,
   };
 }
