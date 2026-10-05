@@ -7,6 +7,7 @@ import PathScreen from '../screens/path/PathScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import PracticeScreen from '../screens/practice/PracticeScreen';
 import YouScreen from '../screens/you/YouScreen';
+import type { DiagnosticQuestionNumber } from '../core/onboarding/types';
 
 // Bottom-bar tab screens carry an optional `direction`, set by
 // useTabNavigation from the tapped tab's position relative to the current
@@ -20,6 +21,12 @@ export type RootStackParamList = {
   HomeScreen: TabScreenParams;
   PracticeScreen: TabScreenParams;
   YouScreen: TabScreenParams;
+  OnboardingRole: undefined;
+  OnboardingExperience: undefined;
+  OnboardingGoal: undefined;
+  OnboardingBudget: undefined;
+  OnboardingFormats: undefined;
+  OnboardingDiagnostic: { question: DiagnosticQuestionNumber };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
