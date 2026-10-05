@@ -4,6 +4,8 @@ import { createMMKV } from 'react-native-mmkv';
 import { loginWithPassword, exchangeGoogleToken, fetchSession, logout as apiLogout } from '../data/learnhouse/authApi';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../data/learnhouse/secureToken';
 import { clearTrailCache } from '../data/learnhouse/trailCache';
+import { ONBOARDING_EVERY_LOGIN } from '../config/featureFlags';
+import { useOnboardingStore } from './useOnboardingStore';
 import type { UserSession } from '../data/learnhouse/schemas';
 
 const storage = createMMKV({ id: 'session-store' });
@@ -116,6 +118,9 @@ export const useSessionStore = create<SessionState>()(
         }
         await clearStoredToken();
         clearTrailCache();
+        if (ONBOARDING_EVERY_LOGIN) {
+          useOnboardingStore.getState().resetAnswers();
+        }
         set({ status: 'signedOut', identity: null });
       },
     }),

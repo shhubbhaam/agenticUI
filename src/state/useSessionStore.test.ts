@@ -2,6 +2,7 @@ jest.mock('../data/learnhouse/authApi');
 jest.mock('../data/learnhouse/secureToken');
 
 import { useSessionStore } from './useSessionStore';
+import { useOnboardingStore } from './useOnboardingStore';
 import * as authApi from '../data/learnhouse/authApi';
 import * as secureToken from '../data/learnhouse/secureToken';
 
@@ -113,5 +114,14 @@ describe('useSessionStore', () => {
     expect(mockedAuthApi.logout).toHaveBeenCalledWith('jwt-123');
     expect(mockedSecureToken.clearStoredToken).toHaveBeenCalled();
     expect(useSessionStore.getState()).toMatchObject({ status: 'signedOut', identity: null });
+  });
+
+  it('resets onboarding answers on sign-out while the every-login flag is on', async () => {
+    useOnboardingStore.getState().setAnswer('role', 'marketing');
+    mockedSecureToken.getStoredToken.mockResolvedValue(null);
+
+    await useSessionStore.getState().signOut();
+
+    expect(useOnboardingStore.getState().answers.role).toBeNull();
   });
 });
