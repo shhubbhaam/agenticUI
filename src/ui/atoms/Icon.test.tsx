@@ -20,4 +20,15 @@ describe('Icon', () => {
       ReactTestRenderer.create(<Icon name="building" color="#40547F" size={18} />);
     });
   });
+
+  it.each(['back', 'flag', 'user', 'sun', 'clock', 'sparkles', 'play-outline'] as const)(
+    'renders the %s glyph from Figma path data',
+    async (name) => {
+      let tree!: ReactTestRenderer.ReactTestRenderer;
+      await ReactTestRenderer.act(() => {
+        tree = ReactTestRenderer.create(<Icon name={name} color="#000" size={22} />);
+      });
+      expect(tree.toJSON()).not.toBeNull();
+    }
+  );
 });
