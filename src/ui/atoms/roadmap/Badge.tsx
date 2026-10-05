@@ -4,24 +4,33 @@ import { View, Text } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
-import { Icon } from '../Icon';
+import { Icon, type IconType } from '../Icon';
 
 interface BadgeProps {
   label: string;
+  // 'good' (default) is the green path-screen badge; 'neutral' is the grey
+  // onboarding "A QUICK STARTING POINT" badge.
+  tone?: 'good' | 'neutral';
+  icon?: IconType;
 }
 
-export const Badge: React.FC<BadgeProps> = ({ label }) => (
+const TONE = {
+  good: { surface: colors.path.badgeGood.surface, ink: colors.path.badgeGood.ink },
+  neutral: { surface: colors.onboarding.badge.surface, ink: colors.onboarding.badge.ink },
+} as const;
+
+export const Badge: React.FC<BadgeProps> = ({ label, tone = 'good', icon = 'check' }) => (
   <View
     style={[
       tw`flex-row items-center px-2 py-1 rounded-lg self-start`,
-      { backgroundColor: colors.path.badgeGood.surface, gap: 5 },
+      { backgroundColor: TONE[tone].surface, gap: 5 },
     ]}
   >
-    <Icon name="check" color={colors.path.badgeGood.ink} size={13} />
+    <Icon name={icon} color={TONE[tone].ink} size={13} />
     <Text
       style={{
         fontFamily: typography.fontFamily['jakarta-bold'],
-        color: colors.path.badgeGood.ink,
+        color: TONE[tone].ink,
         fontSize: typography.fontSize['type-11'].fontSize,
         lineHeight: typography.fontSize['type-11'].lineHeight,
         letterSpacing: 0.2,
