@@ -21,7 +21,7 @@ describe('RoleScreen', () => {
     const tree = renderScreen(<RoleScreen />);
     const t = textsOf(tree);
     expect(t).toEqual(expect.arrayContaining([
-      'YOUR START · 1 OF 4', 'What does your week look like?', 'We\'ll make the examples feel familiar.',
+      'YOUR START · 1 OF 4', 'What does your week look like?', 'We’ll make the examples feel familiar.',
       'Leadership', 'Sales', 'Marketing', 'Finance', 'HR & Talent', 'Operations', 'Product', 'Engineering',
     ]));
   });

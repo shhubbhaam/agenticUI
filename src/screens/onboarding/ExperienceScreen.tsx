@@ -16,7 +16,7 @@ export default function ExperienceScreen() {
       onBack={onBack}
       progress={{ count: 4, current: 1 }}
       title="How much AI is in your day?"
-      subtitle="There's no perfect starting point. Just yours."
+      subtitle={'There’s no perfect starting point. Just yours.'}
       footer={<PrimaryCta label="Continue" onPress={onContinue} disabled={!canContinue} />}
     >
       <View style={{ gap: 6 }}>

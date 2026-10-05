@@ -19,7 +19,7 @@ export default function RoleScreen() {
       onBack={onBack}
       progress={{ count: 4, current: 0 }}
       title="What does your week look like?"
-      subtitle="We'll make the examples feel familiar."
+      subtitle={'We’ll make the examples feel familiar.'}
       footer={<PrimaryCta label="Continue" onPress={onContinue} disabled={!canContinue} />}
     >
       <View style={{ gap: 10 }}>
