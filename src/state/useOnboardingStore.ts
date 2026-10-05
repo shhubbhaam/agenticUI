@@ -33,6 +33,11 @@ interface OnboardingState {
   // Written on finish regardless of ONBOARDING_EVERY_LOGIN so turning the
   // test flag off later needs no migration.
   completed: boolean;
+  // NOT persisted. Set once per sign-in (useLoginFlow.goAfterSignIn): true when
+  // diagnostic answers from an earlier session existed before this onboarding
+  // run started. Drives the "Welcome back" alert; resetAnswers leaves it alone.
+  resumeAvailable: boolean;
+  setResumeAvailable: (value: boolean) => void;
   setAnswer: <K extends SingleChoiceKey>(key: K, value: OnboardingAnswers[K]) => void;
   toggleFormat: (id: FormatId) => void;
   clearFormats: () => void;
@@ -46,6 +51,9 @@ export const useOnboardingStore = create<OnboardingState>()(
     (set) => ({
       answers: emptyAnswers(),
       completed: false,
+      resumeAvailable: false,
+
+      setResumeAvailable: (value) => set({ resumeAvailable: value }),
 
       setAnswer: (key, value) =>
         set((state) => ({ answers: { ...state.answers, [key]: value } })),
@@ -76,6 +84,7 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: 'onboarding-store',
+      version: 1,
       storage: createJSONStorage(() => mmkvStorage),
       partialize: (state) => ({ answers: state.answers, completed: state.completed }),
     }

@@ -13,7 +13,7 @@ import GoalScreen from '../screens/onboarding/GoalScreen';
 import BudgetScreen from '../screens/onboarding/BudgetScreen';
 import FormatsScreen from '../screens/onboarding/FormatsScreen';
 import DiagnosticScreen from '../screens/onboarding/DiagnosticScreen';
-import { diagnosticScreenId } from '../screens/onboarding/useDiagnosticFlow';
+import { diagnosticGetId } from '../screens/onboarding/useDiagnosticFlow';
 import type { DiagnosticQuestionNumber } from '../core/onboarding/types';
 
 // Bottom-bar tab screens carry an optional `direction`, set by
@@ -57,7 +57,7 @@ export default function MainStack() {
         <Stack.Screen name="OnboardingGoal" component={GoalScreen} />
         <Stack.Screen name="OnboardingBudget" component={BudgetScreen} />
         <Stack.Screen name="OnboardingFormats" component={FormatsScreen} />
-        <Stack.Screen name="OnboardingDiagnostic" component={DiagnosticScreen} getId={({ params }) => diagnosticScreenId(params)} />
+        <Stack.Screen name="OnboardingDiagnostic" component={DiagnosticScreen} getId={diagnosticGetId} />
       </Stack.Navigator>
     </NavigationContainer>
   );

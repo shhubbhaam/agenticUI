@@ -2,7 +2,15 @@ import { useOnboardingStore, emptyAnswers } from './useOnboardingStore';
 
 describe('useOnboardingStore', () => {
   beforeEach(() => {
-    useOnboardingStore.setState({ answers: emptyAnswers(), completed: false });
+    useOnboardingStore.setState({ answers: emptyAnswers(), completed: false, resumeAvailable: false });
+  });
+
+  it('resumeAvailable defaults to false, can be set, and is not persisted', () => {
+    expect(useOnboardingStore.getState().resumeAvailable).toBe(false);
+    useOnboardingStore.getState().setResumeAvailable(true);
+    expect(useOnboardingStore.getState().resumeAvailable).toBe(true);
+    const persisted = useOnboardingStore.persist.getOptions().partialize!(useOnboardingStore.getState());
+    expect(Object.keys(persisted as object).sort()).toEqual(['answers', 'completed']);
   });
 
   it('starts empty', () => {

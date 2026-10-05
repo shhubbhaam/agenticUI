@@ -97,10 +97,15 @@ export function useLoginFlow(): LoginFlowState {
   }, []);
 
   const goAfterSignIn = useCallback(() => {
-    const { completed } = useOnboardingStore.getState();
+    const { completed, answers, setResumeAvailable } = useOnboardingStore.getState();
+    const showOnboarding = shouldShowOnboarding(completed);
+    if (showOnboarding) {
+      // Snapshot whether answers survived from an earlier session, before this run changes them.
+      setResumeAvailable(Object.values(answers.diagnostic).some((v) => v !== null));
+    }
     navigation.reset({
       index: 0,
-      routes: [{ name: shouldShowOnboarding(completed) ? 'OnboardingRole' : 'HomeScreen' }],
+      routes: [{ name: showOnboarding ? 'OnboardingRole' : 'HomeScreen' }],
     });
   }, [navigation]);
 
@@ -141,6 +146,8 @@ export function useLoginFlow(): LoginFlowState {
 
   const onBackToChoice = useCallback(() => {
     setStep('choice');
+    setEmailError(undefined);
+    setPasswordError(undefined);
   }, []);
 
   const onChangeEmail = useCallback((value: string) => {

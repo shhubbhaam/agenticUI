@@ -72,7 +72,7 @@ describe('useLoginFlow state machine', () => {
   beforeEach(() => {
     mockReset.mockClear();
     mockEveryLogin = true;
-    useOnboardingStore.setState({ answers: emptyAnswers(), completed: false });
+    useOnboardingStore.setState({ answers: emptyAnswers(), completed: false, resumeAvailable: false });
     mockSignInWithPassword.mockReset();
     mockSignInWithGoogle.mockReset();
     mockGetGoogleAccessToken.mockReset();
@@ -274,6 +274,36 @@ describe('useLoginFlow state machine', () => {
     act(() => { flow.onContinueWithProvider('google'); });
     await flushMicrotasks();
     expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'OnboardingRole' }] });
+  });
+
+  it.each([
+    ['pre-existing stored diagnostic answers', true],
+    ['no stored diagnostic answers', false],
+  ])('sets resumeAvailable from %s at sign-in', async (_label, hasAnswers) => {
+    if (hasAnswers) useOnboardingStore.getState().setDiagnosticAnswer(2, 'check-source');
+    mockGetGoogleAccessToken.mockResolvedValue({ email: 'a@b.com', accessToken: 't' });
+    mockSignInWithGoogle.mockResolvedValue(undefined);
+    let flow!: ReturnType<typeof useLoginFlow>;
+    act(() => { ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+    act(() => { flow.onContinueWithProvider('google'); });
+    await flushMicrotasks();
+    expect(useOnboardingStore.getState().resumeAvailable).toBe(hasAnswers);
+  });
+
+  it('clears a stale email error when going back from the org step', () => {
+    let flow!: ReturnType<typeof useLoginFlow>;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    const render = () => renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+    act(() => { renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+    act(() => { flow.onContinueWithProvider('org'); });
+    render();
+    act(() => { flow.onSubmitOrgEmail(); });
+    render();
+    expect(flow.emailError).toBe('Please enter a valid email address');
+    act(() => { flow.onBackToChoice(); });
+    render();
+    expect(flow.step).toBe('choice');
+    expect(flow.emailError).toBeUndefined();
   });
 
   it('opens the org step immediately for the org provider', () => {

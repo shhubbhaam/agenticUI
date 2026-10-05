@@ -1,4 +1,5 @@
 import React from 'react';
+import { act } from 'react-test-renderer';
 import DiagnosticScreen from './DiagnosticScreen';
 import { diagnosticScreenId } from './useDiagnosticFlow';
 import {
@@ -21,13 +22,20 @@ function mountQuestion(question: 1 | 2 | 3) {
   const nav = require('@react-navigation/native');
   nav.useNavigation.mockReturnValue({ navigate, reset, goBack, canGoBack: () => true });
   nav.useRoute.mockReturnValue({ params: { question } });
-  return renderScreen(<DiagnosticScreen />);
+  const tree = renderScreen(<DiagnosticScreen />);
+  mounted.push(tree);
+  return tree;
 }
+
+const mounted: ReturnType<typeof renderScreen>[] = [];
+afterEach(() => {
+  act(() => { mounted.splice(0).forEach((t) => t.unmount()); });
+});
 
 describe('DiagnosticScreen', () => {
   beforeEach(() => {
     navigate.mockClear(); reset.mockClear(); goBack.mockClear();
-    useOnboardingStore.setState({ answers: emptyAnswers(), completed: false });
+    act(() => { useOnboardingStore.setState({ answers: emptyAnswers(), completed: false, resumeAvailable: false }); });
   });
 
   it('question 1: copy, badge, 1 of 3, footnote, no resume alert on a clean run', () => {
@@ -72,6 +80,7 @@ describe('DiagnosticScreen', () => {
   });
 
   it('shows the resume alert and preselects the stored answer when earlier answers exist', () => {
+    useOnboardingStore.setState({ resumeAvailable: true });
     useOnboardingStore.getState().setDiagnosticAnswer(1, 'try-again');
     const tree = mountQuestion(1);
     expect(textsOf(tree)).toContain(RESUME);
@@ -81,6 +90,7 @@ describe('DiagnosticScreen', () => {
   });
 
   it('does not show the resume alert on questions 2 and 3', () => {
+    useOnboardingStore.setState({ resumeAvailable: true });
     useOnboardingStore.getState().setDiagnosticAnswer(1, 'try-again');
     const tree = mountQuestion(2);
     expect(textsOf(tree)).not.toContain(RESUME);
@@ -90,6 +100,21 @@ describe('DiagnosticScreen', () => {
     const tree = mountQuestion(1);
     pressByTestId(tree, 'diagnostic-impressive');
     expect(textsOf(tree)).not.toContain(RESUME);
+  });
+});
+
+describe('DiagnosticScreen remount on a clean run', () => {
+  beforeEach(() => {
+    act(() => { useOnboardingStore.setState({ answers: emptyAnswers(), completed: false, resumeAvailable: false }); });
+  });
+
+  it('does not show the alert when Q1 remounts after being answered, but keeps the answer selected', () => {
+    const first = mountQuestion(1);
+    pressByTestId(first, 'diagnostic-impressive');
+    act(() => { first.unmount(); });
+    const second = mountQuestion(1);
+    expect(textsOf(second)).not.toContain(RESUME);
+    expect(accessibilityStateByTestId(second, 'diagnostic-impressive')).toEqual({ selected: true });
   });
 });
 

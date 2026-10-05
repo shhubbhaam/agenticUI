@@ -12,7 +12,6 @@ interface ChoiceCardProps {
   caption?: string;
   icon?: IconType;
   selected: boolean;
-  showRadio?: boolean;
   onPress: () => void;
   testID?: string;
 }
@@ -23,7 +22,6 @@ export const ChoiceCard: React.FC<ChoiceCardProps> = ({
   caption,
   icon,
   selected,
-  showRadio = true,
   onPress,
   testID,
 }) => {
@@ -106,7 +104,7 @@ export const ChoiceCard: React.FC<ChoiceCardProps> = ({
           </Text>
         ) : null}
       </View>
-      {showRadio ? <Radio selected={selected} /> : null}
+      <Radio selected={selected} />
     </TouchableOpacity>
   );
 };

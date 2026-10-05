@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation/MainStack';
@@ -11,17 +11,20 @@ export function diagnosticScreenId(params?: { question?: number }): string {
   return `diagnostic-${params?.question ?? 1}`;
 }
 
+// The exact `getId` the navigator uses for the diagnostic route (shared with tests).
+export const diagnosticGetId = ({ params }: { params?: { question?: number } }) =>
+  diagnosticScreenId(params);
+
 export function useDiagnosticFlow(question: DiagnosticQuestionNumber) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const selected = useOnboardingStore((s) => s.answers.diagnostic[question]);
   const setDiagnosticAnswer = useOnboardingStore((s) => s.setDiagnosticAnswer);
   const markCompleted = useOnboardingStore((s) => s.markCompleted);
 
-  // Computed once at mount: "resumed" means answers existed before this run
-  // of Q1 started, not that the user just answered Q1 a moment ago.
-  const [resumed] = useState(
-    () => question === 1 && Object.values(useOnboardingStore.getState().answers.diagnostic).some((v) => v !== null)
-  );
+  // Snapshotted once per sign-in (see useLoginFlow.goAfterSignIn), so remounting
+  // Q1 after going back to Formats on a clean run does not show the alert.
+  const resumeAvailable = useOnboardingStore((s) => s.resumeAvailable);
+  const resumed = resumeAvailable && question === 1;
 
   const onSelect = useCallback(
     (optionId: string) => setDiagnosticAnswer(question, optionId),

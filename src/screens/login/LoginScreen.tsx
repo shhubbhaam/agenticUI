@@ -94,8 +94,7 @@ export default function LoginScreen() {
             <View style={[tw`w-full`, { height: 1, backgroundColor: colors.path.stage.locked.base }]} />
             <ActiveButton
               variant="secondary"
-              label={flow.connectingProvider === 'org' ? 'Connecting…' : PROVIDER_LABEL.org}
-              disabled={flow.connectingProvider === 'org'}
+              label={PROVIDER_LABEL.org}
               icon={<Icon name="building" color={colors.path.btnSecondary.ink} size={18} />}
               onPress={() => flow.onContinueWithProvider('org')}
             />

@@ -1,8 +1,13 @@
 jest.mock('../data/learnhouse/authApi');
 jest.mock('../data/learnhouse/secureToken');
 
+let mockEveryLogin = true;
+jest.mock('../config/featureFlags', () => ({
+  get ONBOARDING_EVERY_LOGIN() { return mockEveryLogin; },
+}));
+
 import { useSessionStore } from './useSessionStore';
-import { useOnboardingStore } from './useOnboardingStore';
+import { useOnboardingStore, emptyAnswers } from './useOnboardingStore';
 import * as authApi from '../data/learnhouse/authApi';
 import * as secureToken from '../data/learnhouse/secureToken';
 
@@ -30,6 +35,8 @@ const SESSION = {
 describe('useSessionStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockEveryLogin = true;
+    useOnboardingStore.setState({ answers: emptyAnswers(), completed: false });
     useSessionStore.setState({ status: 'signedOut', identity: null });
   });
 
@@ -123,5 +130,17 @@ describe('useSessionStore', () => {
     await useSessionStore.getState().signOut();
 
     expect(useOnboardingStore.getState().answers.role).toBeNull();
+  });
+
+  it('keeps onboarding answers and completed on sign-out while the every-login flag is off', async () => {
+    mockEveryLogin = false;
+    useOnboardingStore.getState().setAnswer('role', 'marketing');
+    useOnboardingStore.getState().markCompleted();
+    mockedSecureToken.getStoredToken.mockResolvedValue(null);
+
+    await useSessionStore.getState().signOut();
+
+    expect(useOnboardingStore.getState().answers.role).toBe('marketing');
+    expect(useOnboardingStore.getState().completed).toBe(true);
   });
 });
