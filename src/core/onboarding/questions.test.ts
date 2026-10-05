@@ -31,11 +31,18 @@ describe('onboarding question data', () => {
 
   it('keeps the role order from the Figma grid (reading order)', () => {
     expect(ROLE_OPTIONS.map((o) => o.title)).toEqual([
-      'Leadership', 'Sales', 'Marketing', 'Finance', 'HR & Talent', 'Operations', 'Product', 'Engineering',
+      'Leadership',
+      'Sales',
+      'Marketing',
+      'Finance',
+      'HR & Talent',
+      'Operations',
+      'Product',
+      'Engineering',
     ]);
   });
 
-  it("defines three diagnostic questions, each ending with the \"I'm not sure\" option", () => {
+  it('defines three diagnostic questions, each ending with the "I\'m not sure" option', () => {
     for (const q of [1, 2, 3] as const) {
       const { options } = DIAGNOSTIC_QUESTIONS[q];
       expect(options).toHaveLength(4);
@@ -44,8 +51,20 @@ describe('onboarding question data', () => {
       expect(options[3].title).toBe("I’m not sure");
       expect(options[3].caption).toBe("That’s useful to know, too.");
     }
+    expect(DIAGNOSTIC_QUESTIONS[1].title).toBe('A brief comes back vague. What do you change?');
+    expect(DIAGNOSTIC_QUESTIONS[1].subtitle).toBe(
+      'You asked AI to “make the campaign better”.'
+    );
     expect(DIAGNOSTIC_QUESTIONS[1].cta).toBe('Next question');
+    expect(DIAGNOSTIC_QUESTIONS[2].title).toBe(
+      "The answer includes a number you can’t verify."
+    );
+    expect(DIAGNOSTIC_QUESTIONS[2].subtitle).toBe('You need to use it in a team report.');
     expect(DIAGNOSTIC_QUESTIONS[2].cta).toBe('Next question');
+    expect(DIAGNOSTIC_QUESTIONS[3].title).toBe(
+      'What would you share to get help with a campaign?'
+    );
+    expect(DIAGNOSTIC_QUESTIONS[3].subtitle).toBe('These answers help set your starting point.');
     expect(DIAGNOSTIC_QUESTIONS[3].cta).toBe('Build my path');
   });
 

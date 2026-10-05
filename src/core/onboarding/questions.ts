@@ -73,7 +73,7 @@ export interface DiagnosticQuestion {
 export const DIAGNOSTIC_QUESTIONS: Record<DiagnosticQuestionNumber, DiagnosticQuestion> = {
   1: {
     title: 'A brief comes back vague. What do you change?',
-    subtitle: 'You asked AI to "make the campaign better".',
+    subtitle: 'You asked AI to “make the campaign better”.',
     cta: 'Next question',
     options: [
       { id: 'impressive', title: 'Ask for a more impressive answer' },
