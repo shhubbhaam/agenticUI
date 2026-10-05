@@ -6,12 +6,13 @@ import { typography } from '../tokens/typography';
 import { Icon } from '../atoms/Icon';
 
 interface AlertProps {
-  tone: 'warning';
+  tone: 'warning' | 'info';
   message: string;
 }
 
 const TONE_COLORS = {
   warning: { surface: colors.alert.error.surface, border: colors.alert.error.border, ink: colors.alert.error.ink },
+  info: { surface: colors.onboarding.alertInfo.surface, border: colors.onboarding.alertInfo.border, ink: colors.onboarding.alertInfo.ink },
 } as const;
 
 export const Alert: React.FC<AlertProps> = ({ tone, message }) => {
@@ -19,15 +20,18 @@ export const Alert: React.FC<AlertProps> = ({ tone, message }) => {
   return (
     <View
       style={[
-        tw`flex-row items-center rounded-2xl w-full px-4 py-4 gap-2`,
+        tw`flex-row items-center rounded-xl w-full gap-2`,
         {
           backgroundColor: toneColors.surface,
           borderWidth: 0.8,
           borderColor: toneColors.border,
+          ...(tone === 'info'
+            ? { minHeight: 46, paddingHorizontal: 14.8 }
+            : { paddingHorizontal: 16, paddingVertical: 16, borderRadius: 16 }),
         },
       ]}
     >
-      <Icon name="warning" color={toneColors.ink} size={17} />
+      {tone === 'warning' ? <Icon name="warning" color={toneColors.ink} size={17} /> : null}
       <Text
         style={[
           tw`flex-1`,

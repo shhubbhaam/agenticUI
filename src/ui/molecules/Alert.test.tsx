@@ -26,4 +26,13 @@ describe('Alert', () => {
     const iconNode = tree.root.findByType(Icon);
     expect(iconNode.props.name).toBe('warning');
   });
+
+  it('renders the info tone with its message and no warning icon', () => {
+    let tree!: ReactTestRenderer.ReactTestRenderer;
+    ReactTestRenderer.act(() => {
+      tree = ReactTestRenderer.create(<Alert tone="info" message="Welcome back. Your earlier answers are saved." />);
+    });
+    const texts = tree.root.findAllByType(Text).map((n) => n.props.children);
+    expect(texts).toContain('Welcome back. Your earlier answers are saved.');
+  });
 });
