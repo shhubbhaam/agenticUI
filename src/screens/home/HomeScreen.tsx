@@ -19,7 +19,7 @@ type Slot = NonNullable<ValidatedHomeLayout['mainCard']>;
 
 // 1. DYNAMIC ICON DICTIONARY (The Translation Layer)
 const IconDictionary: Record<string, React.ReactNode> = {
-  zap: <Zap size={14} color={colors.surface.white} fill={colors.surface.white} />,
+  zap: <Zap size={14} color={colors.text.primary} fill={colors.surface.white} />,
   book: <Book size={18} color={colors.text.primary} />,
   clock: <Clock size={18} color={colors.text.primary} />,
   star: <Star size={18} color={colors.text.primary} />,
@@ -39,7 +39,7 @@ export default function HomeScreen() {
     async function loadAgent() {
       // Toggle to test the Agentic UI live:
       // const mockUserState = { accuracy: 95, recentTopics: ['Attention', 'Tokenization'] }; // HomeCard + NextStepCard
-      const mockUserState = { accuracy: 45, recentTopics: ['Context Windows', 'Embeddings'] }; // PracticeCard + RevisitSection
+      const mockUserState = { accuracy: 100, recentTopics: ['Context Windows', 'Embeddings'] }; // PracticeCard + RevisitSection
 
       const payload = await fetchAgentLayout(mockUserState);
       if (!cancelled) {
