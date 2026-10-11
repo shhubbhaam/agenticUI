@@ -217,5 +217,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 # LearnHouse test credentials
-src/core/api/learnhouse/config.ts
 .env
+bff/.env
+bff/users.local.json

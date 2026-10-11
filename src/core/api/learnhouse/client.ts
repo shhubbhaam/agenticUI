@@ -1,4 +1,4 @@
-// src/data/learnhouse/client.ts
+// src/core/api/learnhouse/client.ts
 // Thin LearnHouse client + response types (shapes taken from the API reference).
 
 import { LEARNHOUSE } from './config';
@@ -77,52 +77,69 @@ export class LearnHouseError extends Error {
   }
 }
 
-// src/core/api/learnhouse/client.ts (Replace bottom half)
+import { getSessionToken } from '../../auth/session';
 
-async function lhGet<T>(path: string): Promise<T> {
-  const url = `${LEARNHOUSE.baseUrl}${path}`;
-  
-  const res = await fetch(url, {
-    headers: { 'Accept': 'application/json' },
+// All calls go to the BFF with the learner's session token. The BFF resolves
+// learner + org from the session and holds the LearnHouse org token server-side,
+// so nothing here can choose whose progress is read or written.
+async function bffFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getSessionToken();
+  const res = await fetch(`${LEARNHOUSE.baseUrl}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
   });
-
   if (!res.ok) {
     throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
 
-async function lhPost<T>(path: string, body?: any): Promise<T> {
-  const url = `${LEARNHOUSE.baseUrl}${path}`;
-  const res = await fetch(url, {
+export interface LoginResult {
+  token: string;
+  learner: { id: string; displayName: string };
+  expiresAt: string;
+}
+
+export function login(email: string, password: string) {
+  return bffFetch<LoginResult>('/auth/login', {
     method: 'POST',
-    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify({ email, password }),
   });
-
-  if (!res.ok) {
-    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
-  }
-  return res.json() as Promise<T>;
 }
 
-export function getCourseMeta(courseUuid = LEARNHOUSE.courseUuid) {
-  return lhGet<LHCourseMeta>(`/courses/${courseUuid}/meta`);
+export function getCourseMeta(courseUuid: string = LEARNHOUSE.courseUuid) {
+  return bffFetch<LHCourseMeta>(`/me/courses/${encodeURIComponent(courseUuid)}/meta`);
 }
 
-export function getUserCourseTrail(
-  userId = LEARNHOUSE.userId,
-  courseUuid = LEARNHOUSE.courseUuid,
-  orgSlug = LEARNHOUSE.orgSlug,
-) {
-  return lhGet<LHUserTrail>(`/admin/${orgSlug}/trails/${userId}/courses/${courseUuid}`);
+export function getUserCourseTrail(courseUuid: string = LEARNHOUSE.courseUuid) {
+  return bffFetch<LHUserTrail>(`/me/courses/${encodeURIComponent(courseUuid)}/trail`);
 }
 
-// 🟢 NEW: Write completion back to LearnHouse
+export interface CompletionResult {
+  activityUuid: string;
+  /** received = BFF accepted the request; applied = read-back from LearnHouse shows completed. */
+  status: 'applied' | 'received';
+  idempotencyKey: string;
+}
+
+/** Write completion through the BFF. Same idempotency key => one effect on retry. */
 export function markActivityComplete(
   activityUuid: string,
-  userId = LEARNHOUSE.userId,
-  orgSlug = LEARNHOUSE.orgSlug
+  idempotencyKey: string,
+  courseUuid: string = LEARNHOUSE.courseUuid,
 ) {
-  return lhPost(`/admin/${orgSlug}/trails/${userId}/activities/${activityUuid}/complete`);
+  return bffFetch<CompletionResult>(
+    `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/complete`,
+    { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } },
+  );
+}
+
+/** Agent-generated home layout, built server-side (Gemini key never reaches the app). */
+export function getHomeLayout(courseUuid: string = LEARNHOUSE.courseUuid, signal?: AbortSignal) {
+  return bffFetch<unknown>(`/me/courses/${encodeURIComponent(courseUuid)}/home-layout`, { signal });
 }

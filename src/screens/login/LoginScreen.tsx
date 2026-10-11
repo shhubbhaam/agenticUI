@@ -11,6 +11,11 @@ import {
 } from 'react-native';
 import {Rocket} from 'lucide-react-native';
 import twrnc from 'twrnc';
+import {useNavigation, StackActions} from '@react-navigation/native';
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import type {RootStackParamList} from '../../navigation/MainStack';
+import {login} from '../../core/api/learnhouse/client';
+import {setSession} from '../../core/auth/session';
 
 const s = twrnc;
 
@@ -20,6 +25,8 @@ export default function LoginScreen() {
 
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   // Email validation
   const validateEmail = (value: string) => {
@@ -41,7 +48,7 @@ export default function LoginScreen() {
     };
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     let valid = true;
 
     // Validate email
@@ -86,10 +93,19 @@ export default function LoginScreen() {
       return;
     }
 
-    console.log('Login:', {
-      email,
-      password,
-    });
+    // W2 review P0: credentials were logged here. Now they go only to the BFF,
+    // which authenticates against LearnHouse and returns an opaque session token.
+    setSubmitting(true);
+    try {
+      const result = await login(email.trim(), password);
+      setSession(result.token, result.learner.id, result.learner.displayName);
+      setPassword('');
+      navigation.dispatch(StackActions.replace('HomeScreen'));
+    } catch (e: any) {
+      setPasswordError(e?.status === 401 ? 'Email or password is incorrect.' : 'Could not reach the server. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -264,6 +280,8 @@ export default function LoginScreen() {
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleLogin}
+              disabled={submitting}
+              accessibilityState={{busy: submitting, disabled: submitting}}
               style={s`
                 h-13
                 rounded-lg

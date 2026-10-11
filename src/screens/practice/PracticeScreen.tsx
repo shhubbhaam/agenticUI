@@ -9,7 +9,7 @@ import { PracticeHeader } from '../../ui/organisms/practice/PracticeHeader'
 import { PracticeCard } from '../../ui/organisms/practice/PracticeCard';
 import { PracticeNotification } from '../../ui/molecules/practice/PracticeNotifications';
 // import { SectionTitle } from '../../ui/molecules/home/SectionTitle'; // or a shared section title component
-import { RevisitSection } from '../../ui/organisms/practice/RevisitSection';
+import { RevisitSection, type RevisitItemData } from '../../ui/organisms/practice/RevisitSection';
 
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';

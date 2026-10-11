@@ -1,0 +1,26 @@
+PASS  envelope › accepts a valid layout with both slots
+PASS  envelope › rejects an incompatible version
+PASS  envelope › rejects an expired layout
+PASS  envelope › rejects a layout issued in the future (clock skew > 60 s)
+PASS  envelope › rejects a layout for another learner (wrong session/context)
+PASS  envelope › rejects a layout for another course
+PASS  envelope › rejects unknown envelope fields (strict, not stripped) — e.g. tenant
+PASS  envelope › rejects an oversized payload before parsing (million-char title)
+PASS  envelope › rejects malformed JSON text
+PASS  envelope › rejects multiple concatenated JSON objects
+PASS  per-slot survival › one bad slot -> that slot falls back, the valid slot still renders
+PASS  per-slot survival › both slots null -> envelope ok, both slots reported empty (UI shows fallback)
+PASS  catalogue + props › unknown component name -> invalid
+PASS  catalogue + props › extra prop on a card -> invalid
+PASS  catalogue + props › wrong prop type -> invalid
+PASS  catalogue + props › extra field on the slot wrapper -> invalid (no silent strip)
+PASS  actions (closed allow-list) › allowed: complete-activity with id
+PASS  actions (closed allow-list) › allowed: open-path
+PASS  actions (closed allow-list) › unknown action type -> rejected
+PASS  actions (closed allow-list) › free-form actionId string (old shape) -> rejected
+PASS  actions (closed allow-list) › complete-activity without target -> rejected
+PASS  actions (closed allow-list) › target id with path characters -> rejected
+PASS  actions (closed allow-list) › extra field on action -> rejected
+PASS  MAX_PAYLOAD_BYTES is a documented, finite bound
+
+24 passed, 0 failed, 24 total

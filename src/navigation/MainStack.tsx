@@ -29,7 +29,7 @@ const tabScreenOptions = ({ route }: { route: { params?: TabScreenParams } }) =>
 export default function MainStack() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="HomeScreen" screenOptions={{headerShown: false}}>
+      <Stack.Navigator initialRouteName="Login" screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="PathScreen" component={PathScreen} options={tabScreenOptions} />
         <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
