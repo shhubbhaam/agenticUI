@@ -5,7 +5,7 @@ const { createApp } = require('../src/app');
 const { createFakeLearnHouse } = require('./fakeLearnHouse');
 
 let server, base, fake;
-const silent = { info() {} };
+const silent = { info() {}, warn() {} };
 before(async () => {
   fake = createFakeLearnHouse();
   server = createApp({ lh: fake.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
@@ -117,4 +117,29 @@ test('home-layout: agent output targeting an unauthorized activity is dropped se
 test('oversized request body -> 413', async () => {
   const r = await call('/auth/login', { method: 'POST', body: { email: 'a', password: 'x'.repeat(20000) } });
   assert.equal(r.status, 413);
+});
+
+test('not-enrolled learner: trail -> 404 not_enrolled (not a 502)', async () => {
+  const t = await login('neha@test.local');
+  const r = await call('/me/courses/course_demo/trail', { token: t });
+  assert.equal(r.status, 404); assert.equal(r.body.error, 'not_enrolled');
+});
+
+test('not-enrolled learner: home-layout still works, suggests the first published activity', async () => {
+  const t = await login('neha@test.local');
+  const r = await call('/me/courses/course_demo/home-layout', { token: t });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+});
+
+test('real upstream failure (500) is still reported as 502 with the upstream status', async () => {
+  const broken = createFakeLearnHouse();
+  broken.lh.getCourseMeta = async () => { const e = new Error('LearnHouse GET /courses -> 500'); e.status = 500; throw e; };
+  const s = createApp({ lh: broken.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
+  await new Promise((r) => s.listen(0, r));
+  const b = `http://127.0.0.1:${s.address().port}/api`;
+  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
+  const r = await fetch(b + '/me/courses/course_demo/meta', { headers: { Authorization: `Bearer ${tok}` } });
+  const body = await r.json(); s.close();
+  assert.equal(r.status, 502); assert.equal(body.upstreamStatus, 500);
 });

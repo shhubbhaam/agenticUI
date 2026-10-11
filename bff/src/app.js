@@ -64,7 +64,11 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
     if (!UUID_RE.test(courseUuid) || !allowedCourses.has(courseUuid)) return res.status(403).json({ error: 'course_forbidden' });
     next();
   };
-  const upstreamError = (res, e) => res.status(e.status === 404 ? 404 : 502).json({ error: e.status === 404 ? 'not_found' : 'upstream_error' });
+  const upstreamError = (res, e) => {
+    // Sanitized: method, LearnHouse path and status (or network code). Never headers, tokens or bodies.
+    logger.warn?.(`[upstream] ${e.message}${e.cause?.code ? ` (${e.cause.code})` : ''}`);
+    res.status(e.status === 404 ? 404 : 502).json({ error: e.status === 404 ? 'not_found' : 'upstream_error', upstreamStatus: e.status ?? null });
+  };
 
   app.post('/api/auth/logout', requireSession, (req, res) => {
     sessions.destroy(/^Bearer (.+)$/.exec(req.headers.authorization)[1]);
@@ -76,8 +80,19 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
   });
 
   app.get('/api/me/courses/:courseUuid/trail', requireSession, requireCourse, async (req, res) => {
-    try { res.json(await lh.getTrail(req.learner.learnerId, req.params.courseUuid)); } catch (e) { upstreamError(res, e); }
+    try {
+      const trail = await trailOrNull(req.learner.learnerId, req.params.courseUuid);
+      if (!trail) return res.status(404).json({ error: 'not_enrolled' });
+      res.json(trail);
+    } catch (e) { upstreamError(res, e); }
   });
+
+  // LearnHouse answers 400/404/422 for a learner with no trail (not enrolled / never started).
+  // Treat that as "no progress yet" instead of a server failure.
+  async function trailOrNull(learnerId, courseUuid) {
+    try { return await lh.getTrail(learnerId, courseUuid); }
+    catch (e) { if ([400, 404, 422].includes(e.status)) return null; throw e; }
+  }
 
   // Published activities of an allowed course, in order.
   async function publishedActivities(courseUuid) {
@@ -85,7 +100,7 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
     return (meta?.chapters ?? []).flatMap((ch) => ch.activities ?? []).filter((a) => a.published !== false);
   }
   async function isCompleted(learnerId, courseUuid, activityUuid) {
-    const trail = await lh.getTrail(learnerId, courseUuid);
+    const trail = await trailOrNull(learnerId, courseUuid);
     const course = trail?.courses?.find((c) => c.course_uuid === courseUuid);
     return !!course?.chapters?.some((ch) => ch.activities?.some((a) => a.activity_uuid === activityUuid && a.completed));
   }
@@ -125,7 +140,7 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
     const { courseUuid } = req.params;
     const learnerId = req.learner.learnerId;
     try {
-      const [activities, trail] = await Promise.all([publishedActivities(courseUuid), lh.getTrail(learnerId, courseUuid)]);
+      const [activities, trail] = await Promise.all([publishedActivities(courseUuid), trailOrNull(learnerId, courseUuid)]);
       const done = new Set((trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? [])
         .flatMap((ch) => ch.activities ?? []).filter((a) => a.completed).map((a) => a.activity_uuid));
       const choices = activities.filter((a) => !done.has(a.activity_uuid)).slice(0, 5)
@@ -137,7 +152,10 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
         try {
           const generated = await agent.generate({ choices, signals: { completed: done.size, remaining: choices.length } });
           if (generated) { slots = authorizeSlots(generated, allowed); source = 'agent'; }
-        } catch { /* timeout / bad JSON / quota -> deterministic fallback, never raw text in logs */ }
+        } catch (e) {
+          // Status/reason only, never model text: e.g. "Gemini HTTP 404" = wrong model name for this key.
+          logger.warn?.(`[agent] fallback used: ${e.name === 'TimeoutError' ? 'timeout' : e.message}`);
+        }
       }
       if (!slots || (!slots.mainCard && !slots.nextStepSection)) { slots = fallbackSlots(choices); source = 'fallback'; }
 

@@ -1,6 +1,6 @@
 // In-memory LearnHouse double: two learners, one allowed course, one unpublished activity.
 function createFakeLearnHouse() {
-  const users = { 'asha@test.local': { pw: 'Passw0rd!', id: '101', name: 'Asha' }, 'ravi@test.local': { pw: 'Passw0rd!', id: '202', name: 'Ravi' } };
+  const users = { 'asha@test.local': { pw: 'Passw0rd!', id: '101', name: 'Asha' }, 'ravi@test.local': { pw: 'Passw0rd!', id: '202', name: 'Ravi' }, 'neha@test.local': { pw: 'Passw0rd!', id: '303', name: 'Neha' } };
   const meta = { course_uuid: 'course_demo', name: 'Demo', chapters: [{ chapter_uuid: 'ch1', name: 'Ch 1', activities: [
     { activity_uuid: 'act_1', name: 'What is an LLM', published: true },
     { activity_uuid: 'act_2', name: 'Prompt basics', published: true },
@@ -13,6 +13,7 @@ function createFakeLearnHouse() {
     async login(email, pw) { const u = users[email]; return u && u.pw === pw ? { learnerId: u.id, displayName: u.name } : null; },
     async getCourseMeta(uuid) { if (uuid !== 'course_demo') { const e = new Error('nf'); e.status = 404; throw e; } return meta; },
     async getTrail(learnerId, uuid) {
+      if (learnerId === '303') { const e = new Error('no trail'); e.status = 404; throw e; } // not enrolled
       const done = completed.get(learnerId) ?? new Set();
       return { user_id: Number(learnerId), courses: [{ course_uuid: uuid, chapters: [{ chapter_uuid: 'ch1', activities:
         meta.chapters[0].activities.filter((a) => a.published).map((a) => ({ activity_uuid: a.activity_uuid, completed: done.has(a.activity_uuid) })) }] }] };

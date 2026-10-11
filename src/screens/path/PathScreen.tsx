@@ -52,7 +52,7 @@ if (status === 'loading') {
     );
   }
 
-  if (status === 'error' || !data) {
+  if (!data) {
     return (
       <View style={tw`flex-1 justify-center items-center bg-slate-50 px-5`}>
         <Text style={tw`text-red-500 font-bold mb-2`}>Failed to load</Text>
