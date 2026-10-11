@@ -11,7 +11,10 @@ import { HomeLayoutSchema, type ValidatedHomeLayout } from '../schemas/homeLayou
 // but never commit it.
 // ─────────────────────────────────────────────────────────────
 const MODEL_ID = 'gemini-3.5-flash-lite';
-const API_KEY = 'AQ.Ab8RN6JKKDQQ3uCaeDl3yr3ZstM3LSMR1pJMx227sM8mkZI7Jw'
+const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+if (!API_KEY) {
+  throw new Error('EXPO_PUBLIC_GEMINI_API_KEY is not defined in the environment variables.');
+}
 
 export type UserState = Record<string, unknown>;
 

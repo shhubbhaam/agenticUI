@@ -77,33 +77,37 @@ export class LearnHouseError extends Error {
   }
 }
 
+// src/core/api/learnhouse/client.ts (Replace bottom half)
+
 async function lhGet<T>(path: string): Promise<T> {
   const url = `${LEARNHOUSE.baseUrl}${path}`;
+  
   const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${LEARNHOUSE.apiToken}`,
-      Accept: 'application/json',
-    },
+    headers: { 'Accept': 'application/json' },
   });
 
   if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = typeof body?.detail === 'string' ? body.detail : JSON.stringify(body?.detail ?? body);
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new LearnHouseError(res.status, path, `${res.status} on ${path}: ${detail}`);
+    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
 
-// ---------- endpoints ----------
+async function lhPost<T>(path: string, body?: any): Promise<T> {
+  const url = `${LEARNHOUSE.baseUrl}${path}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export function getCourseMeta(courseUuid = LEARNHOUSE.courseUuid) {
-  // slim=true drops heavy activity content. If you store durations in
-  // activity `details`, switch slim off.
-  return lhGet<LHCourseMeta>(`/courses/${courseUuid}/meta?slim=true`);
+  return lhGet<LHCourseMeta>(`/courses/${courseUuid}/meta`);
 }
 
 export function getUserCourseTrail(
@@ -112,4 +116,13 @@ export function getUserCourseTrail(
   orgSlug = LEARNHOUSE.orgSlug,
 ) {
   return lhGet<LHUserTrail>(`/admin/${orgSlug}/trails/${userId}/courses/${courseUuid}`);
+}
+
+// 🟢 NEW: Write completion back to LearnHouse
+export function markActivityComplete(
+  activityUuid: string,
+  userId = LEARNHOUSE.userId,
+  orgSlug = LEARNHOUSE.orgSlug
+) {
+  return lhPost(`/admin/${orgSlug}/trails/${userId}/activities/${activityUuid}/complete`);
 }

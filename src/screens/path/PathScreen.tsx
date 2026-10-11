@@ -43,7 +43,26 @@ export default function PathScreen() {
   );
 
   // First load, or a hard failure with nothing to show yet.
- if (!data) return null;
+if (status === 'loading') {
+    return (
+      <View style={tw`flex-1 justify-center items-center bg-slate-50`}>
+        <ActivityIndicator size="large" color={colors.action.primary} />
+        <Text style={tw`mt-4 text-gray-500`}>Loading your path...</Text>
+      </View>
+    );
+  }
+
+  if (status === 'error' || !data) {
+    return (
+      <View style={tw`flex-1 justify-center items-center bg-slate-50 px-5`}>
+        <Text style={tw`text-red-500 font-bold mb-2`}>Failed to load</Text>
+        <Text style={tw`text-gray-600 text-center mb-4`}>{error || "No data returned"}</Text>
+        <Pressable onPress={retry} style={tw`px-4 py-2 bg-blue-600 rounded-lg`}>
+          <Text style={tw`text-white font-bold`}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
