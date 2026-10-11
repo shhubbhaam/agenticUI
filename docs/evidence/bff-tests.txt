@@ -1,136 +1,160 @@
 TAP version 13
-# Subtest: login: wrong password -> 401, response carries no token
-ok 1 - login: wrong password -> 401, response carries no token
+# Subtest: AI picks PracticeCard + RevisitSection -> those components are served
+ok 1 - AI picks PracticeCard + RevisitSection -> those components are served
   ---
-  duration_ms: 69.147772
+  duration_ms: 56.500868
+  type: 'test'
+  ...
+# Subtest: AI picks HomeCard + NextStepCard -> those components are served
+ok 2 - AI picks HomeCard + NextStepCard -> those components are served
+  ---
+  duration_ms: 13.324423
+  type: 'test'
+  ...
+# Subtest: decision outside the catalogue -> deterministic fallback, not a crash
+ok 3 - decision outside the catalogue -> deterministic fallback, not a crash
+  ---
+  duration_ms: 12.761082
+  type: 'test'
+  ...
+# Subtest: Gemini HTTP error -> deterministic fallback
+ok 4 - Gemini HTTP error -> deterministic fallback
+  ---
+  duration_ms: 8.776861
+  type: 'test'
+  ...
+# Subtest: login: wrong password -> 401, response carries no token
+ok 5 - login: wrong password -> 401, response carries no token
+  ---
+  duration_ms: 47.443694
   type: 'test'
   ...
 # Subtest: no session / forged session -> 401 on every /me route
-ok 2 - no session / forged session -> 401 on every /me route
+ok 6 - no session / forged session -> 401 on every /me route
   ---
-  duration_ms: 8.778798
+  duration_ms: 9.973802
   type: 'test'
   ...
 # Subtest: course not on server allow-list -> 403
-ok 3 - course not on server allow-list -> 403
+ok 7 - course not on server allow-list -> 403
   ---
-  duration_ms: 10.84083
+  duration_ms: 10.351221
   type: 'test'
   ...
 # Subtest: old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
-ok 4 - old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
+ok 8 - old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
   ---
-  duration_ms: 5.792116
+  duration_ms: 8.07262
   type: 'test'
   ...
 # Subtest: unpublished / foreign activity -> 403 activity_forbidden, no upstream write
-ok 5 - unpublished / foreign activity -> 403 activity_forbidden, no upstream write
+ok 9 - unpublished / foreign activity -> 403 activity_forbidden, no upstream write
   ---
-  duration_ms: 7.627196
+  duration_ms: 7.605502
   type: 'test'
   ...
 # Subtest: completion write is applied and read back; other learner is unaffected
-ok 6 - completion write is applied and read back; other learner is unaffected
+ok 10 - completion write is applied and read back; other learner is unaffected
   ---
-  duration_ms: 14.376383
+  duration_ms: 28.072075
   type: 'test'
   ...
 # Subtest: retry with same Idempotency-Key -> one upstream effect, replayed result
-ok 7 - retry with same Idempotency-Key -> one upstream effect, replayed result
+ok 11 - retry with same Idempotency-Key -> one upstream effect, replayed result
   ---
-  duration_ms: 5.110521
+  duration_ms: 11.121
   type: 'test'
   ...
 # Subtest: same key reused for a different activity -> 409
-ok 8 - same key reused for a different activity -> 409
+ok 12 - same key reused for a different activity -> 409
   ---
-  duration_ms: 6.790325
+  duration_ms: 6.394367
   type: 'test'
   ...
 # Subtest: lost upstream response is reconciled by read-back -> applied, not a false failure
-ok 9 - lost upstream response is reconciled by read-back -> applied, not a false failure
+ok 13 - lost upstream response is reconciled by read-back -> applied, not a false failure
   ---
-  duration_ms: 4.217879
+  duration_ms: 8.531769
   type: 'test'
   ...
 # Subtest: missing Idempotency-Key -> 400
-ok 10 - missing Idempotency-Key -> 400
+ok 14 - missing Idempotency-Key -> 400
   ---
-  duration_ms: 3.706529
+  duration_ms: 10.008759
   type: 'test'
   ...
 # Subtest: home-layout: versioned envelope bound to the session learner, fallback without Gemini
-ok 11 - home-layout: versioned envelope bound to the session learner, fallback without Gemini
+ok 15 - home-layout: versioned envelope bound to the session learner, fallback without Gemini
   ---
-  duration_ms: 8.628696
+  duration_ms: 8.264145
   type: 'test'
   ...
 # Subtest: home-layout: agent output targeting an unauthorized activity is dropped server-side
-ok 12 - home-layout: agent output targeting an unauthorized activity is dropped server-side
+ok 16 - home-layout: agent output targeting an unauthorized activity is dropped server-side
   ---
-  duration_ms: 13.368293
+  duration_ms: 11.165315
   type: 'test'
   ...
 # Subtest: oversized request body -> 413
-ok 13 - oversized request body -> 413
+ok 17 - oversized request body -> 413
   ---
-  duration_ms: 4.751089
+  duration_ms: 3.166916
   type: 'test'
   ...
 # Subtest: not-enrolled learner: trail -> 404 not_enrolled (not a 502)
-ok 14 - not-enrolled learner: trail -> 404 not_enrolled (not a 502)
+ok 18 - not-enrolled learner: trail -> 404 not_enrolled (not a 502)
   ---
-  duration_ms: 4.11607
+  duration_ms: 6.479323
   type: 'test'
   ...
 # Subtest: not-enrolled learner: home-layout still works, suggests the first published activity
-ok 15 - not-enrolled learner: home-layout still works, suggests the first published activity
+ok 19 - not-enrolled learner: home-layout still works, suggests the first published activity
   ---
-  duration_ms: 5.600834
+  duration_ms: 4.996124
   type: 'test'
   ...
 # Subtest: real upstream failure (500) is still reported as 502 with the upstream status
-ok 16 - real upstream failure (500) is still reported as 502 with the upstream status
+ok 20 - real upstream failure (500) is still reported as 502 with the upstream status
   ---
-  duration_ms: 6.93418
+  duration_ms: 5.345058
   type: 'test'
   ...
 # Subtest: dev login: mapped email + password -> server-side learner id
-ok 17 - dev login: mapped email + password -> server-side learner id
+ok 21 - dev login: mapped email + password -> server-side learner id
   ---
-  duration_ms: 2.9563
+  duration_ms: 1.596648
   type: 'test'
   ...
 # Subtest: dev login: wrong password / unknown email -> null
-ok 18 - dev login: wrong password / unknown email -> null
+ok 22 - dev login: wrong password / unknown email -> null
   ---
-  duration_ms: 2.03831
+  duration_ms: 0.225198
   type: 'test'
   ...
 # Subtest: dev login: malformed id in config is ignored
-ok 19 - dev login: malformed id in config is ignored
+ok 23 - dev login: malformed id in config is ignored
   ---
-  duration_ms: 0.156001
+  duration_ms: 0.137973
   type: 'test'
   ...
 # Subtest: dev login: refuses production
-ok 20 - dev login: refuses production
+ok 24 - dev login: refuses production
   ---
-  duration_ms: 0.346249
+  duration_ms: 0.282628
   type: 'test'
   ...
 # Subtest: dev login: other adapter methods untouched
-ok 21 - dev login: other adapter methods untouched
+ok 25 - dev login: other adapter methods untouched
   ---
-  duration_ms: 0.213998
+  duration_ms: 0.180875
   type: 'test'
   ...
-1..21
-# tests 21
+1..25
+# tests 25
 # suites 0
-# pass 21
+# pass 25
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 409.972173
+# duration_ms 663.483505

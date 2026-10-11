@@ -19,16 +19,28 @@ function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000, fetchI
   return {
     // Authenticate the learner with LearnHouse itself; we keep only id + name, not their LH token.
     async login(email, password) {
+      let data;
       try {
-        const data = await call('POST', '/auth/login', { form: { username: email, password }, auth: 'none' });
-        const user = data?.user ?? data;
-        const id = user?.id ?? user?.user_id;
-        if (id === undefined || id === null) return null;
-        return { learnerId: String(id), displayName: user.first_name || user.username || 'Learner' };
+        data = await call('POST', '/auth/login', { form: { username: email, password }, auth: 'none' });
       } catch (e) {
         if (e.status === 401 || e.status === 403 || e.status === 400) return null;
         throw e;
       }
+      // LearnHouse versions differ: the id may be at user.id, user.user_id or top-level.
+      let user = data?.user ?? data;
+      let id = user?.id ?? user?.user_id ?? data?.user_id;
+      // Fallback: ask LearnHouse who this token belongs to (learner's own token, used once, never stored).
+      const userToken = data?.tokens?.access_token ?? data?.access_token ?? data?.token;
+      if ((id === undefined || id === null) && userToken) {
+        const res = await fetchImpl(`${baseUrl}/users/profile`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${userToken}` }, signal: AbortSignal.timeout(timeoutMs) });
+        if (res.ok) { user = await res.json(); id = user?.id ?? user?.user_id; }
+      }
+      if (id === undefined || id === null) {
+        console.warn('[learnhouse] login ok but no user id found; keys:', Object.keys(data ?? {}).join(','));
+        return null;
+      }
+      return { learnerId: String(id), displayName: user?.first_name || user?.username || 'Learner' };
     },
     getCourseMeta: (courseUuid) => call('GET', `/courses/${encodeURIComponent(courseUuid)}/meta?slim=true`),
     getTrail: (learnerId, courseUuid) =>

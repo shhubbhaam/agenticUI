@@ -130,7 +130,10 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
       const applied = await isCompleted(learnerId, courseUuid, activityUuid).catch(() => false);
       const result = { activityUuid, idempotencyKey: key, status: applied ? 'applied' : 'received' };
       idempotency.set(cacheKey, result);
-      if (!applied && writeError) return res.status(502).json({ ...result, error: 'upstream_write_failed' });
+      if (!applied && writeError) {
+        logger.warn?.(`[upstream] ${writeError.message}${writeError.cause?.code ? ` (${writeError.cause.code})` : ''}`);
+        return res.status(502).json({ ...result, error: 'upstream_write_failed', upstreamStatus: writeError.status ?? null });
+      }
       res.status(applied ? 200 : 202).json(result);
     } catch (e) { upstreamError(res, e); }
   });
@@ -145,12 +148,15 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
         .flatMap((ch) => ch.activities ?? []).filter((a) => a.completed).map((a) => a.activity_uuid));
       const choices = activities.filter((a) => !done.has(a.activity_uuid)).slice(0, 5)
         .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
-      const allowed = new Set(choices.map((c) => c.activityUuid));
+      const completedList = activities.filter((a) => done.has(a.activity_uuid)).slice(-3)
+        .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
+      // Authorized targets: this learner's unfinished + completed published activities in this course.
+      const allowed = new Set([...choices, ...completedList].map((c) => c.activityUuid));
 
       let slots = null; let source = 'fallback';
       if (agent) {
         try {
-          const generated = await agent.generate({ choices, signals: { completed: done.size, remaining: choices.length } });
+          const generated = await agent.generate({ choices, completed: completedList, signals: { completedCount: done.size, remainingCount: activities.length - done.size, totalCount: activities.length } });
           if (generated) { slots = authorizeSlots(generated, allowed); source = 'agent'; }
         } catch (e) {
           // Status/reason only, never model text: e.g. "Gemini HTTP 404" = wrong model name for this key.
@@ -158,6 +164,7 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
         }
       }
       if (!slots || (!slots.mainCard && !slots.nextStepSection)) { slots = fallbackSlots(choices); source = 'fallback'; }
+      logger.info?.(`[home-layout] source=${source} mainCard=${slots.mainCard?.component ?? 'none'} nextStep=${slots.nextStepSection?.component ?? 'none'}`);
 
       const now = Date.now();
       res.json({
