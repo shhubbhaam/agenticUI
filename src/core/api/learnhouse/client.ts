@@ -1,7 +1,15 @@
 // src/data/learnhouse/client.ts
 // Thin LearnHouse client + response types (shapes taken from the API reference).
 
-import { LEARNHOUSE } from './config';
+// Read from EXPO_PUBLIC_* env vars (see .env.example) instead of a gitignored
+// config.ts, so this compiles on a fresh checkout.
+const LEARNHOUSE = {
+  baseUrl: process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL ?? '',
+  apiToken: process.env.EXPO_PUBLIC_LEARNHOUSE_ADMIN_TOKEN_TESTING_ONLY ?? '',
+  courseUuid: process.env.EXPO_PUBLIC_LEARNHOUSE_COURSE_UUID ?? '',
+  userId: process.env.EXPO_PUBLIC_LEARNHOUSE_USER_ID ?? '',
+  orgSlug: process.env.EXPO_PUBLIC_LEARNHOUSE_ORG_SLUG ?? '',
+};
 
 // ---------- /courses/{uuid}/meta ----------
 export interface LHActivity {
