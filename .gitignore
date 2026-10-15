@@ -219,3 +219,7 @@ vite.config.ts.timestamp-*
 
 .worktrees/
 .superpowers/
+
+# Local-only, never committed
+graphify-out/
+scripts/test-learnhouse-api.mjs
