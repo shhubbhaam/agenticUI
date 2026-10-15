@@ -6,6 +6,7 @@ import {
   renderScreen, textsOf, pressByLabel, pressByTestId, isDisabledByLabel, accessibilityStateByTestId,
 } from './testUtils';
 import { useOnboardingStore, emptyAnswers } from '../../state/useOnboardingStore';
+import { useSessionStore } from '../../state/useSessionStore';
 import { DIAGNOSTIC_QUESTIONS } from '../../core/onboarding/questions';
 
 jest.mock('@react-navigation/native', () => ({
@@ -13,6 +14,16 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: jest.fn(),
   useRoute: jest.fn(),
 }));
+
+const mockSaveOnboardingAnswers = jest.fn();
+jest.mock('../../data/local/localProfileDb', () => ({
+  saveOnboardingAnswers: (...args: unknown[]) => mockSaveOnboardingAnswers(...args),
+}));
+
+const IDENTITY = {
+  userId: 1, fullName: 'A B', email: 'a@b.com', avatarImage: null,
+  orgId: 1, orgSlug: 'org', orgName: 'Org', roleName: 'member',
+};
 const navigate = jest.fn();
 const reset = jest.fn();
 const goBack = jest.fn();
@@ -77,6 +88,61 @@ describe('DiagnosticScreen', () => {
     pressByLabel(tree, 'Build my path');
     expect(useOnboardingStore.getState().completed).toBe(true);
     expect(reset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'HomeScreen' }] });
+  });
+
+  describe('saving to the local profile on finish', () => {
+    beforeEach(() => {
+      mockSaveOnboardingAnswers.mockReset();
+      mockSaveOnboardingAnswers.mockResolvedValue(undefined);
+      act(() => { useSessionStore.setState({ status: 'signedIn', identity: IDENTITY }); });
+    });
+    afterEach(() => {
+      act(() => { useSessionStore.setState({ status: 'signedOut', identity: null }); });
+    });
+
+    it('saves the finished answers for the signed-in user as completed', () => {
+      useOnboardingStore.getState().setAnswer('role', 'sales');
+      useOnboardingStore.getState().setDiagnosticAnswer(1, 'add-context');
+      const tree = mountQuestion(3);
+      pressByTestId(tree, 'diagnostic-unsure');
+      pressByLabel(tree, 'Build my path');
+
+      expect(mockSaveOnboardingAnswers).toHaveBeenCalledTimes(1);
+      const [username, saved, completed] = mockSaveOnboardingAnswers.mock.calls[0];
+      expect(username).toBe('a@b.com');
+      expect(saved.role).toBe('sales');
+      expect(saved.diagnostic).toEqual({ 1: 'add-context', 2: null, 3: 'unsure' });
+      expect(completed).toBe(true);
+    });
+
+    it('does not save on the earlier questions', () => {
+      const tree = mountQuestion(1);
+      pressByTestId(tree, 'diagnostic-add-context');
+      pressByLabel(tree, 'Next question');
+      expect(mockSaveOnboardingAnswers).not.toHaveBeenCalled();
+    });
+
+    it('skips saving when nobody is signed in, and still finishes', () => {
+      act(() => { useSessionStore.setState({ status: 'signedOut', identity: null }); });
+      const tree = mountQuestion(3);
+      pressByTestId(tree, 'diagnostic-unsure');
+      pressByLabel(tree, 'Build my path');
+
+      expect(mockSaveOnboardingAnswers).not.toHaveBeenCalled();
+      expect(reset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'HomeScreen' }] });
+    });
+
+    it('still finishes when the local save fails', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockSaveOnboardingAnswers.mockRejectedValue(new Error('disk full'));
+      const tree = mountQuestion(3);
+      pressByTestId(tree, 'diagnostic-unsure');
+      pressByLabel(tree, 'Build my path');
+      await act(async () => { await Promise.resolve(); });
+
+      expect(useOnboardingStore.getState().completed).toBe(true);
+      expect(reset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'HomeScreen' }] });
+    });
   });
 
   it('shows the resume alert and preselects the stored answer when earlier answers exist', () => {

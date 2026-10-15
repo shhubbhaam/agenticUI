@@ -8,6 +8,7 @@ import { useSessionStore } from '../../state/useSessionStore';
 import { ApiError } from '../../data/learnhouse/client';
 import { shouldShowOnboarding } from '../../core/onboarding/gate';
 import { useOnboardingStore } from '../../state/useOnboardingStore';
+import { saveCredentials } from '../../data/local/localProfileDb';
 
 export type Provider = 'google' | 'linkedin' | 'org';
 
@@ -194,6 +195,10 @@ export function useLoginFlow(): LoginFlowState {
     setIsSubmitting(true);
     signInWithPassword(email, password)
       .then(() => {
+        // Best-effort: the local record must never block a real sign-in.
+        saveCredentials(email, password).catch((err: unknown) => {
+          console.error('[useLoginFlow] saving local credentials failed:', err);
+        });
         goAfterSignIn();
       })
       .catch((err: unknown) => {

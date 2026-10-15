@@ -36,6 +36,11 @@ jest.mock('./googleSignIn', () => ({
   getGoogleAccessToken: () => mockGetGoogleAccessToken(),
 }));
 
+const mockSaveCredentials = jest.fn();
+jest.mock('../../data/local/localProfileDb', () => ({
+  saveCredentials: (...args: unknown[]) => mockSaveCredentials(...args),
+}));
+
 describe('validateEmail', () => {
   it('accepts a well-formed email', () => {
     expect(validateEmail('a@b.com')).toBeUndefined();
@@ -76,6 +81,8 @@ describe('useLoginFlow state machine', () => {
     mockSignInWithPassword.mockReset();
     mockSignInWithGoogle.mockReset();
     mockGetGoogleAccessToken.mockReset();
+    mockSaveCredentials.mockReset();
+    mockSaveCredentials.mockResolvedValue(undefined);
     require('@react-navigation/native').useNavigation.mockReturnValue({ reset: mockReset });
     jest.useFakeTimers();
   });
@@ -229,6 +236,53 @@ describe('useLoginFlow state machine', () => {
     act(() => { flow!.onChangePassword('longenough2'); });
     renderer.update(<Harness onReady={(f) => { flow = f; }} />);
     expect(flow!.formError).toBeUndefined();
+  });
+
+  describe('local profile credentials', () => {
+    function signInWithPasswordFlow() {
+      let flow!: ReturnType<typeof useLoginFlow>;
+      let renderer!: ReactTestRenderer.ReactTestRenderer;
+      const rerender = () => renderer.update(<Harness onReady={(f) => { flow = f; }} />);
+      act(() => { renderer = ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+      act(() => { flow.onUseEmailInstead(); }); rerender();
+      act(() => { flow.onChangeEmail('a@b.com'); }); rerender();
+      act(() => { flow.onSubmit(); }); rerender();
+      act(() => { flow.onChangePassword('longenough'); }); rerender();
+      act(() => { flow.onSubmit(); }); rerender();
+    }
+
+    it('saves the email and password locally after a successful password sign-in', async () => {
+      mockSignInWithPassword.mockResolvedValue(undefined);
+      signInWithPasswordFlow();
+      await flushMicrotasks();
+      expect(mockSaveCredentials).toHaveBeenCalledWith('a@b.com', 'longenough');
+    });
+
+    it('does not save anything when the password sign-in is rejected', async () => {
+      mockSignInWithPassword.mockRejectedValue(new ApiError(401, 'Incorrect email or password'));
+      signInWithPasswordFlow();
+      await flushMicrotasks();
+      expect(mockSaveCredentials).not.toHaveBeenCalled();
+    });
+
+    it('does not save credentials for Google sign-in, which has no password', async () => {
+      mockGetGoogleAccessToken.mockResolvedValue({ email: 'a@b.com', accessToken: 't' });
+      mockSignInWithGoogle.mockResolvedValue(undefined);
+      let flow!: ReturnType<typeof useLoginFlow>;
+      act(() => { ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
+      act(() => { flow.onContinueWithProvider('google'); });
+      await flushMicrotasks();
+      expect(mockSaveCredentials).not.toHaveBeenCalled();
+    });
+
+    it('still navigates into onboarding when the local save fails', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockSignInWithPassword.mockResolvedValue(undefined);
+      mockSaveCredentials.mockRejectedValue(new Error('disk full'));
+      signInWithPasswordFlow();
+      await flushMicrotasks();
+      expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'OnboardingRole' }] });
+    });
   });
 
   it('clears a stale emailError when Test creds is used to fill the form', () => {

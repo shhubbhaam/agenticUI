@@ -4,6 +4,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation/MainStack';
 import type { DiagnosticQuestionNumber } from '../../core/onboarding/types';
 import { useOnboardingStore } from '../../state/useOnboardingStore';
+import { useSessionStore } from '../../state/useSessionStore';
+import { saveOnboardingAnswers } from '../../data/local/localProfileDb';
 
 // Used as the route's `getId` so navigating to the same question twice (a
 // double tap) reuses the existing screen instead of stacking a duplicate.
@@ -36,6 +38,15 @@ export function useDiagnosticFlow(question: DiagnosticQuestionNumber) {
     if (question < 3) {
       navigation.navigate('OnboardingDiagnostic', { question: (question + 1) as DiagnosticQuestionNumber });
       return;
+    }
+    const username = useSessionStore.getState().identity?.email;
+    if (username) {
+      // Best-effort: the local record must never block finishing onboarding.
+      saveOnboardingAnswers(username, useOnboardingStore.getState().answers, true).catch(
+        (err: unknown) => {
+          console.error('[useDiagnosticFlow] saving local answers failed:', err);
+        }
+      );
     }
     markCompleted();
     navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });

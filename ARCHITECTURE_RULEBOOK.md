@@ -695,6 +695,15 @@ once, in advance, rather than re-litigated the day it's first needed.
 | Larger structured local data | SQLite | offline lesson cache, outbox queue |
 | Sensitive / secret | SecureStore | the LearnHouse JWT (`data/learnhouse/secureToken.ts`, built) |
 
+**Deliberate exception — local getting-started profile.** `data/local/localProfileDb.ts`
+(SQLite via `expo-sqlite`) keeps one row per username holding a salted
+SHA-256 password hash next to that user's onboarding answers. This is allowed
+to sit in SQLite rather than SecureStore because it is **not an
+authentication boundary**: LearnHouse verifies every login server-side, and
+nothing reads this hash to grant access. It only identifies "this user" on
+the device so their answers can be keyed to them. The JWT still lives in
+SecureStore only, and no new code should treat this hash as proof of identity.
+
 Never put server data in Zustand. Never put cross-cutting XP/streak state
 in `useState` local to one screen — other screens need it too.
 
