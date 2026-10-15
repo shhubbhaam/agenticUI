@@ -51,7 +51,6 @@ export const PathStagesList: React.FC<PathStagesListProps> = ({
         }
 
         const isExpanded = stage.id === expandedStageId;
-        const canOpen = stage.status !== 'locked';
 
         if (isExpanded) {
           return (
@@ -70,7 +69,7 @@ export const PathStagesList: React.FC<PathStagesListProps> = ({
           <StageRow
             key={stage.id}
             stage={stage}
-            onPress={canOpen ? () => onStagePress(stage.id) : undefined}
+            onPress={() => onStagePress(stage.id)}
           />
         );
       })}

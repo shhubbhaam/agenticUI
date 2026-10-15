@@ -20,7 +20,7 @@ export const StageRow: React.FC<StageRowProps> = ({ stage, onPress }) => {
   return (
     <TouchableOpacity
       onPress={onPress}
-      disabled={locked || !onPress}
+      disabled={!onPress}
       activeOpacity={0.7}
       style={[tw`flex-row items-center w-full`, { gap: 13, minHeight: 82.6 }]}
     >

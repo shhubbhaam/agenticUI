@@ -223,3 +223,5 @@ vite.config.ts.timestamp-*
 # Local-only, never committed
 graphify-out/
 scripts/test-learnhouse-api.mjs
+# LearnHouse test credentials
+src/core/api/learnhouse/config.ts

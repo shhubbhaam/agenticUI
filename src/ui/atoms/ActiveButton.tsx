@@ -1,6 +1,6 @@
 // src/components/atoms/ActiveButton.tsx
 import React from 'react';
-import { TouchableOpacity, Text } from 'react-native';
+import { TouchableOpacity, Text, View } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
@@ -60,7 +60,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
     );
   }
 
-  return (
+return (
     <TouchableOpacity
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
@@ -69,14 +69,14 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
         { backgroundColor: fillColor ?? colors.action.lesson, opacity: disabled ? 0.6 : 1 }
       ]}
     >
-      {icon ? <Text style={tw`mr-2`}>{icon}</Text> : null}
+      {icon ? <View style={tw`mr-2 justify-center items-center`}>{icon}</View> : null}
       <Text
         style={[
           tw`text-white`,
           {
             fontFamily: typography.fontFamily['jakarta-bold'],
             ...typography.fontSize['type-16'],
-          }
+          },
         ]}
       >
         {label}
