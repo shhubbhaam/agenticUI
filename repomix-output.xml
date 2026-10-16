@@ -41,6 +41,8 @@ The content is organized as follows:
 
 <directory_structure>
 __tests__/
+  contracts/
+    homeLayout.test.ts
   App.test.tsx
 assets/
   fonts/
@@ -59,24 +61,53 @@ assets/
     PlusJakartaSans-SemiBold.ttf
     PlusJakartaSans-SemiBoldItalic.ttf
 bff/
+  scripts/
+    diagnose.js
+  src/
+    agent.js
+    app.js
+    devLogin.js
+    learnhouse.js
+    sessions.js
+  test/
+    agent.test.js
+    bff.test.js
+    devLogin.test.js
+    fakeLearnHouse.js
+  .env.example
   package.json
   server.js
 docs/
+  evidence/
+    bff-contract-integration.txt
+    bff-tests.txt
+    contract-tests.txt
+    jest.txt
+    secret-scan.txt
+    typecheck.txt
   superpowers/
     plans/
       2026-09-16-folder-structure-refactor.md
     specs/
       2026-09-16-folder-structure-refactor-design.md
+  W3-plan-and-evidence.md
+  W3-work-summary-P10-G37.pdf
 scripts/
+  check-bff-contract.ts
   test-learnhouse-api.mjs
 src/
   components/
     organisms/
       RoadmapHeader.tsx
+  contracts/
+    homeLayout.ts
   core/
     api/
       learnhouse/
         client.ts
+        config.ts
+    auth/
+      session.ts
   navigation/
     MainStack.tsx
     useTabNavigation.ts
@@ -84,6 +115,7 @@ src/
     homeLayoutSchema.ts
   screens/
     home/
+      actions.ts
       HomeScreen.tsx
       HomeTemplate.tsx
     login/
@@ -148,6 +180,7 @@ src/
         StageDetailPanel.tsx
       BackgroundAbstracts.tsx
       BottomTabs.tsx
+      SlotBoundary.tsx
     tokens/
       colors.ts
       typography.ts
@@ -170,88 +203,113 @@ tsconfig.json
 <files>
 This section contains the contents of the repository's files.
 
-<file path="bff/package.json">
-{
-  "name": "bff",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "axios": "^1.20.0",
-    "cors": "^2.8.6",
-    "dotenv": "^18.0.7",
-    "express": "^5.3.0"
-  }
-}
-</file>
+<file path="__tests__/contracts/homeLayout.test.ts">
+// W3 FB002 evidence: automated boundary cases for the home-layout contract.
+// Each case states the expected outcome; the run log in docs/ records the observed one.
+import { parseHomeLayout, CONTRACT_VERSION, MAX_PAYLOAD_BYTES } from '../../src/contracts/homeLayout';
 
-<file path="bff/server.js">
-// bff/server.js
-require('dotenv').config({ path: '../.env' }); // <-- Pointing to root .env
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
+const NOW = new Date('2026-10-11T12:00:00.000Z');
+const ctx = { learnerId: '101', courseUuid: 'course_demo', now: NOW };
 
-// Safe Environment Check
-console.log('--- Environment Check ---');
-console.log('Base URL:', process.env.LH_BASE_URL || 'Not found');
-console.log('Token Loaded:', process.env.LH_API_TOKEN ? '✅ Yes' : '❌ No');
-if (process.env.LH_API_TOKEN) {
-  // Only print the first 4 characters to ensure it's reading the actual string
-  console.log('Token starts with:', process.env.LH_API_TOKEN.substring(0, 4) + '...'); 
-}
-console.log('-------------------------');
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const LH_BASE_URL = process.env.LH_BASE_URL || 'https://api.learnhouse.app/v1';
-const LH_API_TOKEN = process.env.LH_API_TOKEN || 'YOUR_LEARNHOUSE_ORG_TOKEN'; 
-
-const proxyToLearnHouse = async (req, res, method, endpoint, data = null) => {
-  try {
-    const response = await axios({
-      method,
-      url: `${LH_BASE_URL}${endpoint}`,
-      headers: { 
-        'Authorization': `Bearer ${LH_API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      data
-    });
-    res.json(response.data);
-  } catch (error) {
-    console.error(`BFF Error on ${endpoint}:`, error.response?.data || error.message);
-    res.status(error.response?.status || 500).json(error.response?.data || { error: 'BFF Error' });
-  }
+const homeCard = {
+  component: 'HomeCard',
+  props: { category: 'LLM basics', stage: 'Activity 1', title: 'What is an LLM', subtitle: 'Start here.',
+    readTime: '~5 min', buttonLabel: 'Mark complete', action: { type: 'complete-activity', activityUuid: 'act_1' } },
 };
+const nextCard = { component: 'NextStepCard', props: { title: 'See your path', subtitle: 'All stages.', action: { type: 'open-path' } } };
 
-// 1. Get Course Meta
-app.get('/api/courses/:courseUuid/meta', (req, res) => {
-  proxyToLearnHouse(req, res, 'GET', `/courses/${req.params.courseUuid}/meta?slim=true`);
+const envelope = (over: Record<string, unknown> = {}, slots: Record<string, unknown> = {}) => ({
+  version: CONTRACT_VERSION, layoutId: 'L1', learnerId: '101', courseUuid: 'course_demo',
+  issuedAt: '2026-10-11T11:59:00.000Z', expiresAt: '2026-10-11T12:10:00.000Z',
+  slots: { mainCard: homeCard, nextStepSection: nextCard, ...slots }, ...over,
 });
 
-// 2. Get User Trail (Progress)
-app.get('/api/admin/:orgSlug/trails/:userId/courses/:courseUuid', (req, res) => {
-  const { orgSlug, userId, courseUuid } = req.params;
-  proxyToLearnHouse(req, res, 'GET', `/admin/${orgSlug}/trails/${userId}/courses/${courseUuid}`);
+describe('envelope', () => {
+  it('accepts a valid layout with both slots', () => {
+    const r = parseHomeLayout(envelope(), ctx);
+    expect(r.ok && r.slots.mainCard.ok && r.slots.nextStepSection.ok).toBe(true);
+  });
+  it('rejects an incompatible version', () => {
+    expect(parseHomeLayout(envelope({ version: 2 }), ctx)).toEqual({ ok: false, reason: 'version' });
+  });
+  it('rejects an expired layout', () => {
+    expect(parseHomeLayout(envelope({ expiresAt: '2026-10-11T11:59:59.000Z' }), ctx)).toEqual({ ok: false, reason: 'expired' });
+  });
+  it('rejects a layout issued in the future (clock skew > 60 s)', () => {
+    expect(parseHomeLayout(envelope({ issuedAt: '2026-10-11T12:05:00.000Z' }), ctx)).toEqual({ ok: false, reason: 'expired' });
+  });
+  it('rejects a layout for another learner (wrong session/context)', () => {
+    expect(parseHomeLayout(envelope({ learnerId: '202' }), ctx)).toEqual({ ok: false, reason: 'wrong-context' });
+  });
+  it('rejects a layout for another course', () => {
+    expect(parseHomeLayout(envelope({ courseUuid: 'course_other' }), ctx)).toEqual({ ok: false, reason: 'wrong-context' });
+  });
+  it('rejects unknown envelope fields (strict, not stripped) — e.g. tenant', () => {
+    expect(parseHomeLayout(envelope({ tenant: 'evil' }), ctx)).toEqual({ ok: false, reason: 'malformed' });
+  });
+  it('rejects an oversized payload before parsing (million-char title)', () => {
+    const big = envelope({}, { mainCard: { ...homeCard, props: { ...homeCard.props, title: 'x'.repeat(1_000_000) } } });
+    expect(parseHomeLayout(big, ctx)).toEqual({ ok: false, reason: 'too-large' });
+  });
+  it('rejects malformed JSON text', () => {
+    expect(parseHomeLayout('{"version":1,', ctx)).toEqual({ ok: false, reason: 'malformed' });
+  });
+  it('rejects multiple concatenated JSON objects', () => {
+    expect(parseHomeLayout(JSON.stringify(envelope()) + JSON.stringify(envelope()), ctx)).toEqual({ ok: false, reason: 'malformed' });
+  });
 });
 
-// 3. Mark Activity as Complete (The required "Write" operation)
-app.post('/api/admin/:orgSlug/trails/:userId/activities/:activityUuid/complete', (req, res) => {
-  const { orgSlug, userId, activityUuid } = req.params;
-  proxyToLearnHouse(req, res, 'POST', `/admin/${orgSlug}/trails/${userId}/activities/${activityUuid}/complete`);
+describe('per-slot survival', () => {
+  it('one bad slot -> that slot falls back, the valid slot still renders', () => {
+    const r = parseHomeLayout(envelope({}, { nextStepSection: { component: 'NextStepCard', props: { title: 'x' } } }), ctx);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.slots.mainCard.ok).toBe(true);
+      expect(r.slots.nextStepSection).toEqual({ ok: false, reason: 'invalid' });
+    }
+  });
+  it('both slots null -> envelope ok, both slots reported empty (UI shows fallback)', () => {
+    const r = parseHomeLayout(envelope({}, { mainCard: null, nextStepSection: null }), ctx);
+    expect(r.ok && r.slots.mainCard.ok === false && r.slots.mainCard.reason === 'empty').toBe(true);
+  });
 });
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`🚀 BFF running on http://localhost:${PORT}`));
+describe('catalogue + props', () => {
+  const slotOnly = (mainCard: unknown) => {
+    const r = parseHomeLayout(envelope({}, { mainCard }), ctx);
+    return r.ok ? r.slots.mainCard : r;
+  };
+  it('unknown component name -> invalid', () => {
+    expect(slotOnly({ component: 'ScriptRunner', props: { code: 'alert(1)' } })).toEqual({ ok: false, reason: 'invalid' });
+  });
+  it('extra prop on a card -> invalid', () => {
+    expect(slotOnly({ ...homeCard, props: { ...homeCard.props, onPress: 'fetch(...)' } })).toEqual({ ok: false, reason: 'invalid' });
+  });
+  it('wrong prop type -> invalid', () => {
+    expect(slotOnly({ ...homeCard, props: { ...homeCard.props, title: 42 } })).toEqual({ ok: false, reason: 'invalid' });
+  });
+  it('extra field on the slot wrapper -> invalid (no silent strip)', () => {
+    expect(slotOnly({ ...homeCard, version: 9 })).toEqual({ ok: false, reason: 'invalid' });
+  });
+});
+
+describe('actions (closed allow-list)', () => {
+  const withAction = (action: unknown) => {
+    const r = parseHomeLayout(envelope({}, { mainCard: { ...homeCard, props: { ...homeCard.props, action } } }), ctx);
+    return r.ok ? r.slots.mainCard.ok : 'envelope-rejected';
+  };
+  it('allowed: complete-activity with id', () => expect(withAction({ type: 'complete-activity', activityUuid: 'act_1' })).toBe(true));
+  it('allowed: open-path', () => expect(withAction({ type: 'open-path' })).toBe(true));
+  it('unknown action type -> rejected', () => expect(withAction({ type: 'delete-account' })).toBe(false));
+  it('free-form actionId string (old shape) -> rejected', () => expect(withAction('lesson-attention-heads')).toBe(false));
+  it('complete-activity without target -> rejected', () => expect(withAction({ type: 'complete-activity' })).toBe(false));
+  it('target id with path characters -> rejected', () => expect(withAction({ type: 'complete-activity', activityUuid: '../admin' })).toBe(false));
+  it('extra field on action -> rejected', () => expect(withAction({ type: 'open-path', url: 'https://evil' })).toBe(false));
+});
+
+it('MAX_PAYLOAD_BYTES is a documented, finite bound', () => {
+  expect(MAX_PAYLOAD_BYTES).toBe(16384);
+});
 </file>
 
 <file path="__tests__/App.test.tsx">
@@ -270,311 +328,645 @@ test('renders correctly', async () => {
 });
 </file>
 
-<file path="scripts/test-learnhouse-api.mjs">
-#!/usr/bin/env node
-/**
- * Standalone exploration script — NOT part of the app.
- * Simulates the real end-user flow: login -> find org -> list courses ->
- * fetch chapters -> attempt to read the user's own progress (expected to fail,
- * since LearnHouse's trail/progress endpoints require an org API token, not
- * a plain user session).
- *
- * Usage:
- *   LH_BASE_URL=https://api.yourdomain.com \
- *   LH_EMAIL=admin@yourorg.com \
- *   LH_PASSWORD=yourpassword \
- *   node scripts/test-learnhouse-api.mjs
- */
+<file path="bff/scripts/diagnose.js">
+// bff/scripts/diagnose.js — step-by-step LearnHouse check. Prints status codes and error
+// messages only; never prints tokens, passwords or full response bodies.
+// Usage (from bff/):  node --env-file=.env scripts/diagnose.js you@example.com "YourPassword"
+const [, , email, password] = process.argv;
+const { LH_BASE_URL: base, LH_API_TOKEN: orgToken, LH_ORG_SLUG: org, LH_ALLOWED_COURSES } = process.env;
+const course = (LH_ALLOWED_COURSES ?? '').split(',')[0]?.trim();
 
-import { createInterface } from "node:readline/promises";
-import { stdin, stdout } from "node:process";
+const SECRET = /token|password|secret|authorization|cookie/i;
+const redact = (v) => Array.isArray(v) ? v.slice(0, 3).map(redact)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(0, 12).map(([k, x]) => [k, SECRET.test(k) ? '[REDACTED]' : redact(x)]))
+  : typeof v === 'string' && v.length > 80 ? v.slice(0, 80) + '…' : v;
 
-const BASE_URL = process.env.LH_BASE_URL || "https://REPLACE_ME.example.com";
-const EMAIL = process.env.LH_EMAIL || "REPLACE_ME@example.com";
-const PASSWORD = process.env.LH_PASSWORD || "REPLACE_ME";
-
-async function promptChoice(question, choices) {
-  const rl = createInterface({ input: stdin, output: stdout });
-  choices.forEach((c, i) => console.log(`  [${i}] ${c.label}`));
-  let index = -1;
-  while (!(index >= 0 && index < choices.length)) {
-    const answer = await rl.question(`${question} (0-${choices.length - 1}): `);
-    index = Number.parseInt(answer, 10);
-  }
-  rl.close();
-  return choices[index];
-}
-
-function log(step, data) {
-  console.log(`\n=== ${step} ===`);
-  console.log(typeof data === "string" ? data : JSON.stringify(data, null, 2));
-}
-
-async function request(path, { method = "GET", token, body, form } = {}) {
-  let requestBody;
-  if (form) {
-    requestBody = new URLSearchParams(form).toString();
-  } else if (body) {
-    requestBody = JSON.stringify(body);
-  }
-
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      "Content-Type": form ? "application/x-www-form-urlencoded" : "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: requestBody,
-  });
-  let data;
+async function step(label, path, { auth, form } = {}) {
+  const headers = { Accept: 'application/json' };
+  if (auth) headers.Authorization = `Bearer ${auth}`;
+  let body;
+  if (form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(form).toString(); }
   try {
-    data = await res.json();
-  } catch {
-    data = await res.text();
+    const res = await fetch(base + path, { method: form ? 'POST' : 'GET', headers, body, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+    const text = await res.text();
+    let json = null; try { json = JSON.parse(text); } catch {}
+    const loc = res.headers.get('location');
+    console.log(`\n[${label}] ${form ? 'POST' : 'GET'} ${path.replace(/\/trails\/[^/]+/, '/trails/<id>')}\n  status: ${res.status}${loc ? `  redirect -> ${loc}` : ''}`);
+    if (!res.ok) console.log('  error:', json ? JSON.stringify(redact(json)) : text.slice(0, 200));
+    return { ok: res.ok, json };
+  } catch (e) {
+    console.log(`\n[${label}] ${path}\n  NETWORK ERROR: ${e.name} ${e.message} ${e.cause?.code ?? ''}`);
+    return { ok: false };
   }
-  return { status: res.status, ok: res.ok, data };
 }
 
-function findToken(obj) {
-  if (!obj || typeof obj !== "object") return null;
-  const candidates = [obj, obj.tokens];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    for (const key of ["access_token", "accessToken", "token", "session_token"]) {
-      if (candidate[key]) return candidate[key];
-    }
-  }
-  return null;
+(async () => {
+  console.log(`base=${base} org=${org} course=${course} orgToken=${orgToken ? 'set' : 'MISSING'}`);
+  if (!email || !password) return console.log('Usage: node --env-file=.env scripts/diagnose.js EMAIL "PASSWORD"');
+
+  const login = await step('1 login', '/auth/login', { form: { username: email, password } });
+  const data = login.json ?? {};
+  const user = data.user ?? data;
+  const userId = user?.id ?? user?.user_id ?? data.user_id;
+  const userToken = data?.tokens?.access_token ?? data?.access_token ?? data?.token;
+  console.log(`  user id found: ${userId ?? 'NO'}   user token present: ${userToken ? 'yes' : 'no'}`);
+  if (!login.ok) return;
+  if (!userId) console.log('  login response keys:', Object.keys(data).join(', '));
+
+  await step('2 course meta (org token)', `/courses/${course}/meta?slim=true`, { auth: orgToken });
+  if (userToken) await step('3 course meta (user token)', `/courses/${course}/meta?slim=true`, { auth: userToken });
+  if (userId) await step('4 trail (org token)', `/admin/${org}/trails/${userId}/courses/${course}`, { auth: orgToken });
+  if (userToken) await step('5 my orgs (user token) — to confirm the org slug', '/orgs/user/page/1/limit/10', { auth: userToken });
+  console.log('\nPaste everything above into the chat.');
+})();
+</file>
+
+<file path="bff/src/devLogin.js">
+// bff/src/devLogin.js — DEV-ONLY login, used when LearnHouse /auth/login is not available.
+// Maps test emails to LearnHouse user ids SERVER-SIDE (bff/.env), so the app still never
+// sends or stores a userId and every request still goes through a session.
+// Refuses to start when NODE_ENV=production. Remove once real login works (W4).
+const crypto = require('node:crypto');
+
+function parseDevUsers(spec) {
+  // "asha@test.local:101,ravi@test.local:202"
+  return new Map((spec ?? '').split(',').map((p) => p.trim()).filter(Boolean).map((p) => {
+    const i = p.lastIndexOf(':');
+    return [p.slice(0, i).toLowerCase(), p.slice(i + 1)];
+  }).filter(([e, id]) => e && /^[A-Za-z0-9_-]+$/.test(id)));
 }
 
-function findUserId(obj) {
-  if (!obj || typeof obj !== "object") return null;
-  const user = obj.user || obj.profile || obj;
-  return user.id ?? user.user_id ?? user.uuid ?? null;
+function withDevLogin(lh, { users, password, env = process.env.NODE_ENV }) {
+  if (env === 'production') throw new Error('LH_DEV_LOGIN must not be enabled in production');
+  if (!password || password.length < 8) throw new Error('LH_DEV_PASSWORD (8+ chars) is required with LH_DEV_LOGIN');
+  if (users.size === 0) throw new Error('LH_DEV_USERS is empty, e.g. you@test.local:123');
+  const same = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  return {
+    ...lh,
+    async login(email, pw) {
+      const id = users.get(String(email).toLowerCase());
+      if (!id || !same(String(pw), password)) return null;
+      return { learnerId: id, displayName: String(email).split('@')[0] };
+    },
+  };
+}
+module.exports = { parseDevUsers, withDevLogin };
+</file>
+
+<file path="bff/src/sessions.js">
+// bff/src/sessions.js — opaque, expiring, in-memory sessions.
+// The session is the ONLY source of learner identity for every /me route.
+const crypto = require('node:crypto');
+
+function createSessionStore({ ttlMs = 2 * 60 * 60 * 1000, now = () => Date.now() } = {}) {
+  const sessions = new Map();
+  return {
+    create(learner) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      const expiresAt = now() + ttlMs;
+      sessions.set(token, { ...learner, expiresAt });
+      return { token, expiresAt: new Date(expiresAt).toISOString() };
+    },
+    get(token) {
+      const s = token && sessions.get(token);
+      if (!s) return null;
+      if (s.expiresAt <= now()) { sessions.delete(token); return null; }
+      return s;
+    },
+    destroy(token) { sessions.delete(token); },
+  };
+}
+module.exports = { createSessionStore };
+</file>
+
+<file path="bff/test/agent.test.js">
+// The AI chooses components (two-step decide -> fill), and its output is authorized + bounded.
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { createGeminiAgent } = require('../src/agent');
+const { createApp } = require('../src/app');
+const { createFakeLearnHouse } = require('./fakeLearnHouse');
+
+// Mock Gemini: answers the DECIDE call, then the FILL call, and records the prompts/schemas it saw.
+function mockGemini(decision, fill) {
+  const seen = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    seen.push(body);
+    const out = seen.length === 1 ? decision : fill;
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] }) };
+  };
+  return { fetchImpl, seen };
+}
+const quiet = { info() {}, warn() {} };
+
+async function layoutWith(agent, { completeFirst = false } = {}) {
+  const fake = createFakeLearnHouse();
+  if (completeFirst) await fake.lh.completeActivity('101', 'act_1');
+  const s = createApp({ lh: fake.lh, agent, allowedCourses: new Set(['course_demo']), logger: quiet }).server();
+  await new Promise((r) => s.listen(0, r));
+  const b = `http://127.0.0.1:${s.address().port}/api`;
+  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
+  const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
+  s.close();
+  return env;
 }
 
-async function main() {
-  if (BASE_URL.includes("REPLACE_ME") || EMAIL.includes("REPLACE_ME")) {
-    console.error(
-      "Set LH_BASE_URL, LH_EMAIL, LH_PASSWORD env vars before running (see header comment)."
-    );
-    process.exit(1);
+test('AI picks PracticeCard + RevisitSection -> those components are served', async () => {
+  const g = mockGemini(
+    { reason: 'Stalled after one activity', mainCard: 'PracticeCard', nextStepSection: 'RevisitSection' },
+    { mainCard: { component: 'PracticeCard', props: { eyebrow: 'QUICK PRACTICE', title: 'Prompt drills', subtitle: 'Five minutes.', buttonLabel: 'Start', buttonIconString: 'zap', action: { type: 'open-practice' } } },
+      nextStepSection: { component: 'RevisitSection', props: { title: 'Revisit', items: [{ id: 'What is an LLM!', title: 'What is an LLM', subtitle: 'Refresh it', iconString: 'book', action: { type: 'complete-activity', activityUuid: 'act_1' } }] } } });
+  const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }), { completeFirst: true });
+  assert.equal(env.slots.mainCard.component, 'PracticeCard');
+  assert.equal(env.slots.nextStepSection.component, 'RevisitSection');
+  assert.equal(env.slots.nextStepSection.props.items[0].id, 'What-is-an-LLM-'); // sanitized for the contract
+  // Decide step offered the whole catalogue; fill step was constrained to the chosen components.
+  const decideSchema = g.seen[0].generationConfig.responseSchema;
+  assert.deepEqual(decideSchema.properties.mainCard.enum, ['HomeCard', 'PracticeCard']);
+  assert.deepEqual(decideSchema.properties.nextStepSection.enum, ['NextStepCard', 'RevisitSection']);
+  assert.deepEqual(g.seen[1].generationConfig.responseSchema.properties.mainCard.properties.component.enum, ['PracticeCard']);
+});
+
+test('AI picks HomeCard + NextStepCard -> those components are served', async () => {
+  const g = mockGemini(
+    { reason: 'On track', mainCard: 'HomeCard', nextStepSection: 'NextStepCard' },
+    { mainCard: { component: 'HomeCard', props: { category: 'LLMs', stage: 'Activity 1', title: 'What is an LLM', subtitle: 'Start here.', readTime: '5 min', buttonLabel: 'Continue', action: { type: 'complete-activity', activityUuid: 'act_1' } } },
+      nextStepSection: { component: 'NextStepCard', props: { title: 'Prompt basics', subtitle: 'Up next.', action: { type: 'open-path' } } } });
+  const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
+  assert.equal(env.slots.mainCard.component, 'HomeCard');
+  assert.equal(env.slots.nextStepSection.component, 'NextStepCard');
+});
+
+test('decision outside the catalogue -> deterministic fallback, not a crash', async () => {
+  const g = mockGemini({ reason: 'x', mainCard: 'ScriptRunner', nextStepSection: 'NextStepCard' }, {});
+  const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
+  assert.equal(env.slots.mainCard.component, 'HomeCard'); // fallback
+});
+
+test('Gemini HTTP error -> deterministic fallback', async () => {
+  const agent = createGeminiAgent({ apiKey: 'k', model: 'm', logger: quiet, fetchImpl: async () => ({ ok: false, status: 404 }) });
+  const env = await layoutWith(agent);
+  assert.equal(env.slots.mainCard.props.action.activityUuid, 'act_1');
+});
+</file>
+
+<file path="bff/test/devLogin.test.js">
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { parseDevUsers, withDevLogin } = require('../src/devLogin');
+
+const users = parseDevUsers('Asha@test.local:101, ravi@test.local:202, bad@x:../1');
+const lh = withDevLogin({ getTrail() {} }, { users, password: 'Devpass@123', env: 'development' });
+
+test('dev login: mapped email + password -> server-side learner id', async () => {
+  assert.deepEqual(await lh.login('asha@test.local', 'Devpass@123'), { learnerId: '101', displayName: 'asha' });
+});
+test('dev login: wrong password / unknown email -> null', async () => {
+  assert.equal(await lh.login('asha@test.local', 'nope'), null);
+  assert.equal(await lh.login('who@test.local', 'Devpass@123'), null);
+});
+test('dev login: malformed id in config is ignored', () => assert.equal(users.has('bad@x'), false));
+test('dev login: refuses production', () =>
+  assert.throws(() => withDevLogin({}, { users, password: 'Devpass@123', env: 'production' })));
+test('dev login: other adapter methods untouched', () => assert.equal(typeof lh.getTrail, 'function'));
+</file>
+
+<file path="bff/.env.example">
+# bff/.env.example — copy to bff/.env (git-ignored). Server-only secrets live here.
+PORT=3000
+# NOTE: no LH_USER_ID here on purpose. The learner id comes from LearnHouse login
+# (POST /auth/login, fallback GET /users/profile) and is stored in the BFF session.
+# Pinned LearnHouse instance (record the release/commit in docs/W3-plan-and-evidence.md)
+# Host + /api/v1, no trailing slash (the old script took host only)
+LH_BASE_URL=http://localhost:1338/api/v1
+LH_ORG_SLUG=your-org-slug
+LH_API_TOKEN=replace-with-org-api-token
+# Comma-separated course UUIDs learners may open through this BFF
+LH_ALLOWED_COURSES=course_xxxxxxxx
+# Optional. Without it the BFF serves the deterministic LearnHouse-derived layout.
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.5-flash-lite
+
+# ---- DEV ONLY: use while LearnHouse /auth/login is not working ----
+# Log in from the app with one of these emails + LH_DEV_PASSWORD.
+# The number after ":" is that learner's LearnHouse user id (kept server-side).
+LH_DEV_LOGIN=false
+LH_DEV_USERS=you@test.local:1,friend@test.local:2
+LH_DEV_PASSWORD=Devpass@123
+</file>
+
+<file path="docs/evidence/bff-contract-integration.txt">
+{
+  "bffEnvelopeAccepted": true,
+  "sameEnvelopeOtherLearner": {
+    "ok": false,
+    "reason": "wrong-context"
   }
-
-  // 1. Login as the real user (email + password)
-  const login = await request("/api/v1/auth/login", {
-    method: "POST",
-    form: { username: EMAIL, password: PASSWORD },
-  });
-  log("1. Login response", login);
-  if (!login.ok) {
-    console.error("Login failed — stopping here.");
-    process.exit(1);
-  }
-  const token = findToken(login.data);
-  const userId = findUserId(login.data);
-  log("Parsed token/userId", { token: token ? "(present)" : null, userId });
-
-  // 2. Find the organization(s) this user belongs to, to get org_slug.
-  // Try admin-owned orgs first, fall back to all orgs the user is a member of.
-  let orgs = await request("/api/v1/orgs/user_admin/page/1/limit/10", { token });
-  log("2a. Organizations (admin)", orgs);
-  let orgList = Array.isArray(orgs.data) ? orgs.data : orgs.data?.items || [];
-  if (orgList.length === 0) {
-    orgs = await request("/api/v1/orgs/user/page/1/limit/10", { token });
-    log("2b. Organizations (member)", orgs);
-    orgList = Array.isArray(orgs.data) ? orgs.data : orgs.data?.items || [];
-  }
-  const orgSlug = orgList[0]?.slug || orgList[0]?.org_slug;
-  if (!orgSlug) {
-    console.error("Could not determine org_slug from response — inspect step 2 output above.");
-    process.exit(1);
-  }
-  log("Using org_slug", orgSlug);
-
-  // 3. List courses for that org (session/bearer token should work here)
-  const courses = await request(
-    `/api/v1/courses/org_slug/${orgSlug}/page/1/limit/20`,
-    { token }
-  );
-  log("3. Courses list", courses);
-  const courseList = Array.isArray(courses.data) ? courses.data : courses.data?.items || [];
-  if (courseList.length === 0) {
-    console.error("No courses found — inspect step 3 output above.");
-    process.exit(1);
-  }
-
-  const choice = await promptChoice(
-    "\nWhich course do you want to inspect?",
-    courseList.map((c) => ({
-      label: c.name || c.title || "(untitled course)",
-      course: c,
-    }))
-  );
-  const courseUuid =
-    choice.course.course_uuid || choice.course.uuid || choice.course.id;
-  if (!courseUuid) {
-    console.error("Selected course has no recognizable UUID field — inspect step 3 output above.");
-    process.exit(1);
-  }
-  log("Using course_uuid", courseUuid);
-
-  // 4. Fetch chapters/structure for that course (should work with session token)
-  const meta = await request(`/api/v1/courses/${courseUuid}/meta?slim=true`, { token });
-  log("4. Course meta (chapters/activities)", meta);
-
-  // 5. Attempt to read this user's own progress — expected to be rejected,
-  //    since docs say trail/progress endpoints require an org API token,
-  //    not a user session.
-  const progress = await request(
-    `/api/v1/admin/${orgSlug}/progress/${userId}/${courseUuid}`,
-    { token }
-  );
-  log("5. Progress attempt with user session (expected to fail)", progress);
-
-  console.log(
-    "\nIf step 5 returned 401/403, that confirms progress data needs a backend " +
-      "holding an org API token — a plain logged-in user session can't read it directly."
-  );
-}
-
-try {
-  await main();
-} catch (err) {
-  console.error("Script error:", err);
-  process.exit(1);
 }
 </file>
 
-<file path="src/core/api/learnhouse/client.ts">
-// src/data/learnhouse/client.ts
-// Thin LearnHouse client + response types (shapes taken from the API reference).
+<file path="docs/evidence/contract-tests.txt">
+PASS  envelope › accepts a valid layout with both slots
+PASS  envelope › rejects an incompatible version
+PASS  envelope › rejects an expired layout
+PASS  envelope › rejects a layout issued in the future (clock skew > 60 s)
+PASS  envelope › rejects a layout for another learner (wrong session/context)
+PASS  envelope › rejects a layout for another course
+PASS  envelope › rejects unknown envelope fields (strict, not stripped) — e.g. tenant
+PASS  envelope › rejects an oversized payload before parsing (million-char title)
+PASS  envelope › rejects malformed JSON text
+PASS  envelope › rejects multiple concatenated JSON objects
+PASS  per-slot survival › one bad slot -> that slot falls back, the valid slot still renders
+PASS  per-slot survival › both slots null -> envelope ok, both slots reported empty (UI shows fallback)
+PASS  catalogue + props › unknown component name -> invalid
+PASS  catalogue + props › extra prop on a card -> invalid
+PASS  catalogue + props › wrong prop type -> invalid
+PASS  catalogue + props › extra field on the slot wrapper -> invalid (no silent strip)
+PASS  actions (closed allow-list) › allowed: complete-activity with id
+PASS  actions (closed allow-list) › allowed: open-path
+PASS  actions (closed allow-list) › unknown action type -> rejected
+PASS  actions (closed allow-list) › free-form actionId string (old shape) -> rejected
+PASS  actions (closed allow-list) › complete-activity without target -> rejected
+PASS  actions (closed allow-list) › target id with path characters -> rejected
+PASS  actions (closed allow-list) › extra field on action -> rejected
+PASS  MAX_PAYLOAD_BYTES is a documented, finite bound
 
-import { LEARNHOUSE } from './config';
+24 passed, 0 failed, 24 total
+</file>
 
-// ---------- /courses/{uuid}/meta ----------
-export interface LHActivity {
-  id: number;
-  activity_uuid: string;
-  name: string;
-  activity_type: string; // TYPE_DYNAMIC | TYPE_VIDEO | TYPE_DOCUMENT | TYPE_ASSIGNMENT | ...
-  activity_sub_type: string;
-  published?: boolean;
-  details?: Record<string, any> | null;
-  extra_metadata?: Record<string, any> | null;
+<file path="docs/evidence/jest.txt">
+> AILaunchpad@0.0.1 test
+> jest
+
+PASS __tests__/contracts/homeLayout.test.ts
+PASS __tests__/App.test.tsx
+
+Test Suites: 2 passed, 2 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        4.498 s, estimated 15 s
+Ran all test suites.
+</file>
+
+<file path="docs/evidence/secret-scan.txt">
+secret scan: no key literals or password logging found
+</file>
+
+<file path="docs/evidence/typecheck.txt">
+> AILaunchpad@0.0.1 typecheck
+> tsc --noEmit
+</file>
+
+<file path="docs/W3-plan-and-evidence.md">
+# Week 3 — Plan, changes and evidence (P10-G37)
+
+Owner: Shubham · Review addressed: P10-G37-W02-R01 · Date: 11 Oct 2026
+
+This file answers W3 FB001 (P0), FB002 (P1) and FB003 (P1). Every "Observed" result below comes from an actual run, and the raw output is in `docs/evidence/`. Where something is **not done**, this file says so.
+
+---
+
+## 1. What changed this week
+
+| Review item | Change | Files |
+|---|---|---|
+| P0 Secrets/logs | Gemini moved off the device. The app no longer depends on `@google/generative-ai` and has no `EXPO_PUBLIC_GEMINI_*`. The BFF calls Gemini with a server-only `GEMINI_API_KEY`. The login screen no longer logs email or password. The exploration script redacts token and password fields before printing. The BFF startup log prints *presence* only, not the 4-char token prefix it used to print. | `src/services/agentService.ts`, `bff/src/agent.js`, `src/screens/login/LoginScreen.tsx`, `scripts/test-learnhouse-api.mjs`, `bff/server.js` |
+| P0 Fresh checkout | `src/core/api/learnhouse/config.ts` is now **tracked** and holds no secrets (BFF URL and default course only). This fixes TS2307. The `RevisitItemData` import in `PracticeScreen` fixes TS2304. Added `bff/.env.example`. `.gitignore` ignores `bff/.env`. | `config.ts`, `PracticeScreen.tsx`, `.gitignore`, `bff/.env.example` |
+| P0 LearnHouse auth | The BFF was rewritten. Login is checked against LearnHouse `/auth/login`, and the BFF issues an opaque, expiring session. **All** `/api/me/*` routes take learner and org from the session. The old routes with `:userId`/`:orgSlug` in the URL, which anyone could forge, are **removed**. Course access uses a server allow-list (`LH_ALLOWED_COURSES`). Activity access is limited to the course's published activities. The app now opens on Login, and Home redirects to Login when there is no session. | `bff/src/app.js`, `bff/src/sessions.js`, `bff/src/learnhouse.js`, `src/core/auth/session.ts`, `src/navigation/MainStack.tsx` |
+| P0 Action semantics | `actionId: string` is replaced by a **closed action union**: `complete-activity{activityUuid}` \| `open-path` \| `open-practice`. Every Home button now runs a real action through one exhaustive dispatcher. `complete-activity` writes progress through the BFF, which checks it again on the server. The BFF also drops any agent slot whose action targets an activity not allowed for that learner. | `src/contracts/homeLayout.ts`, `src/screens/home/actions.ts`, `bff/src/agent.js` (`authorizeSlots`) |
+| P1 Contract/version | New **platform-neutral** contract with no React Native imports. It carries `version`, `layoutId`, `learnerId`, `courseUuid`, `issuedAt` and `expiresAt`. Envelope, wrapper, props and actions are all strict: unknown keys are rejected, not stripped. Strings have length limits, and the payload is capped at 16 KB before parsing. Context (learner, course, expiry) is checked separately from shape. | `src/contracts/homeLayout.ts` |
+| P1 Fallback claim | The claim is renamed to what we observed: **per-slot fallback**. Each slot is validated on its own, and a bad slot shows a static "Open your learning path" card while the other slot still renders. Each slot also has a React error boundary (`SlotBoundary`). The fetch is cut off at 10 s with `AbortController`. If Gemini is missing or fails, the BFF serves a deterministic layout built from LearnHouse data. | `HomeScreen.tsx`, `SlotBoundary.tsx`, `agentService.ts`, `bff/src/agent.js` (`fallbackSlots`) |
+| P1 Agent grounding | The model only sees the authorized, unfinished activities for the session learner (up to 5) plus two counts. `responseSchema` restricts `activityUuid` to those IDs, and `maxOutputTokens` is capped. The raw model text is never logged. | `bff/src/agent.js` |
+| Completion write + read-back | `POST /api/me/courses/:c/activities/:a/complete` requires an `Idempotency-Key`. It writes to LearnHouse, then **reads the trail back**. It returns `applied` when the read-back confirms the write, or `received` when it doesn't. A lost upstream response is reconciled by that read-back. | `bff/src/app.js` |
+
+**You must do this by hand: rotate the Gemini key.** The reviewer found a key literal in `agentService.ts:6` in the W2 SHA. Revoke it in Google AI Studio even if you think it's unused. It stays in git history: either rewrite history (`git filter-repo --replace-text`) or treat the key as burned and keep it revoked. These changes do not undo a commit that already happened.
+
+---
+
+## 2. Evidence (expected vs observed)
+
+### 2a. BFF — `cd bff && npm test` (Node 22.22, `node:test`, fake LearnHouse double) → **13/13 pass**
+
+| # | Case | Expected | Observed |
+|---|---|---|---|
+| 1 | Wrong password | 401, no token in body | pass |
+| 2 | No session / forged token on `/me/*` | 401 | pass |
+| 3 | Course not on allow-list | 403 `course_forbidden` | pass |
+| 4 | Old forgeable URL `/admin/:org/trails/:userId/...` | 404 (route removed) | pass |
+| 5 | Unpublished activity complete | 403, **0** upstream writes | pass |
+| 6 | Learner A completes `act_1` → a second session for A reads it back; learner B unaffected | `applied`; A=true, B=false | pass |
+| 7 | Retry with the same Idempotency-Key | 1 upstream effect, `replayed:true` | pass |
+| 8 | Same key reused for a different activity | 409 | pass |
+| 9 | Upstream applies the write but the response is lost (504) | read-back → `applied`, 200 | pass |
+| 10 | Missing Idempotency-Key | 400 | pass |
+| 11 | Home layout, no Gemini | v1 envelope bound to the session learner, deterministic `complete-activity act_1` | pass |
+| 12 | Agent proposes an unauthorized `act_draft` | that slot dropped (null), valid slot kept | pass |
+| 13 | 20 KB request body | 413 | pass |
+
+### 2b. Contract — `__tests__/contracts/homeLayout.test.ts` → **24/24 pass**
+
+Covers: valid layout; version 2; expired; future-issued; wrong learner; wrong course; unknown envelope field (`tenant`); million-char title (too large); malformed JSON; two JSON objects joined together; **one bad slot (other survives)**; both slots null; unknown component; extra prop; wrong prop type; extra wrapper field; allowed actions ×2; unknown action; old free-form `actionId` string; action missing its target; path-like target (`../admin`); extra field on an action.
+
+### 2c. Integration — `docs/evidence/bff-contract-integration.txt` (run: `npx tsx scripts/check-bff-contract.ts`)
+
+The envelope the BFF actually emits is **accepted** by the client contract. The same envelope checked against another learner gives **`wrong-context`**.
+
+### 2d. Secret scan of the tree
+
+No Gemini key patterns and no password logging found (`docs/evidence/secret-scan.txt`). Git history was **not** scanned from here; see the rotation note above.
+
+### How these were run, and what was *not* run
+
+- The sandbox had no npm access. The BFF was therefore made **dependency-free** (`node:http`, plus Node 22's native `--env-file`), and Express, axios, cors and dotenv were removed. The contract suite is jest-style. It was run with `tsx` and zod v4 through a jest-compatible shim. On your machine, run it with the repo's jest: `npm run test:contract`.
+- **Not run:** `npm ci`, `tsc --noEmit` on the whole app, the Expo build, any device run, or a live LearnHouse instance. These need your machine: run `npm ci && npm run typecheck && npm test && npm run test:bff`, then paste the output into `docs/evidence/`.
+- **Not shown yet:** a live pinned LearnHouse instance, and a web client reading back the same learner. Test #6 shows the read-back through a second session against a LearnHouse double, **not** two real clients.
+
+---
+
+## 3. Status against W3 rubric (honest)
+
+| Item | Status |
+|---|---|
+| FB001: remove secrets/logging, clean setup, type import | **Done in code.** Key rotation is your action. |
+| FB001: authenticated BFF, denied cross-user/org, completion write + read-back | **Done against a double.** A live pinned instance is still required. |
+| FB001: mobile **and web** read the same learner/course | **Not done.** No web client yet. Planned for W4 (§5). |
+| FB002: versioned, bounded contract; typed allowed actions; one working action; automated boundary tests | **Done** (24 + 13 tests). |
+| FB002: 3 mobile + 3 web modules; independently deployed web module | **Not done.** W4. Folder structure is not counted as independent deployment. |
+| FB003: M1–M9 test-group map, pinning, budget | **Draft below.** The 13 scenarios must be copied in from the five-page design doc. |
+| FB003: first durable offline event survives restart | **Not done.** W5 (outbox). The BFF already separates received from applied. |
+
+---
+
+## 4. FB003 — M1–M9 test-group map (2–4 binary groups each)
+
+Targets: **Android emulator (API 35, Pixel 7 profile)** as the native target and **Chrome stable on desktop** as the browser. Course: one synthetic LearnHouse course with 2 checkpoints and a 3-question quiz. Learners: 2 (`asha`, `ravi`).
+
+| M | Test group (each pass/fail) | Threshold | Evidence | Week |
+|---|---|---|---|---|
+| M1 contracts | T1.1 the same contract file is consumed by native and web builds | both import `src/contracts` | build logs | W4 |
+| | T1.2 incompatible version or context rejected | 100% of fixtures | contract suite ✅ W3 | W3 |
+| M2 mobile modules | T2.1 player, assessment and agent-UI each have their own test file | 3/3 | jest | W4 |
+| | T2.2 disabling one feature flag leaves the other two navigable | 0 crashes | screen recording | W4 |
+| M3 web modules | T3.1 shell + 3 Module Federation remotes build separately | 3 builds | CI log | W4 |
+| | T3.2 swapping one remote's version needs no shell rebuild | yes | demo | W4 |
+| | T3.3 a remote that throws shows a fallback; the other remotes stay usable | yes | demo | W4 |
+| M4 player | T4.1 2 checkpoints fire once each, in order | 0 skips/dupes | test | W4 |
+| | T4.2 kill the app at a checkpoint → resume within ±1 s | ≤1 s drift | log | W4 |
+| M5 sync | T5.1 progress/quiz events survive restart (SQLite / IndexedDB) | 100% | test | W5 |
+| | T5.2 duplicate delivery → 1 effect | 1 | BFF test ✅ (#7) | W3/W5 |
+| | T5.3 lost write response reconciled to `applied` | yes | BFF test ✅ (#9) | W3/W5 |
+| | T5.4 two-device quiz conflict follows the documented policy | as documented | test | W5 |
+| M6 streaming | T6.1 AG-UI lifecycle / text / tool / state events stream to one client | yes | log | W6 |
+| | T6.2 reconnect inside the replay window resumes; outside it gets a snapshot | both | test | W6 |
+| | T6.3 a changed proposal invalidates the approval | rejected | test | W6 |
+| M7 safe UI | T7.1 unknown, oversized, stale or wrong-context input handled | 100% | contract suite ✅ | W3 |
+| | T7.2 allowed action works; unauthorized action denied server-side | yes | BFF #5, #12 ✅ | W3 |
+| | T7.3 component that throws → only its slot falls back | yes | RTL test | W4 |
+| M8 a11y | T8.1 core flow with TalkBack and with keyboard-only on web | completes | checklist | W7 |
+| | T8.2 200% font scale, no clipped CTA; contrast ≥ 4.5:1 | yes | screenshots | W7 |
+| M9 perf | T9.1 cold start (emulator) and web bundle size, median of 5 runs | ≤ 3 s / ≤ 500 KB gz | raw logs | W7 |
+| | T9.2 reconnect-to-synced after a 60 s outage | ≤ 5 s | raw logs | W7 |
+
+**The 13 existing scenarios:** copy S1–S13 from the five-page design doc into the table below and give each one a test-group ID above. (They were not in the repo, so they were not invented here.)
+
+| Scenario | Test groups |
+|---|---|
+| S1 … S13 | _fill in_ |
+
+**Pinning (to fill in from your running setup):** LearnHouse release/commit `____`, edition `____`, and confirmation that the trail-GET and activity-complete-POST endpoints exist on it. Node 22.x. Expo SDK 57, React Native 0.86.3, zod 4.x.
+
+**Effort budget (one member, 8 weeks):** about 12 h/week. W3 so far: ~1 h of AI-assisted implementation plus your review time. Record your actual hours here weekly.
+
+**Policies (short):** media is public or synthetic only. Replay window: 5 min. Privacy: the model receives no name or email, only activity titles and two counts, and logs contain no request bodies. Accessibility and performance follow M8 and M9 above.
+
+---
+
+## 5. Next (W4, in order)
+
+1. Run against a live pinned LearnHouse instance. Record the release and endpoints, and save sanitized request/response pairs.
+2. Build the web shell (Vite + Module Federation) with dashboard, media and sync-view remotes. The dashboard reads the same `/api/me` progress, which closes FB001's cross-client read-back.
+3. Add 2 checkpoints to the player using Expo Video, and an RTL test for a component that throws.
+
+---
+
+## 6. AI-assistance record (W3)
+
+| Task | AI suggestion | Accepted / changed | Verification |
+|---|---|---|---|
+| BFF auth + routes | Claude drafted the session-based BFF and removed the URL-identity routes | Accepted. Express swapped for `node:http` because packages couldn't be installed. | 13 BFF tests; Shubham to trace login → session → trail live |
+| Versioned contract | Claude drafted the strict envelope, per-slot parse and action union | Accepted | 24 contract tests + BFF↔contract integration |
+| Gemini on server | Claude moved generation into the BFF with an enum-restricted schema | Accepted. **Not yet run against real Gemini.** | Agent-output authorization test (#12); live call pending |
+| HomeScreen / actions | Claude wired the slots, the boundary and the dispatcher | Accepted. **Not yet run on device.** | Needs `npm run typecheck` + an emulator run |
+
+Ownership check before the review: be ready to explain why the old route `/admin/:org/trails/:userId/...` let any client read any learner's data. Also explain why test #9 needs the read-back.
+</file>
+
+<file path="scripts/check-bff-contract.ts">
+// Cross-check: the envelope the BFF actually emits validates against the client contract.
+import { parseHomeLayout } from '../src/contracts/homeLayout';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createApp } = require('../bff/src/app');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createFakeLearnHouse } = require('../bff/test/fakeLearnHouse');
+
+const fake = createFakeLearnHouse();
+const server = createApp({ lh: fake.lh, allowedCourses: new Set(['course_demo']), logger: { info() {} } }).server();
+server.listen(0, async () => {
+  const base = `http://127.0.0.1:${server.address().port}/api`;
+  const login = await (await fetch(`${base}/auth/login`, { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json();
+  const raw = await (await fetch(`${base}/me/courses/course_demo/home-layout`, { headers: { Authorization: `Bearer ${login.token}` } })).json();
+  const ok = parseHomeLayout(raw, { learnerId: login.learner.id, courseUuid: 'course_demo' });
+  const wrong = parseHomeLayout(raw, { learnerId: '202', courseUuid: 'course_demo' });
+  console.log(JSON.stringify({ bffEnvelopeAccepted: ok.ok && ok.slots.mainCard.ok && ok.slots.nextStepSection.ok, sameEnvelopeOtherLearner: wrong }, null, 2));
+  server.close();
+});
+</file>
+
+<file path="src/contracts/homeLayout.ts">
+// src/contracts/homeLayout.ts
+// Platform-neutral home-layout contract (M1/M7). NO React / React Native imports:
+// this file is consumed by the native app, the future web shell and the tests.
+// (W2 review P1 "Contract/version": the old schema file imported RN components.)
+//
+// Semantics, documented explicitly (instead of claiming "strict everywhere"):
+//  - Envelope and card props: STRICT. Unknown keys are rejected, not stripped.
+//  - Strings are length-bounded; the raw payload is size-bounded before parsing.
+//  - version must equal CONTRACT_VERSION; expired or wrong-learner envelopes are rejected whole.
+//  - Slots are validated INDEPENDENTLY: one bad slot becomes a per-slot fallback,
+//    the other valid slot still renders.
+//  - Actions are data from a closed allow-list. The client never executes generated
+//    code; the BFF re-authorizes every action target server-side.
+import { z } from 'zod';
+
+export const CONTRACT_VERSION = 1 as const;
+export const MAX_PAYLOAD_BYTES = 16 * 1024;
+
+const Title = z.string().min(1).max(60);
+const Line = z.string().min(1).max(140);
+const Label = z.string().min(1).max(24);
+const Id = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
+
+export const IconName = z.enum(['zap', 'book', 'clock', 'star', 'chevron-right']);
+
+// ---- Actions: closed allow-list ------------------------------------------
+export const ACTION_TYPES = ['complete-activity', 'open-path', 'open-practice'] as const;
+export const ActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('complete-activity'), activityUuid: Id }).strict(),
+  z.object({ type: z.literal('open-path') }).strict(),
+  z.object({ type: z.literal('open-practice') }).strict(),
+]);
+export type LayoutAction = z.infer<typeof ActionSchema>;
+
+// ---- Catalogue components -------------------------------------------------
+const HomeCard = z.object({
+  component: z.literal('HomeCard'),
+  props: z.object({
+    category: Label.max(40), stage: Label.max(40), title: Title, subtitle: Line,
+    readTime: Label, buttonLabel: Label, action: ActionSchema,
+  }).strict(),
+}).strict();
+
+const NextStepCard = z.object({
+  component: z.literal('NextStepCard'),
+  props: z.object({ title: Title, subtitle: Line, action: ActionSchema }).strict(),
+}).strict();
+
+const PracticeCard = z.object({
+  component: z.literal('PracticeCard'),
+  props: z.object({
+    eyebrow: Label.optional(), title: Title, subtitle: Line,
+    buttonLabel: Label.optional(), buttonIconString: IconName.optional(), action: ActionSchema,
+  }).strict(),
+}).strict();
+
+const RevisitSection = z.object({
+  component: z.literal('RevisitSection'),
+  props: z.object({
+    title: Title.optional(),
+    items: z.array(z.object({
+      id: Id, title: Title, subtitle: Line, iconString: IconName, action: ActionSchema,
+    }).strict()).min(1).max(3),
+  }).strict(),
+}).strict();
+
+export const SlotComponentSchema = z.discriminatedUnion('component', [
+  HomeCard, NextStepCard, PracticeCard, RevisitSection,
+]);
+export type SlotComponent = z.infer<typeof SlotComponentSchema>;
+export const SLOT_NAMES = ['mainCard', 'nextStepSection'] as const;
+export type SlotName = (typeof SLOT_NAMES)[number];
+
+// ---- Envelope (identity, version, expiry, context) ------------------------
+// Slots are `unknown` here on purpose: they are parsed one by one below.
+export const EnvelopeSchema = z.object({
+  version: z.literal(CONTRACT_VERSION),
+  layoutId: Id,
+  learnerId: Id,
+  courseUuid: Id,
+  issuedAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  slots: z.object({ mainCard: z.unknown(), nextStepSection: z.unknown() }).strict(),
+}).strict();
+
+export interface LayoutContext {
+  learnerId: string;
+  courseUuid: string;
+  now?: Date;
 }
 
-export interface LHChapter {
-  id: number;
-  chapter_uuid: string;
-  name: string;
-  description?: string | null;
-  extra_metadata?: Record<string, any> | null;
-  activities: LHActivity[];
-}
+export type SlotResult =
+  | { ok: true; value: SlotComponent }
+  | { ok: false; reason: 'empty' | 'invalid' };
 
-export interface LHCourseMeta {
-  course_uuid: string | null;
-  name: string;
-  description?: string | null;
-  extra_metadata?: Record<string, any> | null;
-  chapters: LHChapter[];
-}
+export type ParseResult =
+  | { ok: true; layoutId: string; slots: Record<SlotName, SlotResult> }
+  | { ok: false; reason: 'too-large' | 'malformed' | 'version' | 'expired' | 'wrong-context' };
 
-// ---------- /admin/{org}/trails/{user}/courses/{course} ----------
-export interface LHTrailActivity {
-  activity_uuid: string;
-  activity_id: number;
-  name: string;
-  activity_type: string;
-  activity_sub_type: string;
-  order: number;
-  published: boolean;
-  completed: boolean;
-  completed_at: string | null;
-}
-
-export interface LHTrailChapter {
-  chapter_uuid: string;
-  chapter_id: number;
-  name: string;
-  order: number;
-  total_activities: number;
-  completed_activities: number;
-  activities: LHTrailActivity[];
-}
-
-export interface LHTrailCourse {
-  course_uuid: string;
-  course_name: string;
-  status: string | null;
-  total_activities: number;
-  completed_activities: number;
-  completion_percentage: number;
-  chapters: LHTrailChapter[];
-}
-
-export interface LHUserTrail {
-  user_id: number;
-  courses: LHTrailCourse[];
-}
-
-// ---------- fetch helper ----------
-export class LearnHouseError extends Error {
-  constructor(public status: number, public path: string, message: string) {
-    super(message);
+/** Validate an agent layout payload. Never throws. */
+export function parseHomeLayout(raw: unknown, ctx: LayoutContext): ParseResult {
+  // 1. Size bound before any deep parsing.
+  let size: number;
+  try {
+    size = typeof raw === 'string' ? raw.length : JSON.stringify(raw ?? null).length;
+  } catch {
+    return { ok: false, reason: 'malformed' };
   }
-}
+  if (size > MAX_PAYLOAD_BYTES) return { ok: false, reason: 'too-large' };
 
-// src/core/api/learnhouse/client.ts (Replace bottom half)
-
-async function lhGet<T>(path: string): Promise<T> {
-  const url = `${LEARNHOUSE.baseUrl}${path}`;
-  
-  const res = await fetch(url, {
-    headers: { 'Accept': 'application/json' },
-  });
-
-  if (!res.ok) {
-    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
+  let data: unknown = raw;
+  if (typeof raw === 'string') {
+    try { data = JSON.parse(raw); } catch { return { ok: false, reason: 'malformed' }; }
   }
-  return res.json() as Promise<T>;
-}
 
-async function lhPost<T>(path: string, body?: any): Promise<T> {
-  const url = `${LEARNHOUSE.baseUrl}${path}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!res.ok) {
-    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
+  // 2. Version is checked first so an incompatible producer gets a precise reason.
+  if (data && typeof data === 'object' && 'version' in data && (data as any).version !== CONTRACT_VERSION) {
+    return { ok: false, reason: 'version' };
   }
-  return res.json() as Promise<T>;
-}
+  const env = EnvelopeSchema.safeParse(data);
+  if (!env.success) return { ok: false, reason: 'malformed' };
 
-export function getCourseMeta(courseUuid = LEARNHOUSE.courseUuid) {
-  return lhGet<LHCourseMeta>(`/courses/${courseUuid}/meta`);
-}
+  // 3. Context: validated separately from JSON shape.
+  const e = env.data;
+  if (e.learnerId !== ctx.learnerId || e.courseUuid !== ctx.courseUuid) {
+    return { ok: false, reason: 'wrong-context' };
+  }
+  const now = (ctx.now ?? new Date()).getTime();
+  if (Date.parse(e.expiresAt) <= now || Date.parse(e.issuedAt) > now + 60_000) {
+    return { ok: false, reason: 'expired' };
+  }
 
-export function getUserCourseTrail(
-  userId = LEARNHOUSE.userId,
-  courseUuid = LEARNHOUSE.courseUuid,
-  orgSlug = LEARNHOUSE.orgSlug,
-) {
-  return lhGet<LHUserTrail>(`/admin/${orgSlug}/trails/${userId}/courses/${courseUuid}`);
+  // 4. Per-slot validation: one bad slot never drops the other.
+  const slots = {} as Record<SlotName, SlotResult>;
+  for (const name of SLOT_NAMES) {
+    const value = e.slots[name];
+    if (value === null || value === undefined) { slots[name] = { ok: false, reason: 'empty' }; continue; }
+    const r = SlotComponentSchema.safeParse(value);
+    slots[name] = r.success ? { ok: true, value: r.data } : { ok: false, reason: 'invalid' };
+  }
+  return { ok: true, layoutId: e.layoutId, slots };
 }
+</file>
 
-// 🟢 NEW: Write completion back to LearnHouse
-export function markActivityComplete(
-  activityUuid: string,
-  userId = LEARNHOUSE.userId,
-  orgSlug = LEARNHOUSE.orgSlug
-) {
-  return lhPost(`/admin/${orgSlug}/trails/${userId}/activities/${activityUuid}/complete`);
+<file path="src/core/api/learnhouse/config.ts">
+// src/core/api/learnhouse/config.ts
+// TRACKED, NON-SECRET client config (W2 review P0 "Fresh checkout": this file was
+// git-ignored, so a clean checkout failed with TS2307).
+//
+// Only the BFF URL lives here. The LearnHouse org token, org slug, learner id,
+// allowed courses and the Gemini key are SERVER-ONLY and live in bff/.env.
+// Never add a secret here: anything under EXPO_PUBLIC_* is bundled into the app.
+export const LEARNHOUSE = {
+  // Android emulator reaches the host machine at 10.0.2.2; web/iOS sim use localhost.
+  baseUrl: process.env.EXPO_PUBLIC_BFF_URL ?? 'http://localhost:3000/api',
+  // Which course the learner opens by default. Not a secret; the BFF still
+  // checks it against the server-side allow-list for the logged-in learner.
+  courseUuid: process.env.EXPO_PUBLIC_DEFAULT_COURSE_UUID ?? 'course_demo',
+} as const;
+</file>
+
+<file path="src/core/auth/session.ts">
+// src/core/auth/session.ts
+// Holds the opaque BFF session token in memory only. The token identifies the
+// learner to the BFF; the client never sends a userId or orgSlug itself.
+// (W5 will persist this with expo-secure-store; memory-only is deliberate for now.)
+let sessionToken: string | null = null;
+let learnerName: string | null = null;
+let learnerId: string | null = null;
+
+export function setSession(token: string, id: string, name: string) {
+  sessionToken = token;
+  learnerId = id;
+  learnerName = name;
 }
+export function clearSession() {
+  sessionToken = null;
+  learnerId = null;
+  learnerName = null;
+}
+export const getSessionToken = () => sessionToken;
+export const getLearnerName = () => learnerName;
+export const getLearnerId = () => learnerId;
 </file>
 
 <file path="src/navigation/useTabNavigation.ts">
@@ -629,318 +1021,43 @@ export function useTabNavigation(currentTab: string) {
 }
 </file>
 
-<file path="src/screens/login/LoginScreen.tsx">
-import React, {useState} from 'react';
-import {
-  SafeAreaView,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import {Rocket} from 'lucide-react-native';
-import twrnc from 'twrnc';
+<file path="src/screens/home/actions.ts">
+// src/screens/home/actions.ts
+// The ONLY place layout actions turn into behaviour. Exhaustive over the contract's
+// closed allow-list; anything else is impossible by type and rejected by the contract.
+// Authorization of complete-activity happens again on the BFF (session learner + course + published).
+import type { LayoutAction } from '../../contracts/homeLayout';
+import { markActivityComplete } from '../../core/api/learnhouse/client';
 
-const s = twrnc;
+export interface ActionDeps {
+  navigate: (screen: 'PathScreen' | 'PracticeScreen') => void;
+  onCompleted: (activityUuid: string, status: 'applied' | 'received') => void;
+  onError: (message: string) => void;
+  newKey?: () => string;
+}
 
-export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const defaultKey = () => `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-
-  // Email validation
-  const validateEmail = (value: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(value);
-  };
-
-  // Password validation
-  const validatePassword = (value: string) => {
-    const minLength = value.length >= 8;
-    const hasUppercase = /[A-Z]/.test(value);
-    const hasSpecialCharacter = /[^A-Za-z0-9]/.test(value);
-
-    return {
-      minLength,
-      hasUppercase,
-      hasSpecialCharacter,
-      valid: minLength && hasUppercase && hasSpecialCharacter,
-    };
-  };
-
-  const handleLogin = () => {
-    let valid = true;
-
-    // Validate email
-    if (!email) {
-      setEmailError('Email is required.');
-      valid = false;
-    } else if (!validateEmail(email)) {
-      setEmailError('Please enter a valid email address.');
-      valid = false;
-    } else {
-      setEmailError('');
-    }
-
-    // Validate password
-    const passwordValidation = validatePassword(password);
-
-    if (!password) {
-      setPasswordError('Password is required.');
-      valid = false;
-    } else if (!passwordValidation.valid) {
-      const errors: string[] = [];
-
-      if (!passwordValidation.minLength) {
-        errors.push('at least 8 characters');
+export async function runLayoutAction(action: LayoutAction, deps: ActionDeps): Promise<void> {
+  switch (action.type) {
+    case 'open-path':
+      return deps.navigate('PathScreen');
+    case 'open-practice':
+      return deps.navigate('PracticeScreen');
+    case 'complete-activity': {
+      try {
+        const r = await markActivityComplete(action.activityUuid, (deps.newKey ?? defaultKey)());
+        deps.onCompleted(action.activityUuid, r.status);
+      } catch (e: any) {
+        deps.onError(e?.status === 403 ? 'That activity is not available to you.' : 'Could not save progress. Try again.');
       }
-
-      if (!passwordValidation.hasUppercase) {
-        errors.push('one uppercase letter');
-      }
-
-      if (!passwordValidation.hasSpecialCharacter) {
-        errors.push('one special character');
-      }
-
-      setPasswordError(`Password must contain ${errors.join(', ')}.`);
-      valid = false;
-    } else {
-      setPasswordError('');
-    }
-
-    if (!valid) {
       return;
     }
-
-    console.log('Login:', {
-      email,
-      password,
-    });
-  };
-
-  return (
-    <SafeAreaView style={s`flex-1 bg-gray-50`}>
-      <KeyboardAvoidingView
-        style={s`flex-1`}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={s`flex-grow justify-center px-5 py-6`}
-          keyboardShouldPersistTaps="handled">
-
-          {/* Main Card */}
-          <View
-            style={s` bg-white rounded-2xl border border-gray-200 px-5 py-6 shadow-md`}>
-
-            {/* Rocket Icon */}
-            <View style={s`items-center mb-5`}>
-              <View
-                style={s`
-                  w-18
-                  h-18
-                  rounded-full
-                  bg-indigo-500
-                  items-center
-                  justify-center
-                `}>
-                <Rocket
-                  size={32}
-                  color="white"
-                  strokeWidth={2.2}
-                />
-              </View>
-            </View>
-
-            {/* Heading */}
-            <Text
-              style={s`
-                text-center
-                text-[30px]
-                font-bold
-                text-gray-900
-                leading-[36px]
-              `}>
-              Welcome to AI
-            </Text>
-
-            <Text
-              style={s`
-                text-center
-                text-[30px]
-                font-bold
-                text-gray-900
-                leading-[36px]
-                mb-2
-              `}>
-              Launchpad
-            </Text>
-
-            {/* Subtitle */}
-            <Text
-              style={s`
-                text-center
-                text-[15px]
-                text-gray-600
-                leading-5
-                mb-7
-              `}>
-              Sign in to continue to your dashboard
-            </Text>
-
-            {/* Email */}
-            <View style={s`mb-4`}>
-              <Text
-                style={s`
-                  text-[15px]
-                  font-medium
-                  text-gray-900
-                  mb-2
-                `}>
-                Email Address
-              </Text>
-
-              <TextInput
-                value={email}
-                onChangeText={value => {
-                  setEmail(value);
-
-                  if (emailError) {
-                    setEmailError('');
-                  }
-                }}
-                placeholder="Enter your email"
-                placeholderTextColor="#737d8c"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={s`
-                  h-13
-                  border
-                  border-gray-300
-                  rounded-lg
-                  px-4
-                  text-[15px]
-                  text-gray-900
-                `}
-              />
-
-              {emailError !== '' && (
-                <Text style={s`text-red-500 text-xs mt-1`}>
-                  {emailError}
-                </Text>
-              )}
-            </View>
-
-            {/* Password */}
-            <View style={s`mb-4`}>
-              <View style={s`flex-row justify-between items-center mb-2`}>
-                <Text
-                  style={s`
-                    text-[15px]
-                    font-medium
-                    text-gray-900
-                  `}>
-                  Password
-                </Text>
-
-                <TouchableOpacity>
-                  <Text
-                    style={s`
-                      text-[14px]
-                      font-semibold
-                      text-indigo-600
-                    `}>
-                    Forgot Password?
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <TextInput
-                value={password}
-                onChangeText={value => {
-                  setPassword(value);
-
-                  if (passwordError) {
-                    setPasswordError('');
-                  }
-                }}
-                placeholder="Enter your password"
-                placeholderTextColor="#737d8c"
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={s`
-                  h-13
-                  border
-                  border-gray-300
-                  rounded-lg
-                  px-4
-                  text-[15px]
-                  text-gray-900
-                `}
-              />
-
-              {passwordError !== '' && (
-                <Text style={s`text-red-500 text-xs mt-1`}>
-                  {passwordError}
-                </Text>
-              )}
-            </View>
-
-            {/* Login Button */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={handleLogin}
-              style={s`
-                h-13
-                rounded-lg
-                bg-indigo-600
-                items-center
-                justify-center
-                mb-7
-              `}>
-              <Text
-                style={s`
-                  text-white
-                  text-[16px]
-                  font-medium
-                `}>
-                Login
-              </Text>
-            </TouchableOpacity>
-
-            {/* Sign Up */}
-            <View style={s`flex-row justify-center items-center`}>
-              <Text
-                style={s`
-                  text-[15px]
-                  text-gray-600
-                `}>
-                Don't have an account?{' '}
-              </Text>
-
-              <TouchableOpacity>
-                <Text
-                  style={s`
-                    text-[15px]
-                    font-medium
-                    text-indigo-600
-                  `}>
-                  Sign Up
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+    default: {
+      const never: never = action;
+      return never;
+    }
+  }
 }
 </file>
 
@@ -2713,6 +2830,25 @@ export const BackgroundAbstracts = () => (
 );
 </file>
 
+<file path="src/ui/organisms/SlotBoundary.tsx">
+// src/ui/organisms/SlotBoundary.tsx
+// Per-slot React error boundary: a registered component that throws while rendering
+// is replaced by its slot's fallback; the rest of the screen keeps working.
+import React from 'react';
+
+interface Props { slot: string; fallback: React.ReactNode; children: React.ReactNode }
+interface State { failed: boolean }
+
+export class SlotBoundary extends React.Component<Props, State> {
+  state: State = { failed: false };
+  static getDerivedStateFromError(): State { return { failed: true }; }
+  componentDidCatch(error: Error) {
+    if (__DEV__) console.warn(`[SlotBoundary] ${this.props.slot} render failed: ${error.message}`);
+  }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
+</file>
+
 <file path="src/ui/tokens/typography.ts">
 // constants/typography.ts
 export const typography = {
@@ -3658,6 +3794,388 @@ To learn more about React Native, take a look at the following resources:
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
 </file>
 
+<file path="bff/src/agent.js">
+// bff/src/agent.js — home-layout generation, SERVER-SIDE (W2 review P0: Gemini key was in the app).
+// The model may only choose from activities the BFF has already authorized for this learner,
+// enforced by an enum in the response schema AND re-checked after generation (authorizeSlots).
+const ICONS = ['zap', 'book', 'clock', 'star'];
+// Same bounds as src/contracts/homeLayout.ts, so a long model title is trimmed instead of rejected.
+const LIMITS = { category: 40, stage: 40, title: 60, subtitle: 140, readTime: 24, buttonLabel: 24, eyebrow: 24 };
+
+/** Deterministic layout from LearnHouse data. Used when no model is configured or it fails/times out. */
+function fallbackSlots(choices) {
+  const next = choices[0];
+  return {
+    mainCard: next
+      ? { component: 'HomeCard', props: {
+          category: 'Your course', stage: `Activity ${next.position}`, title: next.name.slice(0, 60),
+          subtitle: 'Pick up where you left off.', readTime: '~5 min', buttonLabel: 'Mark complete',
+          action: { type: 'complete-activity', activityUuid: next.activityUuid } } }
+      : null,
+    nextStepSection: { component: 'NextStepCard', props: {
+      title: 'See your full path', subtitle: 'Every stage and what is left.', action: { type: 'open-path' } } },
+  };
+}
+
+// Catalogue the model may choose from (mirrors src/contracts/homeLayout.ts and your W2 REGISTRY).
+const CATALOGUE = {
+  HomeCard: { slot: 'mainCard', purpose: 'Hero card that continues the learner into their next activity.', whenToUse: 'Learner is progressing well and ready for new material.' },
+  PracticeCard: { slot: 'mainCard', purpose: 'Short focused practice to reinforce before moving on.', whenToUse: 'Learner is struggling, stalled, or returning after a break.' },
+  NextStepCard: { slot: 'nextStepSection', purpose: 'Small teaser for what comes next.', whenToUse: 'Learner benefits from seeing what follows.' },
+  RevisitSection: { slot: 'nextStepSection', purpose: 'List of 1-3 earlier activities worth reviewing.', whenToUse: 'Learner has completed activities that are worth revisiting.' },
+};
+const namesFor = (slot) => Object.keys(CATALOGUE).filter((n) => CATALOGUE[n].slot === slot);
+
+function createGeminiAgent({ apiKey, model, timeoutMs = 8000, fetchImpl = fetch, logger = console }) {
+  async function gemini(prompt, schema, temperature) {
+    const res = await fetchImpl(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      { method: 'POST', signal: AbortSignal.timeout(timeoutMs),
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature, maxOutputTokens: 800 } }) });
+    if (!res.ok) { const e = new Error(`Gemini HTTP ${res.status}`); e.status = res.status; throw e; }
+    const data = await res.json();
+    return JSON.parse(data?.candidates?.[0]?.content?.parts?.[0]?.text); // never logged raw
+  }
+
+  const S = { type: 'STRING' };
+  const actionSchema = (uuids) => ({
+    type: 'OBJECT',
+    properties: { type: { type: 'STRING', enum: ['complete-activity', 'open-path', 'open-practice'] },
+                  ...(uuids.length ? { activityUuid: { type: 'STRING', enum: uuids } } : {}) },
+    required: ['type'],
+  });
+  const propsSchema = (name, uuids, revisitUuids) => {
+    const action = actionSchema(uuids);
+    switch (name) {
+      case 'HomeCard': return { type: 'OBJECT', properties: { category: S, stage: S, title: S, subtitle: S, readTime: S, buttonLabel: S, action }, required: ['category', 'stage', 'title', 'subtitle', 'readTime', 'buttonLabel', 'action'] };
+      case 'PracticeCard': return { type: 'OBJECT', properties: { eyebrow: S, title: S, subtitle: S, buttonLabel: S, buttonIconString: { type: 'STRING', enum: ICONS }, action }, required: ['title', 'subtitle', 'action'] };
+      case 'NextStepCard': return { type: 'OBJECT', properties: { title: S, subtitle: S, action }, required: ['title', 'subtitle', 'action'] };
+      case 'RevisitSection': return { type: 'OBJECT', properties: { title: S, items: { type: 'ARRAY', items: { type: 'OBJECT',
+        properties: { id: S, title: S, subtitle: S, iconString: { type: 'STRING', enum: ICONS }, action: actionSchema(revisitUuids) },
+        required: ['id', 'title', 'subtitle', 'iconString', 'action'] } } }, required: ['items'] };
+    }
+  };
+  const describe = (slot) => namesFor(slot).map((n) => `  - ${n}: ${CATALOGUE[n].purpose} Use when: ${CATALOGUE[n].whenToUse}`).join('\n');
+
+  return {
+    async generate({ choices, completed = [], signals }) {
+      if (choices.length === 0 && completed.length === 0) return null;
+      const lines = [
+        'Unfinished activities the learner may do now (in course order):',
+        ...(choices.length ? choices.map((c) => `- ${c.activityUuid}: ${c.name}`) : ['- (none)']),
+        'Completed activities (can be revisited):',
+        ...(completed.length ? completed.map((c) => `- ${c.activityUuid}: ${c.name}`) : ['- (none)']),
+        `Learner signals: ${JSON.stringify(signals)}`,
+      ].join('\n');
+
+      // STEP 1 — DECIDE which component goes in each slot.
+      const decision = await gemini(
+        `You are the decision engine for the home screen of an AI-learning app.\n${lines}\n\nmainCard options:\n${describe('mainCard')}\n\nnextStepSection options:\n${describe('nextStepSection')}\n\nPick one per slot and give a one-sentence reason citing the signals.`,
+        { type: 'OBJECT', properties: { reason: S, mainCard: { type: 'STRING', enum: namesFor('mainCard') }, nextStepSection: { type: 'STRING', enum: namesFor('nextStepSection') } }, required: ['reason', 'mainCard', 'nextStepSection'] },
+        0.2);
+      if (!CATALOGUE[decision?.mainCard] || !CATALOGUE[decision?.nextStepSection]) throw new Error('decision outside catalogue');
+      if (decision.nextStepSection === 'RevisitSection' && completed.length === 0) decision.nextStepSection = 'NextStepCard';
+      logger.info?.(`[agent] decision: ${decision.mainCard} + ${decision.nextStepSection}`); // names only, no content
+
+      // STEP 2 — FILL props for the chosen components only.
+      const uuids = choices.map((c) => c.activityUuid);
+      const revisitUuids = completed.map((c) => c.activityUuid);
+      const slotSchema = (name) => ({ type: 'OBJECT', properties: { component: { type: 'STRING', enum: [name] }, props: propsSchema(name, uuids, revisitUuids) }, required: ['component', 'props'] });
+      return gemini(
+        `You write the home screen content for an AI-learning app.\n${lines}\n\nLayout chosen: mainCard=${decision.mainCard}, nextStepSection=${decision.nextStepSection}. Reason: ${decision.reason}\nRules: titles under 60 chars, subtitles one short sentence. Use action complete-activity with an unfinished activityUuid to continue, open-practice for practice, open-path to view the path. RevisitSection items use complete-activity with a completed activityUuid only if relevant, otherwise open-path.`,
+        { type: 'OBJECT', properties: { mainCard: slotSchema(decision.mainCard), nextStepSection: slotSchema(decision.nextStepSection) }, required: ['mainCard', 'nextStepSection'] },
+        0.6);
+    },
+  };
+}
+
+/** Server-side authorization of every action target in a generated layout. Bad slot -> null. */
+function authorizeSlots(slots, allowedUuids) {
+  const okAction = (a) => a && (a.type === 'open-path' || a.type === 'open-practice' ||
+    (a.type === 'complete-activity' && allowedUuids.has(a.activityUuid)));
+  const check = (slot) => {
+    if (!slot || typeof slot !== 'object' || !slot.props) return null;
+    // RevisitSection carries actions per item; every other card has one card-level action.
+    if (slot.component !== 'RevisitSection' && !okAction(slot.props.action)) return null;
+    if (slot.component === 'RevisitSection' && 'action' in slot.props) return null;
+    for (const [k, max] of Object.entries(LIMITS)) {
+      if (typeof slot.props[k] === 'string') slot.props[k] = slot.props[k].slice(0, max);
+    }
+    if (Array.isArray(slot.props.items)) {
+      if (!slot.props.items.every((i) => okAction(i?.action))) return null;
+      // Bound the list and make ids contract-safe (model may write "Prompt Basics!").
+      slot.props.items = slot.props.items.slice(0, 3).map((i, n) => ({
+        ...i,
+        id: (String(i.id ?? '').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 64)) || `item-${n + 1}`,
+        title: String(i.title ?? '').slice(0, 60),
+        subtitle: String(i.subtitle ?? '').slice(0, 140),
+      }));
+      if (slot.props.items.length === 0) return null;
+    }
+    if (typeof slot.props.title === 'string') slot.props.title = slot.props.title.slice(0, 60);
+    return slot;
+  };
+  return { mainCard: check(slots?.mainCard), nextStepSection: check(slots?.nextStepSection) };
+}
+module.exports = { createGeminiAgent, fallbackSlots, authorizeSlots, ICONS, CATALOGUE };
+</file>
+
+<file path="bff/src/learnhouse.js">
+// bff/src/learnhouse.js — thin LearnHouse adapter. The org API token never leaves this process.
+// Endpoints follow docs.learnhouse.app/reference/headless; verify them against the
+// pinned LearnHouse release you run (see docs/W3-plan-and-evidence.md, "Pinning").
+function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000, fetchImpl = fetch }) {
+  if (!baseUrl || !orgToken || !orgSlug) {
+    throw new Error('LH_BASE_URL, LH_API_TOKEN and LH_ORG_SLUG must be set in bff/.env');
+  }
+  async function call(method, path, { body, form, auth = 'org' } = {}) {
+    const headers = { Accept: 'application/json' };
+    if (auth === 'org') headers.Authorization = `Bearer ${orgToken}`;
+    let payload;
+    if (form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; payload = new URLSearchParams(form).toString(); }
+    else if (body) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+    const res = await fetchImpl(`${baseUrl}${path}`, { method, headers, body: payload, signal: AbortSignal.timeout(timeoutMs) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) { const err = new Error(`LearnHouse ${method} ${path} -> ${res.status}`); err.status = res.status; throw err; }
+    return data;
+  }
+  return {
+    // Authenticate the learner with LearnHouse itself; we keep only id + name, not their LH token.
+    async login(email, password) {
+      let data;
+      try {
+        data = await call('POST', '/auth/login', { form: { username: email, password }, auth: 'none' });
+      } catch (e) {
+        if (e.status === 401 || e.status === 403 || e.status === 400) return null;
+        throw e;
+      }
+      // LearnHouse versions differ: the id may be at user.id, user.user_id or top-level.
+      let user = data?.user ?? data;
+      let id = user?.id ?? user?.user_id ?? data?.user_id;
+      // Fallback: ask LearnHouse who this token belongs to (learner's own token, used once, never stored).
+      const userToken = data?.tokens?.access_token ?? data?.access_token ?? data?.token;
+      if ((id === undefined || id === null) && userToken) {
+        const res = await fetchImpl(`${baseUrl}/users/profile`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${userToken}` }, signal: AbortSignal.timeout(timeoutMs) });
+        if (res.ok) { user = await res.json(); id = user?.id ?? user?.user_id; }
+      }
+      if (id === undefined || id === null) {
+        console.warn('[learnhouse] login ok but no user id found; keys:', Object.keys(data ?? {}).join(','));
+        return null;
+      }
+      return { learnerId: String(id), displayName: user?.first_name || user?.username || 'Learner' };
+    },
+    getCourseMeta: (courseUuid) => call('GET', `/courses/${encodeURIComponent(courseUuid)}/meta?slim=true`),
+    getTrail: (learnerId, courseUuid) =>
+      call('GET', `/admin/${orgSlug}/trails/${encodeURIComponent(learnerId)}/courses/${encodeURIComponent(courseUuid)}`),
+    completeActivity: (learnerId, activityUuid) =>
+      call('POST', `/admin/${orgSlug}/trails/${encodeURIComponent(learnerId)}/activities/${encodeURIComponent(activityUuid)}/complete`),
+  };
+}
+module.exports = { createLearnHouse };
+</file>
+
+<file path="bff/test/bff.test.js">
+// W3 FB001 evidence: authenticated BFF, allow/deny matrix, completion write + read-back, idempotency.
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { createApp } = require('../src/app');
+const { createFakeLearnHouse } = require('./fakeLearnHouse');
+
+let server, base, fake;
+const silent = { info() {}, warn() {} };
+before(async () => {
+  fake = createFakeLearnHouse();
+  server = createApp({ lh: fake.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
+  await new Promise((r) => server.listen(0, r));
+  base = `http://127.0.0.1:${server.address().port}/api`;
+});
+after(() => server.close());
+
+const call = (path, { method = 'GET', token, body, headers = {} } = {}) =>
+  fetch(base + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers }, body: body && JSON.stringify(body) })
+    .then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }));
+const login = async (email) => (await call('/auth/login', { method: 'POST', body: { email, password: 'Passw0rd!' } })).body.token;
+
+test('login: wrong password -> 401, response carries no token', async () => {
+  const r = await call('/auth/login', { method: 'POST', body: { email: 'asha@test.local', password: 'nope' } });
+  assert.equal(r.status, 401); assert.equal(r.body.token, undefined);
+});
+
+test('no session / forged session -> 401 on every /me route', async () => {
+  assert.equal((await call('/me/courses/course_demo/trail')).status, 401);
+  assert.equal((await call('/me/courses/course_demo/trail', { token: 'forged' })).status, 401);
+});
+
+test('course not on server allow-list -> 403', async () => {
+  const t = await login('asha@test.local');
+  assert.equal((await call('/me/courses/course_other/meta', { token: t })).status, 403);
+});
+
+test('old forgeable routes (userId/orgSlug in URL) no longer exist -> 404', async () => {
+  const t = await login('asha@test.local');
+  assert.equal((await call('/admin/org/trails/202/courses/course_demo', { token: t })).status, 404);
+});
+
+test('unpublished / foreign activity -> 403 activity_forbidden, no upstream write', async () => {
+  const t = await login('asha@test.local');
+  const before = fake.calls.complete;
+  const r = await call('/me/courses/course_demo/activities/act_draft/complete', { method: 'POST', token: t, headers: { 'Idempotency-Key': 'k-draft' } });
+  assert.equal(r.status, 403); assert.equal(fake.calls.complete, before);
+});
+
+test('completion write is applied and read back; other learner is unaffected', async () => {
+  const asha = await login('asha@test.local');
+  const ravi = await login('ravi@test.local');
+  const w = await call('/me/courses/course_demo/activities/act_1/complete', { method: 'POST', token: asha, headers: { 'Idempotency-Key': 'k-1' } });
+  assert.equal(w.status, 200); assert.equal(w.body.status, 'applied');
+  // Read-back through a SECOND session (stands in for the second client, e.g. web).
+  const asha2 = await login('asha@test.local');
+  const trail = (await call('/me/courses/course_demo/trail', { token: asha2 })).body;
+  assert.equal(trail.courses[0].chapters[0].activities.find((a) => a.activity_uuid === 'act_1').completed, true);
+  const raviTrail = (await call('/me/courses/course_demo/trail', { token: ravi })).body;
+  assert.equal(raviTrail.courses[0].chapters[0].activities.find((a) => a.activity_uuid === 'act_1').completed, false);
+});
+
+test('retry with same Idempotency-Key -> one upstream effect, replayed result', async () => {
+  const t = await login('ravi@test.local');
+  const before = fake.calls.complete;
+  const a = await call('/me/courses/course_demo/activities/act_2/complete', { method: 'POST', token: t, headers: { 'Idempotency-Key': 'k-r2' } });
+  const b = await call('/me/courses/course_demo/activities/act_2/complete', { method: 'POST', token: t, headers: { 'Idempotency-Key': 'k-r2' } });
+  assert.equal(a.body.status, 'applied'); assert.equal(b.body.replayed, true);
+  assert.equal(fake.calls.complete - before, 1);
+});
+
+test('same key reused for a different activity -> 409', async () => {
+  const t = await login('ravi@test.local');
+  const r = await call('/me/courses/course_demo/activities/act_1/complete', { method: 'POST', token: t, headers: { 'Idempotency-Key': 'k-r2' } });
+  assert.equal(r.status, 409);
+});
+
+test('lost upstream response is reconciled by read-back -> applied, not a false failure', async () => {
+  const asha = await login('asha@test.local');
+  fake.loseNextWriteResponse();
+  const r = await call('/me/courses/course_demo/activities/act_2/complete', { method: 'POST', token: asha, headers: { 'Idempotency-Key': 'k-lost' } });
+  assert.equal(r.status, 200); assert.equal(r.body.status, 'applied');
+});
+
+test('missing Idempotency-Key -> 400', async () => {
+  const t = await login('asha@test.local');
+  assert.equal((await call('/me/courses/course_demo/activities/act_1/complete', { method: 'POST', token: t })).status, 400);
+});
+
+test('home-layout: versioned envelope bound to the session learner, fallback without Gemini', async () => {
+  const fresh = createFakeLearnHouse();
+  const s = createApp({ lh: fresh.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
+  await new Promise((r) => s.listen(0, r));
+  const b = `http://127.0.0.1:${s.address().port}/api`;
+  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
+  const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
+  s.close();
+  assert.equal(env.version, 1); assert.equal(env.learnerId, '101'); assert.equal(env.courseUuid, 'course_demo');
+  assert.ok(Date.parse(env.expiresAt) > Date.now());
+  assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+});
+
+test('home-layout: agent output targeting an unauthorized activity is dropped server-side', async () => {
+  const fresh = createFakeLearnHouse();
+  const evilAgent = { generate: async () => ({
+    mainCard: { component: 'HomeCard', props: { category: 'x', stage: 'x', title: 'x', subtitle: 'x', readTime: 'x', buttonLabel: 'x', action: { type: 'complete-activity', activityUuid: 'act_draft' } } },
+    nextStepSection: { component: 'NextStepCard', props: { title: 'ok', subtitle: 'ok', action: { type: 'open-path' } } } }) };
+  const s = createApp({ lh: fresh.lh, agent: evilAgent, allowedCourses: new Set(['course_demo']), logger: silent }).server();
+  await new Promise((r) => s.listen(0, r));
+  const b = `http://127.0.0.1:${s.address().port}/api`;
+  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
+  const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
+  s.close();
+  assert.equal(env.slots.mainCard, null);              // unauthorized slot removed
+  assert.equal(env.slots.nextStepSection.component, 'NextStepCard'); // valid slot survives
+});
+
+test('oversized request body -> 413', async () => {
+  const r = await call('/auth/login', { method: 'POST', body: { email: 'a', password: 'x'.repeat(20000) } });
+  assert.equal(r.status, 413);
+});
+
+test('not-enrolled learner: trail -> 404 not_enrolled (not a 502)', async () => {
+  const t = await login('neha@test.local');
+  const r = await call('/me/courses/course_demo/trail', { token: t });
+  assert.equal(r.status, 404); assert.equal(r.body.error, 'not_enrolled');
+});
+
+test('not-enrolled learner: home-layout still works, suggests the first published activity', async () => {
+  const t = await login('neha@test.local');
+  const r = await call('/me/courses/course_demo/home-layout', { token: t });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+});
+
+test('real upstream failure (500) is still reported as 502 with the upstream status', async () => {
+  const broken = createFakeLearnHouse();
+  broken.lh.getCourseMeta = async () => { const e = new Error('LearnHouse GET /courses -> 500'); e.status = 500; throw e; };
+  const s = createApp({ lh: broken.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
+  await new Promise((r) => s.listen(0, r));
+  const b = `http://127.0.0.1:${s.address().port}/api`;
+  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
+  const r = await fetch(b + '/me/courses/course_demo/meta', { headers: { Authorization: `Bearer ${tok}` } });
+  const body = await r.json(); s.close();
+  assert.equal(r.status, 502); assert.equal(body.upstreamStatus, 500);
+});
+</file>
+
+<file path="bff/test/fakeLearnHouse.js">
+// In-memory LearnHouse double: two learners, one allowed course, one unpublished activity.
+function createFakeLearnHouse() {
+  const users = { 'asha@test.local': { pw: 'Passw0rd!', id: '101', name: 'Asha' }, 'ravi@test.local': { pw: 'Passw0rd!', id: '202', name: 'Ravi' }, 'neha@test.local': { pw: 'Passw0rd!', id: '303', name: 'Neha' } };
+  const meta = { course_uuid: 'course_demo', name: 'Demo', chapters: [{ chapter_uuid: 'ch1', name: 'Ch 1', activities: [
+    { activity_uuid: 'act_1', name: 'What is an LLM', published: true },
+    { activity_uuid: 'act_2', name: 'Prompt basics', published: true },
+    { activity_uuid: 'act_draft', name: 'Draft', published: false },
+  ] }] };
+  const completed = new Map(); // learnerId -> Set
+  const calls = { complete: 0 };
+  let failNextWriteAfterApply = false;
+  const lh = {
+    async login(email, pw) { const u = users[email]; return u && u.pw === pw ? { learnerId: u.id, displayName: u.name } : null; },
+    async getCourseMeta(uuid) { if (uuid !== 'course_demo') { const e = new Error('nf'); e.status = 404; throw e; } return meta; },
+    async getTrail(learnerId, uuid) {
+      if (learnerId === '303') { const e = new Error('no trail'); e.status = 404; throw e; } // not enrolled
+      const done = completed.get(learnerId) ?? new Set();
+      return { user_id: Number(learnerId), courses: [{ course_uuid: uuid, chapters: [{ chapter_uuid: 'ch1', activities:
+        meta.chapters[0].activities.filter((a) => a.published).map((a) => ({ activity_uuid: a.activity_uuid, completed: done.has(a.activity_uuid) })) }] }] };
+    },
+    async completeActivity(learnerId, activityUuid) {
+      calls.complete++;
+      if (!completed.has(learnerId)) completed.set(learnerId, new Set());
+      completed.get(learnerId).add(activityUuid);
+      if (failNextWriteAfterApply) { failNextWriteAfterApply = false; const e = new Error('timeout'); e.status = 504; throw e; }
+      return { ok: true };
+    },
+  };
+  return { lh, calls, completed, loseNextWriteResponse: () => { failNextWriteAfterApply = true; } };
+}
+module.exports = { createFakeLearnHouse };
+</file>
+
+<file path="bff/package.json">
+{
+  "name": "ailaunchpad-bff",
+  "version": "0.3.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">= 22.11.0"
+  }
+}
+</file>
+
 <file path="docs/superpowers/specs/2026-09-16-folder-structure-refactor-design.md">
 # Folder structure refactor — design spec
 
@@ -3865,135 +4383,525 @@ to them at that time.
   above).
 </file>
 
-<file path="src/navigation/MainStack.tsx">
-import React from 'react';
-import {NavigationContainer} from '@react-navigation/native';
-import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import LoginScreen from '../screens/login/LoginScreen';
-import PathScreen from '../screens/path/PathScreen';
-import HomeScreen from '../screens/home/HomeScreen';
-import PracticeScreen from '../screens/practice/PracticeScreen';
-import YouScreen from '../screens/you/YouScreen';
+<file path="scripts/test-learnhouse-api.mjs">
+#!/usr/bin/env node
+/**
+ * Standalone exploration script — NOT part of the app.
+ * Simulates the real end-user flow: login -> find org -> list courses ->
+ * fetch chapters -> attempt to read the user's own progress (expected to fail,
+ * since LearnHouse's trail/progress endpoints require an org API token, not
+ * a plain user session).
+ *
+ * Usage:
+ *   LH_BASE_URL=https://api.yourdomain.com \
+ *   LH_EMAIL=admin@yourorg.com \
+ *   LH_PASSWORD=yourpassword \
+ *   node scripts/test-learnhouse-api.mjs
+ */
 
-// Bottom-bar tab screens carry an optional `direction`, set by
-// useTabNavigation from the tapped tab's position relative to the current
-// one, so the push/replace transition can slide from the matching side.
-type TabScreenParams = { direction?: 'forward' | 'backward' } | undefined;
+import { createInterface } from "node:readline/promises";
+import { stdin, stdout } from "node:process";
 
-export type RootStackParamList = {
-  Login: undefined;
-  PathScreen: TabScreenParams;
-  HomeScreen: TabScreenParams;
-  PracticeScreen: TabScreenParams;
-  YouScreen: TabScreenParams;
-};
+const BASE_URL = process.env.LH_BASE_URL || "https://REPLACE_ME.example.com";
+const EMAIL = process.env.LH_EMAIL || "REPLACE_ME@example.com";
+const PASSWORD = process.env.LH_PASSWORD || "REPLACE_ME";
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+async function promptChoice(question, choices) {
+  const rl = createInterface({ input: stdin, output: stdout });
+  choices.forEach((c, i) => console.log(`  [${i}] ${c.label}`));
+  let index = -1;
+  while (!(index >= 0 && index < choices.length)) {
+    const answer = await rl.question(`${question} (0-${choices.length - 1}): `);
+    index = Number.parseInt(answer, 10);
+  }
+  rl.close();
+  return choices[index];
+}
 
-const tabScreenOptions = ({ route }: { route: { params?: TabScreenParams } }) => ({
-  animation: route.params?.direction === 'backward' ? ('slide_from_left' as const) : ('slide_from_right' as const),
-});
+// Redact anything token/password-like before printing (W2 review P0: raw login response was logged).
+const SECRET_KEYS = /token|password|secret|authorization|cookie|api[_-]?key/i;
+function redact(value) {
+  if (Array.isArray(value)) return value.map(redact);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, SECRET_KEYS.test(k) ? "[REDACTED]" : redact(v)])
+    );
+  }
+  return value;
+}
 
-export default function MainStack() {
-  return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="HomeScreen" screenOptions={{headerShown: false}}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="PathScreen" component={PathScreen} options={tabScreenOptions} />
-        <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
-        <Stack.Screen name="PracticeScreen" component={PracticeScreen} options={tabScreenOptions} />
-        <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
-      </Stack.Navigator>
-    </NavigationContainer>
+function log(step, data) {
+  console.log(`\n=== ${step} ===`);
+  console.log(typeof data === "string" ? data : JSON.stringify(redact(data), null, 2));
+}
+
+async function request(path, { method = "GET", token, body, form } = {}) {
+  let requestBody;
+  if (form) {
+    requestBody = new URLSearchParams(form).toString();
+  } else if (body) {
+    requestBody = JSON.stringify(body);
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": form ? "application/x-www-form-urlencoded" : "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: requestBody,
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = await res.text();
+  }
+  return { status: res.status, ok: res.ok, data };
+}
+
+function findToken(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  const candidates = [obj, obj.tokens];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    for (const key of ["access_token", "accessToken", "token", "session_token"]) {
+      if (candidate[key]) return candidate[key];
+    }
+  }
+  return null;
+}
+
+function findUserId(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  const user = obj.user || obj.profile || obj;
+  return user.id ?? user.user_id ?? user.uuid ?? null;
+}
+
+async function main() {
+  if (BASE_URL.includes("REPLACE_ME") || EMAIL.includes("REPLACE_ME")) {
+    console.error(
+      "Set LH_BASE_URL, LH_EMAIL, LH_PASSWORD env vars before running (see header comment)."
+    );
+    process.exit(1);
+  }
+
+  // 1. Login as the real user (email + password)
+  const login = await request("/api/v1/auth/login", {
+    method: "POST",
+    form: { username: EMAIL, password: PASSWORD },
+  });
+  log("1. Login response", login);
+  if (!login.ok) {
+    console.error("Login failed — stopping here.");
+    process.exit(1);
+  }
+  const token = findToken(login.data);
+  const userId = findUserId(login.data);
+  log("Parsed token/userId", { token: token ? "(present)" : null, userId });
+
+  // 2. Find the organization(s) this user belongs to, to get org_slug.
+  // Try admin-owned orgs first, fall back to all orgs the user is a member of.
+  let orgs = await request("/api/v1/orgs/user_admin/page/1/limit/10", { token });
+  log("2a. Organizations (admin)", orgs);
+  let orgList = Array.isArray(orgs.data) ? orgs.data : orgs.data?.items || [];
+  if (orgList.length === 0) {
+    orgs = await request("/api/v1/orgs/user/page/1/limit/10", { token });
+    log("2b. Organizations (member)", orgs);
+    orgList = Array.isArray(orgs.data) ? orgs.data : orgs.data?.items || [];
+  }
+  const orgSlug = orgList[0]?.slug || orgList[0]?.org_slug;
+  if (!orgSlug) {
+    console.error("Could not determine org_slug from response — inspect step 2 output above.");
+    process.exit(1);
+  }
+  log("Using org_slug", orgSlug);
+
+  // 3. List courses for that org (session/bearer token should work here)
+  const courses = await request(
+    `/api/v1/courses/org_slug/${orgSlug}/page/1/limit/20`,
+    { token }
   );
+  log("3. Courses list", courses);
+  const courseList = Array.isArray(courses.data) ? courses.data : courses.data?.items || [];
+  if (courseList.length === 0) {
+    console.error("No courses found — inspect step 3 output above.");
+    process.exit(1);
+  }
+
+  const choice = await promptChoice(
+    "\nWhich course do you want to inspect?",
+    courseList.map((c) => ({
+      label: c.name || c.title || "(untitled course)",
+      course: c,
+    }))
+  );
+  const courseUuid =
+    choice.course.course_uuid || choice.course.uuid || choice.course.id;
+  if (!courseUuid) {
+    console.error("Selected course has no recognizable UUID field — inspect step 3 output above.");
+    process.exit(1);
+  }
+  log("Using course_uuid", courseUuid);
+
+  // 4. Fetch chapters/structure for that course (should work with session token)
+  const meta = await request(`/api/v1/courses/${courseUuid}/meta?slim=true`, { token });
+  log("4. Course meta (chapters/activities)", meta);
+
+  // 5. Attempt to read this user's own progress — expected to be rejected,
+  //    since docs say trail/progress endpoints require an org API token,
+  //    not a user session.
+  const progress = await request(
+    `/api/v1/admin/${orgSlug}/progress/${userId}/${courseUuid}`,
+    { token }
+  );
+  log("5. Progress attempt with user session (expected to fail)", progress);
+
+  console.log(
+    "\nIf step 5 returned 401/403, that confirms progress data needs a backend " +
+      "holding an org API token — a plain logged-in user session can't read it directly."
+  );
+}
+
+try {
+  await main();
+} catch (err) {
+  console.error("Script error:", err);
+  process.exit(1);
 }
 </file>
 
-<file path="src/schemas/homeLayoutSchema.ts">
-import { z } from 'zod';
+<file path="src/screens/login/LoginScreen.tsx">
+import React, {useState} from 'react';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import {Rocket} from 'lucide-react-native';
+import twrnc from 'twrnc';
+import {useNavigation, StackActions} from '@react-navigation/native';
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import type {RootStackParamList} from '../../navigation/MainStack';
+import {login} from '../../core/api/learnhouse/client';
+import {setSession} from '../../core/auth/session';
 
-import { HomeCard } from '../ui/organisms/home/HomeCard';
-import { NextStepCard } from '../ui/molecules/home/NextStepCard';
+const s = twrnc;
 
-import { PracticeCard } from '../ui/organisms/practice/PracticeCard';
-import { RevisitSection } from '../ui/organisms/practice/RevisitSection';
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-// 1. Reusable Atoms
-const IconEnum = z.enum(['zap', 'book', 'clock', 'star', 'chevron-right']);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-// 2. Component Schemas
-const HomeCardSchema = z.object({
-  component: z.literal('HomeCard'),
-  props: z.object({
-    category: z.string(),
-    stage: z.string(),
-    title: z.string(),
-    subtitle: z.string(),
-    readTime: z.string(),
-    buttonLabel: z.string(),
-    actionId: z.string().optional(),
-  }).strict(),
-});
+  // Email validation
+  const validateEmail = (value: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value);
+  };
 
-const NextStepCardSchema = z.object({
-  component: z.literal('NextStepCard'),
-  props: z.object({
-    title: z.string(),
-    subtitle: z.string(),
-    actionId: z.string().optional(),
-  }).strict(),
-});
+  // Password validation
+  const validatePassword = (value: string) => {
+    const minLength = value.length >= 8;
+    const hasUppercase = /[A-Z]/.test(value);
+    const hasSpecialCharacter = /[^A-Za-z0-9]/.test(value);
 
-const PracticeCardSchema = z.object({
-  component: z.literal('PracticeCard'),
-  props: z.object({
-    eyebrow: z.string().optional(),
-    title: z.string(),
-    subtitle: z.string(),
-    buttonLabel: z.string().optional(),
-    buttonIconString: IconEnum.optional(),
-  }).strict(),
-});
+    return {
+      minLength,
+      hasUppercase,
+      hasSpecialCharacter,
+      valid: minLength && hasUppercase && hasSpecialCharacter,
+    };
+  };
 
-const RevisitSectionSchema = z.object({
-  component: z.literal('RevisitSection'),
-  props: z.object({
-    title: z.string().optional(),
-    items: z.array(
-      z.object({
-        id: z.string(),
-        title: z.string(),
-        subtitle: z.string(),
-        iconString: IconEnum,
-      })
-    ),
-  }).strict(),
-});
+  const handleLogin = async () => {
+    let valid = true;
 
-// 3. The Master Union
-// Any new component you build gets added to this array.
-const UIComponentSchema = z.discriminatedUnion('component', [
-  HomeCardSchema,
-  NextStepCardSchema,
-  PracticeCardSchema,
-  RevisitSectionSchema,
-]);
+    // Validate email
+    if (!email) {
+      setEmailError('Email is required.');
+      valid = false;
+    } else if (!validateEmail(email)) {
+      setEmailError('Please enter a valid email address.');
+      valid = false;
+    } else {
+      setEmailError('');
+    }
 
-// 4. The Layout Structure
-export const HomeLayoutSchema = z.object({
-  mainCard: UIComponentSchema.nullable(),
-  nextStepSection: UIComponentSchema.nullable(),
-});
+    // Validate password
+    const passwordValidation = validatePassword(password);
 
-export type ValidatedHomeLayout = z.infer<typeof HomeLayoutSchema>;
+    if (!password) {
+      setPasswordError('Password is required.');
+      valid = false;
+    } else if (!passwordValidation.valid) {
+      const errors: string[] = [];
 
-// 5. The Component Registry
-export const TrustedCatalogue: Record<string, any> = {
-  HomeCard: HomeCard,
-  NextStepCard: NextStepCard,
-  PracticeCard: PracticeCard,
-  RevisitSection: RevisitSection,
-};
+      if (!passwordValidation.minLength) {
+        errors.push('at least 8 characters');
+      }
+
+      if (!passwordValidation.hasUppercase) {
+        errors.push('one uppercase letter');
+      }
+
+      if (!passwordValidation.hasSpecialCharacter) {
+        errors.push('one special character');
+      }
+
+      setPasswordError(`Password must contain ${errors.join(', ')}.`);
+      valid = false;
+    } else {
+      setPasswordError('');
+    }
+
+    if (!valid) {
+      return;
+    }
+
+    // W2 review P0: credentials were logged here. Now they go only to the BFF,
+    // which authenticates against LearnHouse and returns an opaque session token.
+    setSubmitting(true);
+    try {
+      const result = await login(email.trim(), password);
+      setSession(result.token, result.learner.id, result.learner.displayName);
+      setPassword('');
+      navigation.dispatch(StackActions.replace('HomeScreen'));
+    } catch (e: any) {
+      setPasswordError(e?.status === 401 ? 'Email or password is incorrect.' : 'Could not reach the server. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={s`flex-1 bg-gray-50`}>
+      <KeyboardAvoidingView
+        style={s`flex-1`}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={s`flex-grow justify-center px-5 py-6`}
+          keyboardShouldPersistTaps="handled">
+
+          {/* Main Card */}
+          <View
+            style={s` bg-white rounded-2xl border border-gray-200 px-5 py-6 shadow-md`}>
+
+            {/* Rocket Icon */}
+            <View style={s`items-center mb-5`}>
+              <View
+                style={s`
+                  w-18
+                  h-18
+                  rounded-full
+                  bg-indigo-500
+                  items-center
+                  justify-center
+                `}>
+                <Rocket
+                  size={32}
+                  color="white"
+                  strokeWidth={2.2}
+                />
+              </View>
+            </View>
+
+            {/* Heading */}
+            <Text
+              style={s`
+                text-center
+                text-[30px]
+                font-bold
+                text-gray-900
+                leading-[36px]
+              `}>
+              Welcome to AI
+            </Text>
+
+            <Text
+              style={s`
+                text-center
+                text-[30px]
+                font-bold
+                text-gray-900
+                leading-[36px]
+                mb-2
+              `}>
+              Launchpad
+            </Text>
+
+            {/* Subtitle */}
+            <Text
+              style={s`
+                text-center
+                text-[15px]
+                text-gray-600
+                leading-5
+                mb-7
+              `}>
+              Sign in to continue to your dashboard
+            </Text>
+
+            {/* Email */}
+            <View style={s`mb-4`}>
+              <Text
+                style={s`
+                  text-[15px]
+                  font-medium
+                  text-gray-900
+                  mb-2
+                `}>
+                Email Address
+              </Text>
+
+              <TextInput
+                value={email}
+                onChangeText={value => {
+                  setEmail(value);
+
+                  if (emailError) {
+                    setEmailError('');
+                  }
+                }}
+                placeholder="Enter your email"
+                placeholderTextColor="#737d8c"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={s`
+                  h-13
+                  border
+                  border-gray-300
+                  rounded-lg
+                  px-4
+                  text-[15px]
+                  text-gray-900
+                `}
+              />
+
+              {emailError !== '' && (
+                <Text style={s`text-red-500 text-xs mt-1`}>
+                  {emailError}
+                </Text>
+              )}
+            </View>
+
+            {/* Password */}
+            <View style={s`mb-4`}>
+              <View style={s`flex-row justify-between items-center mb-2`}>
+                <Text
+                  style={s`
+                    text-[15px]
+                    font-medium
+                    text-gray-900
+                  `}>
+                  Password
+                </Text>
+
+                <TouchableOpacity>
+                  <Text
+                    style={s`
+                      text-[14px]
+                      font-semibold
+                      text-indigo-600
+                    `}>
+                    Forgot Password?
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                value={password}
+                onChangeText={value => {
+                  setPassword(value);
+
+                  if (passwordError) {
+                    setPasswordError('');
+                  }
+                }}
+                placeholder="Enter your password"
+                placeholderTextColor="#737d8c"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={s`
+                  h-13
+                  border
+                  border-gray-300
+                  rounded-lg
+                  px-4
+                  text-[15px]
+                  text-gray-900
+                `}
+              />
+
+              {passwordError !== '' && (
+                <Text style={s`text-red-500 text-xs mt-1`}>
+                  {passwordError}
+                </Text>
+              )}
+            </View>
+
+            {/* Login Button */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleLogin}
+              disabled={submitting}
+              accessibilityState={{busy: submitting, disabled: submitting}}
+              style={s`
+                h-13
+                rounded-lg
+                bg-indigo-600
+                items-center
+                justify-center
+                mb-7
+              `}>
+              <Text
+                style={s`
+                  text-white
+                  text-[16px]
+                  font-medium
+                `}>
+                Login
+              </Text>
+            </TouchableOpacity>
+
+            {/* Sign Up */}
+            <View style={s`flex-row justify-center items-center`}>
+              <Text
+                style={s`
+                  text-[15px]
+                  text-gray-600
+                `}>
+                Don't have an account?{' '}
+              </Text>
+
+              <TouchableOpacity>
+                <Text
+                  style={s`
+                    text-[15px]
+                    font-medium
+                    text-indigo-600
+                  `}>
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
 </file>
 
 <file path="src/screens/path/usePathData.ts">
@@ -4836,15 +5744,6 @@ import App from './App';
 registerRootComponent(App);
 </file>
 
-<file path="jest.config.js">
-module.exports = {
-  preset: 'jest-expo',
-  moduleNameMapper: {
-    '^lucide-react-native$': '<rootDir>/node_modules/lucide-react-native/dist/cjs/lucide-react-native.js',
-  },
-};
-</file>
-
 <file path="metro.config.js">
 const { getDefaultConfig } = require('expo/metro-config');
 
@@ -4859,15 +5758,399 @@ const config = getDefaultConfig(__dirname);
 module.exports = config;
 </file>
 
-<file path="tsconfig.json">
-{
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "types": ["jest", "node"]
-  },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods"]
+<file path="bff/src/app.js">
+// bff/src/app.js — authenticated BFF (W3 FB001). Zero dependencies (node:http).
+// Every /me route derives learner + org from the session. Course access is checked
+// against a server-side allow-list; activity access against the course's published content.
+const http = require('node:http');
+const crypto = require('node:crypto');
+const { createSessionStore } = require('./sessions');
+const { fallbackSlots, authorizeSlots } = require('./agent');
+
+const UUID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const MAX_BODY = 8 * 1024;
+
+// ---- tiny router: route('GET', '/api/me/courses/:courseUuid/meta', ...handlers) ----
+function compile(pattern) {
+  const keys = [];
+  const re = new RegExp('^' + pattern.replace(/:([A-Za-z]+)/g, (_, k) => { keys.push(k); return '([^/]+)'; }) + '$');
+  return { re, keys };
 }
+function decorate(res) {
+  res.status = (code) => { res.statusCode = code; return res; };
+  res.json = (obj) => { const b = JSON.stringify(obj); res.setHeader('Content-Type', 'application/json'); res.end(b); return res; };
+  return res;
+}
+async function readJson(req) {
+  let size = 0; const chunks = [];
+  for await (const c of req) { size += c.length; if (size > MAX_BODY) { const e = new Error('too large'); e.status = 413; throw e; } chunks.push(c); }
+  if (!chunks.length) return {};
+  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { const e = new Error('bad json'); e.status = 400; throw e; }
+}
+
+function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console }) {
+  const routes = [];
+  const app = {};
+  for (const m of ['get', 'post']) app[m] = (path, ...handlers) => routes.push({ method: m.toUpperCase(), path, ...compile(path), handlers });
+  const idempotency = new Map(); // `${learnerId}:${key}` -> result   (W5: move to SQLite)
+
+
+  app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+  app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body ?? {};
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password || email.length > 254 || password.length > 256) {
+      return res.status(400).json({ error: 'invalid_request' });
+    }
+    try {
+      const learner = await lh.login(email, password);
+      if (!learner) return res.status(401).json({ error: 'invalid_credentials' });
+      const { token, expiresAt } = sessions.create(learner);
+      res.json({ token, expiresAt, learner: { id: learner.learnerId, displayName: learner.displayName } });
+    } catch {
+      res.status(502).json({ error: 'upstream_unavailable' });
+    }
+  });
+
+  // ---- auth gate for everything under /api/me ----
+  const requireSession = (req, res, next) => {
+    const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
+    const session = m && sessions.get(m[1]);
+    if (!session) return res.status(401).json({ error: 'unauthenticated' });
+    req.learner = session;
+    next();
+  };
+  const requireCourse = (req, res, next) => {
+    const { courseUuid } = req.params;
+    if (!UUID_RE.test(courseUuid) || !allowedCourses.has(courseUuid)) return res.status(403).json({ error: 'course_forbidden' });
+    next();
+  };
+  const upstreamError = (res, e) => {
+    // Sanitized: method, LearnHouse path and status (or network code). Never headers, tokens or bodies.
+    logger.warn?.(`[upstream] ${e.message}${e.cause?.code ? ` (${e.cause.code})` : ''}`);
+    res.status(e.status === 404 ? 404 : 502).json({ error: e.status === 404 ? 'not_found' : 'upstream_error', upstreamStatus: e.status ?? null });
+  };
+
+  app.post('/api/auth/logout', requireSession, (req, res) => {
+    sessions.destroy(/^Bearer (.+)$/.exec(req.headers.authorization)[1]);
+    res.statusCode = 204; res.end();
+  });
+
+  app.get('/api/me/courses/:courseUuid/meta', requireSession, requireCourse, async (req, res) => {
+    try { res.json(await lh.getCourseMeta(req.params.courseUuid)); } catch (e) { upstreamError(res, e); }
+  });
+
+  app.get('/api/me/courses/:courseUuid/trail', requireSession, requireCourse, async (req, res) => {
+    try {
+      const trail = await trailOrNull(req.learner.learnerId, req.params.courseUuid);
+      if (!trail) return res.status(404).json({ error: 'not_enrolled' });
+      res.json(trail);
+    } catch (e) { upstreamError(res, e); }
+  });
+
+  // LearnHouse answers 400/404/422 for a learner with no trail (not enrolled / never started).
+  // Treat that as "no progress yet" instead of a server failure.
+  async function trailOrNull(learnerId, courseUuid) {
+    try { return await lh.getTrail(learnerId, courseUuid); }
+    catch (e) { if ([400, 404, 422].includes(e.status)) return null; throw e; }
+  }
+
+  // Published activities of an allowed course, in order.
+  async function publishedActivities(courseUuid) {
+    const meta = await lh.getCourseMeta(courseUuid);
+    return (meta?.chapters ?? []).flatMap((ch) => ch.activities ?? []).filter((a) => a.published !== false);
+  }
+  async function isCompleted(learnerId, courseUuid, activityUuid) {
+    const trail = await trailOrNull(learnerId, courseUuid);
+    const course = trail?.courses?.find((c) => c.course_uuid === courseUuid);
+    return !!course?.chapters?.some((ch) => ch.activities?.some((a) => a.activity_uuid === activityUuid && a.completed));
+  }
+
+  // Completion write + read-back. received = accepted; applied = LearnHouse trail confirms it.
+  app.post('/api/me/courses/:courseUuid/activities/:activityUuid/complete', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid, activityUuid } = req.params;
+    const key = req.headers['idempotency-key'];
+    if (!key || !UUID_RE.test(key)) return res.status(400).json({ error: 'idempotency_key_required' });
+    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
+    const learnerId = req.learner.learnerId;
+    const cacheKey = `${learnerId}:${key}`;
+    const prior = idempotency.get(cacheKey);
+    if (prior) {
+      if (prior.activityUuid !== activityUuid) return res.status(409).json({ error: 'idempotency_key_reused' });
+      if (prior.status === 'applied') return res.json({ ...prior, replayed: true });
+    }
+    try {
+      const activities = await publishedActivities(courseUuid);
+      if (!activities.some((a) => a.activity_uuid === activityUuid)) return res.status(403).json({ error: 'activity_forbidden' });
+
+      let writeError = null;
+      if (!(await isCompleted(learnerId, courseUuid, activityUuid))) {
+        try { await lh.completeActivity(learnerId, activityUuid); } catch (e) { writeError = e; }
+      }
+      // Reconcile: a lost/timeout response may still have been applied upstream.
+      const applied = await isCompleted(learnerId, courseUuid, activityUuid).catch(() => false);
+      const result = { activityUuid, idempotencyKey: key, status: applied ? 'applied' : 'received' };
+      idempotency.set(cacheKey, result);
+      if (!applied && writeError) {
+        logger.warn?.(`[upstream] ${writeError.message}${writeError.cause?.code ? ` (${writeError.cause.code})` : ''}`);
+        return res.status(502).json({ ...result, error: 'upstream_write_failed', upstreamStatus: writeError.status ?? null });
+      }
+      res.status(applied ? 200 : 202).json(result);
+    } catch (e) { upstreamError(res, e); }
+  });
+
+  // Agent layout: built here, authorized here, wrapped in the versioned envelope.
+  app.get('/api/me/courses/:courseUuid/home-layout', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid } = req.params;
+    const learnerId = req.learner.learnerId;
+    try {
+      const [activities, trail] = await Promise.all([publishedActivities(courseUuid), trailOrNull(learnerId, courseUuid)]);
+      const done = new Set((trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? [])
+        .flatMap((ch) => ch.activities ?? []).filter((a) => a.completed).map((a) => a.activity_uuid));
+      const choices = activities.filter((a) => !done.has(a.activity_uuid)).slice(0, 5)
+        .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
+      const completedList = activities.filter((a) => done.has(a.activity_uuid)).slice(-3)
+        .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
+      // Authorized targets: this learner's unfinished + completed published activities in this course.
+      const allowed = new Set([...choices, ...completedList].map((c) => c.activityUuid));
+
+      let slots = null; let source = 'fallback';
+      if (agent) {
+        try {
+          const generated = await agent.generate({ choices, completed: completedList, signals: { completedCount: done.size, remainingCount: activities.length - done.size, totalCount: activities.length } });
+          if (generated) { slots = authorizeSlots(generated, allowed); source = 'agent'; }
+        } catch (e) {
+          // Status/reason only, never model text: e.g. "Gemini HTTP 404" = wrong model name for this key.
+          logger.warn?.(`[agent] fallback used: ${e.name === 'TimeoutError' ? 'timeout' : e.message}`);
+        }
+      }
+      if (!slots || (!slots.mainCard && !slots.nextStepSection)) { slots = fallbackSlots(choices); source = 'fallback'; }
+      logger.info?.(`[home-layout] source=${source} mainCard=${slots.mainCard?.component ?? 'none'} nextStep=${slots.nextStepSection?.component ?? 'none'}`);
+
+      const now = Date.now();
+      res.json({
+        version: 1,
+        layoutId: crypto.randomUUID().replace(/-/g, ''),
+        learnerId, courseUuid,
+        issuedAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + layoutTtlMs).toISOString(),
+        slots,
+      });
+    } catch (e) { upstreamError(res, e); }
+  });
+
+  // Sanitized request log: method, route pattern, status, ms. Never bodies, headers or tokens.
+  async function handle(req, res) {
+    decorate(res);
+    const t = Date.now();
+    const url = new URL(req.url, 'http://bff');
+    let matched = null;
+    for (const r of routes) {
+      const m = r.method === req.method && r.re.exec(url.pathname);
+      if (m) { matched = r; req.params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); break; }
+    }
+    res.on('finish', () => logger.info?.(`${req.method} ${matched?.path ?? 'unmatched'} ${res.statusCode} ${Date.now() - t}ms`));
+    if (!matched) return res.status(404).json({ error: 'not_found' });
+    try {
+      req.body = req.method === 'POST' ? await readJson(req) : {};
+      let i = 0;
+      const next = async () => { const h = matched.handlers[i++]; if (h) await h(req, res, next); };
+      await next();
+    } catch (e) {
+      if (!res.headersSent) res.status(e.status === 413 || e.status === 400 ? e.status : 500).json({ error: e.status === 413 ? 'too_large' : e.status === 400 ? 'invalid_json' : 'internal' });
+    }
+  }
+  return { handle, listen: (...a) => http.createServer(handle).listen(...a), server: () => http.createServer(handle) };
+}
+module.exports = { createApp };
+</file>
+
+<file path="bff/server.js">
+// bff/server.js — entry point. All secrets come from bff/.env (see bff/.env.example).
+// Node >= 22 loads bff/.env natively: `node --env-file=.env server.js` (see npm start).
+const { createApp } = require('./src/app');
+const { createLearnHouse } = require('./src/learnhouse');
+const { createGeminiAgent } = require('./src/agent');
+
+const env = process.env;
+const { parseDevUsers, withDevLogin } = require('./src/devLogin');
+let lh = createLearnHouse({ baseUrl: env.LH_BASE_URL, orgToken: env.LH_API_TOKEN, orgSlug: env.LH_ORG_SLUG });
+const devLogin = env.LH_DEV_LOGIN === 'true';
+if (devLogin) {
+  lh = withDevLogin(lh, { users: parseDevUsers(env.LH_DEV_USERS), password: env.LH_DEV_PASSWORD });
+  console.warn('WARNING: DEV LOGIN ENABLED. Test emails map to LearnHouse user ids in bff/.env. Not for production.');
+}
+const allowedCourses = new Set((env.LH_ALLOWED_COURSES ?? '').split(',').map((s) => s.trim()).filter(Boolean));
+const agent = env.GEMINI_API_KEY ? createGeminiAgent({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL || 'gemini-3.5-flash-lite' }) : null;
+
+// Startup check prints presence only — never any part of a secret.
+console.log(`LearnHouse: ${env.LH_BASE_URL} org=${env.LH_ORG_SLUG} courses=${allowedCourses.size} token=${env.LH_API_TOKEN ? 'set' : 'MISSING'} agent=${agent ? env.GEMINI_MODEL || 'gemini-3.5-flash-lite' : 'fallback-only (no GEMINI_API_KEY)'}`);
+
+const PORT = Number(env.PORT ?? 3000);
+createApp({ lh, agent, allowedCourses }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));
+</file>
+
+<file path="docs/evidence/bff-tests.txt">
+TAP version 13
+# Subtest: AI picks PracticeCard + RevisitSection -> those components are served
+ok 1 - AI picks PracticeCard + RevisitSection -> those components are served
+  ---
+  duration_ms: 56.500868
+  type: 'test'
+  ...
+# Subtest: AI picks HomeCard + NextStepCard -> those components are served
+ok 2 - AI picks HomeCard + NextStepCard -> those components are served
+  ---
+  duration_ms: 13.324423
+  type: 'test'
+  ...
+# Subtest: decision outside the catalogue -> deterministic fallback, not a crash
+ok 3 - decision outside the catalogue -> deterministic fallback, not a crash
+  ---
+  duration_ms: 12.761082
+  type: 'test'
+  ...
+# Subtest: Gemini HTTP error -> deterministic fallback
+ok 4 - Gemini HTTP error -> deterministic fallback
+  ---
+  duration_ms: 8.776861
+  type: 'test'
+  ...
+# Subtest: login: wrong password -> 401, response carries no token
+ok 5 - login: wrong password -> 401, response carries no token
+  ---
+  duration_ms: 47.443694
+  type: 'test'
+  ...
+# Subtest: no session / forged session -> 401 on every /me route
+ok 6 - no session / forged session -> 401 on every /me route
+  ---
+  duration_ms: 9.973802
+  type: 'test'
+  ...
+# Subtest: course not on server allow-list -> 403
+ok 7 - course not on server allow-list -> 403
+  ---
+  duration_ms: 10.351221
+  type: 'test'
+  ...
+# Subtest: old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
+ok 8 - old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
+  ---
+  duration_ms: 8.07262
+  type: 'test'
+  ...
+# Subtest: unpublished / foreign activity -> 403 activity_forbidden, no upstream write
+ok 9 - unpublished / foreign activity -> 403 activity_forbidden, no upstream write
+  ---
+  duration_ms: 7.605502
+  type: 'test'
+  ...
+# Subtest: completion write is applied and read back; other learner is unaffected
+ok 10 - completion write is applied and read back; other learner is unaffected
+  ---
+  duration_ms: 28.072075
+  type: 'test'
+  ...
+# Subtest: retry with same Idempotency-Key -> one upstream effect, replayed result
+ok 11 - retry with same Idempotency-Key -> one upstream effect, replayed result
+  ---
+  duration_ms: 11.121
+  type: 'test'
+  ...
+# Subtest: same key reused for a different activity -> 409
+ok 12 - same key reused for a different activity -> 409
+  ---
+  duration_ms: 6.394367
+  type: 'test'
+  ...
+# Subtest: lost upstream response is reconciled by read-back -> applied, not a false failure
+ok 13 - lost upstream response is reconciled by read-back -> applied, not a false failure
+  ---
+  duration_ms: 8.531769
+  type: 'test'
+  ...
+# Subtest: missing Idempotency-Key -> 400
+ok 14 - missing Idempotency-Key -> 400
+  ---
+  duration_ms: 10.008759
+  type: 'test'
+  ...
+# Subtest: home-layout: versioned envelope bound to the session learner, fallback without Gemini
+ok 15 - home-layout: versioned envelope bound to the session learner, fallback without Gemini
+  ---
+  duration_ms: 8.264145
+  type: 'test'
+  ...
+# Subtest: home-layout: agent output targeting an unauthorized activity is dropped server-side
+ok 16 - home-layout: agent output targeting an unauthorized activity is dropped server-side
+  ---
+  duration_ms: 11.165315
+  type: 'test'
+  ...
+# Subtest: oversized request body -> 413
+ok 17 - oversized request body -> 413
+  ---
+  duration_ms: 3.166916
+  type: 'test'
+  ...
+# Subtest: not-enrolled learner: trail -> 404 not_enrolled (not a 502)
+ok 18 - not-enrolled learner: trail -> 404 not_enrolled (not a 502)
+  ---
+  duration_ms: 6.479323
+  type: 'test'
+  ...
+# Subtest: not-enrolled learner: home-layout still works, suggests the first published activity
+ok 19 - not-enrolled learner: home-layout still works, suggests the first published activity
+  ---
+  duration_ms: 4.996124
+  type: 'test'
+  ...
+# Subtest: real upstream failure (500) is still reported as 502 with the upstream status
+ok 20 - real upstream failure (500) is still reported as 502 with the upstream status
+  ---
+  duration_ms: 5.345058
+  type: 'test'
+  ...
+# Subtest: dev login: mapped email + password -> server-side learner id
+ok 21 - dev login: mapped email + password -> server-side learner id
+  ---
+  duration_ms: 1.596648
+  type: 'test'
+  ...
+# Subtest: dev login: wrong password / unknown email -> null
+ok 22 - dev login: wrong password / unknown email -> null
+  ---
+  duration_ms: 0.225198
+  type: 'test'
+  ...
+# Subtest: dev login: malformed id in config is ignored
+ok 23 - dev login: malformed id in config is ignored
+  ---
+  duration_ms: 0.137973
+  type: 'test'
+  ...
+# Subtest: dev login: refuses production
+ok 24 - dev login: refuses production
+  ---
+  duration_ms: 0.282628
+  type: 'test'
+  ...
+# Subtest: dev login: other adapter methods untouched
+ok 25 - dev login: other adapter methods untouched
+  ---
+  duration_ms: 0.180875
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 663.483505
 </file>
 
 <file path="docs/superpowers/plans/2026-09-16-folder-structure-refactor.md">
@@ -5694,428 +6977,215 @@ Confirm specifically:
 No commit for this task (verification only). If any check fails, stop and return to the task whose file the failure traces to — do not patch around it in this task.
 </file>
 
-<file path="src/screens/practice/PracticeScreen.tsx">
-// src/screens/practice/PracticeScreen.tsx
-import React, {useState} from 'react';
-import { View } from 'react-native';
-import tw from 'twrnc';
-import { colors } from '../../ui/tokens/colors';
-import { PracticeTemplate } from './PracticeTemplate';
-import { PracticeHeader } from '../../ui/organisms/practice/PracticeHeader'
-// TODO: Import your practice card, notification banner, and revisit components as you build them
-import { PracticeCard } from '../../ui/organisms/practice/PracticeCard';
-import { PracticeNotification } from '../../ui/molecules/practice/PracticeNotifications';
-// import { SectionTitle } from '../../ui/molecules/home/SectionTitle'; // or a shared section title component
-import { RevisitSection } from '../../ui/organisms/practice/RevisitSection';
+<file path="src/core/api/learnhouse/client.ts">
+// src/core/api/learnhouse/client.ts
+// Thin LearnHouse client + response types (shapes taken from the API reference).
 
-import BottomTabs from '../../ui/organisms/BottomTabs';
-import { useTabNavigation } from '../../navigation/useTabNavigation';
-import { RefreshCw, FileText } from 'lucide-react-native';
+import { LEARNHOUSE } from './config';
 
-export default function PracticeScreen() {
-  const { tabs, onTabPress } = useTabNavigation('practice');
+// ---------- /courses/{uuid}/meta ----------
+export interface LHActivity {
+  id: number;
+  activity_uuid: string;
+  name: string;
+  activity_type: string; // TYPE_DYNAMIC | TYPE_VIDEO | TYPE_DOCUMENT | TYPE_ASSIGNMENT | ...
+  activity_sub_type: string;
+  published?: boolean;
+  details?: Record<string, any> | null;
+  extra_metadata?: Record<string, any> | null;
+}
 
-  // Dynamic state for downloaded sets and items to revisit
-  const [downloadedCount] = useState<number>(2);
-  
-  const [revisitItems] = useState<RevisitItemData[]>([
-    {
-      id: '1',
-      title: 'Rewriting a weak prompt',
-      subtitle: 'Prompting at Work · ~3 min',
-      icon: <RefreshCw size={20} color={colors.icon.ink2} strokeWidth={1.8} />,
+export interface LHChapter {
+  id: number;
+  chapter_uuid: string;
+  name: string;
+  description?: string | null;
+  extra_metadata?: Record<string, any> | null;
+  activities: LHActivity[];
+}
+
+export interface LHCourseMeta {
+  course_uuid: string | null;
+  name: string;
+  description?: string | null;
+  extra_metadata?: Record<string, any> | null;
+  chapters: LHChapter[];
+}
+
+// ---------- /admin/{org}/trails/{user}/courses/{course} ----------
+export interface LHTrailActivity {
+  activity_uuid: string;
+  activity_id: number;
+  name: string;
+  activity_type: string;
+  activity_sub_type: string;
+  order: number;
+  published: boolean;
+  completed: boolean;
+  completed_at: string | null;
+}
+
+export interface LHTrailChapter {
+  chapter_uuid: string;
+  chapter_id: number;
+  name: string;
+  order: number;
+  total_activities: number;
+  completed_activities: number;
+  activities: LHTrailActivity[];
+}
+
+export interface LHTrailCourse {
+  course_uuid: string;
+  course_name: string;
+  status: string | null;
+  total_activities: number;
+  completed_activities: number;
+  completion_percentage: number;
+  chapters: LHTrailChapter[];
+}
+
+export interface LHUserTrail {
+  user_id: number;
+  courses: LHTrailCourse[];
+}
+
+// ---------- fetch helper ----------
+export class LearnHouseError extends Error {
+  constructor(public status: number, public path: string, message: string) {
+    super(message);
+  }
+}
+
+import { getSessionToken } from '../../auth/session';
+
+// All calls go to the BFF with the learner's session token. The BFF resolves
+// learner + org from the session and holds the LearnHouse org token server-side,
+// so nothing here can choose whose progress is read or written.
+async function bffFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getSessionToken();
+  const res = await fetch(`${LEARNHOUSE.baseUrl}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
     },
-    {
-      id: '2',
-      title: 'Your first reusable brief',
-      subtitle: 'Prompting at Work · ~4 min',
-      icon: <FileText size={20} color={colors.icon.ink2} strokeWidth={1.8} />,
-    },
-  ]);
+  });
+  if (!res.ok) {
+    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
 
-  const handleStartPractice = () => {
-    console.log('Start quick practice clicked');
-  };
+export interface LoginResult {
+  token: string;
+  learner: { id: string; displayName: string };
+  expiresAt: string;
+}
 
-  const handleItemPress = (id: string) => {
-    console.log(`Navigate to revisit item ID: ${id}`);
-  };
+export function login(email: string, password: string) {
+  return bffFetch<LoginResult>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
 
+export function getCourseMeta(courseUuid: string = LEARNHOUSE.courseUuid) {
+  return bffFetch<LHCourseMeta>(`/me/courses/${encodeURIComponent(courseUuid)}/meta`);
+}
+
+export function getUserCourseTrail(courseUuid: string = LEARNHOUSE.courseUuid) {
+  return bffFetch<LHUserTrail>(`/me/courses/${encodeURIComponent(courseUuid)}/trail`);
+}
+
+export interface CompletionResult {
+  activityUuid: string;
+  /** received = BFF accepted the request; applied = read-back from LearnHouse shows completed. */
+  status: 'applied' | 'received';
+  idempotencyKey: string;
+}
+
+/** Write completion through the BFF. Same idempotency key => one effect on retry. */
+export function markActivityComplete(
+  activityUuid: string,
+  idempotencyKey: string,
+  courseUuid: string = LEARNHOUSE.courseUuid,
+) {
+  return bffFetch<CompletionResult>(
+    `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/complete`,
+    { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } },
+  );
+}
+
+/** Agent-generated home layout, built server-side (Gemini key never reaches the app). */
+export function getHomeLayout(courseUuid: string = LEARNHOUSE.courseUuid, signal?: AbortSignal) {
+  return bffFetch<unknown>(`/me/courses/${encodeURIComponent(courseUuid)}/home-layout`, { signal });
+}
+</file>
+
+<file path="src/navigation/MainStack.tsx">
+import React from 'react';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import LoginScreen from '../screens/login/LoginScreen';
+import PathScreen from '../screens/path/PathScreen';
+import HomeScreen from '../screens/home/HomeScreen';
+import PracticeScreen from '../screens/practice/PracticeScreen';
+import YouScreen from '../screens/you/YouScreen';
+
+// Bottom-bar tab screens carry an optional `direction`, set by
+// useTabNavigation from the tapped tab's position relative to the current
+// one, so the push/replace transition can slide from the matching side.
+type TabScreenParams = { direction?: 'forward' | 'backward' } | undefined;
+
+export type RootStackParamList = {
+  Login: undefined;
+  PathScreen: TabScreenParams;
+  HomeScreen: TabScreenParams;
+  PracticeScreen: TabScreenParams;
+  YouScreen: TabScreenParams;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const tabScreenOptions = ({ route }: { route: { params?: TabScreenParams } }) => ({
+  animation: route.params?.direction === 'backward' ? ('slide_from_left' as const) : ('slide_from_right' as const),
+});
+
+export default function MainStack() {
   return (
-    <PracticeTemplate
-      background={<View style={tw`bg-slate-50`} />}
-      practiceHeader={
-        <PracticeHeader
-          onSunPress={() => console.log('Sun icon clicked')}
-        />
-      }
-      practiceCard={
-        <PracticeCard
-          eyebrow="Bring an idea back"
-          title={`Five minutes.\nA clearer memory.`}
-          subtitle="A few small questions from what you've already learned."
-          buttonLabel="Start quick practice"
-          onPressButton={handleStartPractice}
-        />
-      }
-      practiceNotification={
-        downloadedCount > 0 ? (
-          <PracticeNotification
-            message={`${downloadedCount} practice sets are downloaded and ready.`}
-          />
-        ) : null
-      }
-      revisitList={
-        <RevisitSection
-          title="Ready to revisit"
-          items={revisitItems}
-          onItemPress={handleItemPress}
-        />
-      }
-      nextSection={
-        // If you want to show "One idea to strengthen" section starter
-        null
-      }
-      bottombar={
-        <BottomTabs
-          tabs={tabs}
-          activeTab="practice"
-          onTabPress={onTabPress}
-          reserveSlot={true}
-          activeColor={colors.action.primary}
-          inactiveColor={colors.text.body}
-        />
-      }
-    />
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Login" screenOptions={{headerShown: false}}>
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="PathScreen" component={PathScreen} options={tabScreenOptions} />
+        <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
+        <Stack.Screen name="PracticeScreen" component={PracticeScreen} options={tabScreenOptions} />
+        <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 </file>
 
-<file path="src/services/agentService.ts">
-// src/services/agentService.ts
-import { GoogleGenerativeAI, SchemaType, type Schema } from '@google/generative-ai';
-import { z } from 'zod';
-import { HomeLayoutSchema, type ValidatedHomeLayout } from '../schemas/homeLayoutSchema';
+<file path="src/schemas/homeLayoutSchema.ts">
+// src/schemas/homeLayoutSchema.ts
+// React Native side of the catalogue: maps contract component names to RN components.
+// The contract itself (Zod, versioned, platform-neutral) lives in src/contracts/homeLayout.ts.
+import type React from 'react';
+import { HomeCard } from '../ui/organisms/home/HomeCard';
+import { NextStepCard } from '../ui/molecules/home/NextStepCard';
+import { PracticeCard } from '../ui/organisms/practice/PracticeCard';
+import { RevisitSection } from '../ui/organisms/practice/RevisitSection';
+import type { SlotComponent } from '../contracts/homeLayout';
 
-
-// ─────────────────────────────────────────────────────────────
-// CONFIG
-// Prefer .env:  EXPO_PUBLIC_GEMINI_API_KEY=AQ.xxxx   (then npx expo start -c)
-// For quick local testing you can paste the key in place of '' below,
-// but never commit it.
-// ─────────────────────────────────────────────────────────────
-const MODEL_ID = 'gemini-3.5-flash-lite';
-const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-if (!API_KEY) {
-  throw new Error('EXPO_PUBLIC_GEMINI_API_KEY is not defined in the environment variables.');
-}
-
-export type UserState = Record<string, unknown>;
-
-// Icons the model may pick ('chevron-right' is excluded on purpose).
-const MODEL_ICONS = ['zap', 'book', 'clock', 'star'];
-
-// ─────────────────────────────────────────────────────────────
-// SCHEMA HELPERS
-// ─────────────────────────────────────────────────────────────
-const str = (description: string): Schema => ({ type: SchemaType.STRING, description });
-const oneOf = (values: string[], description?: string): Schema => ({
-  type: SchemaType.STRING,
-  format: 'enum',
-  enum: values,
-  description,
-});
-
-// ─────────────────────────────────────────────────────────────
-// COMPONENT REGISTRY
-// The single place that describes every component the agent can use:
-// which slot it fits, what it is for, when to use it, and its props.
-// Add a new component here (and to homeLayoutSchema.ts) and the agent
-// can start choosing it.
-// ─────────────────────────────────────────────────────────────
-type Slot = 'mainCard' | 'nextStepSection';
-
-type RegistryEntry = {
-  slot: Slot;
-  purpose: string;
-  whenToUse: string;
-  props: Schema;      // Gemini structured-output schema (mirrors Zod)
-  propSpec: string;   // plain-English prop list for the prompt
+export const TrustedCatalogue: Record<SlotComponent['component'], React.ComponentType<any>> = {
+  HomeCard,
+  NextStepCard,
+  PracticeCard,
+  RevisitSection,
 };
-
-const REGISTRY = {
-  HomeCard: {
-    slot: 'mainCard',
-    purpose: 'Hero card that continues the user into their next lesson.',
-    whenToUse: 'The user is doing well and is ready for new material.',
-    props: {
-      type: SchemaType.OBJECT,
-      properties: {
-        category: str('Topic area, e.g. "LLM Fundamentals"'),
-        stage: str('Short progress label, e.g. "Module 3 · Lesson 2"'),
-        title: str('Lesson title, under 40 characters'),
-        subtitle: str('One sentence on what they will learn'),
-        readTime: str('e.g. "6 min read"'),
-        buttonLabel: str('Call to action, e.g. "Continue"'),
-        actionId: str('Kebab-case id, e.g. "lesson-attention-heads"'),
-      },
-      required: ['category', 'stage', 'title', 'subtitle', 'readTime', 'buttonLabel'],
-    },
-    propSpec: 'category, stage, title, subtitle, readTime, buttonLabel, actionId (optional). No icon prop.',
-  },
-  PracticeCard: {
-    slot: 'mainCard',
-    purpose: 'Short focused exercise to reinforce a weak skill before moving on.',
-    whenToUse: 'The user is struggling, making repeated mistakes, or accuracy is dropping.',
-    props: {
-      type: SchemaType.OBJECT,
-      properties: {
-        eyebrow: str('Tiny label above the title, e.g. "QUICK PRACTICE"'),
-        title: str('Practice activity title, under 40 characters'),
-        subtitle: str('One encouraging sentence'),
-        buttonLabel: str('e.g. "Start practice"'),
-        buttonIconString: oneOf(MODEL_ICONS, 'Icon shown on the button'),
-      },
-      required: ['title', 'subtitle'],
-    },
-    propSpec: 'eyebrow (optional), title, subtitle, buttonLabel (optional), buttonIconString (optional: zap|book|clock|star). No "description", no "iconString".',
-  },
-  NextStepCard: {
-    slot: 'nextStepSection',
-    purpose: 'Small teaser for what comes after the main activity.',
-    whenToUse: 'The user is progressing and benefits from seeing what is next.',
-    props: {
-      type: SchemaType.OBJECT,
-      properties: {
-        title: str('Name of the next lesson'),
-        subtitle: str('One short sentence teaser'),
-        actionId: str('Kebab-case id'),
-      },
-      required: ['title', 'subtitle'],
-    },
-    propSpec: 'title, subtitle, actionId (optional). No icon prop.',
-  },
-  RevisitSection: {
-    slot: 'nextStepSection',
-    purpose: 'List of 2-3 earlier topics worth reviewing.',
-    whenToUse: 'The user has weak or rusty topics, or is returning after a break.',
-    props: {
-      type: SchemaType.OBJECT,
-      properties: {
-        title: str('Section heading, e.g. "Revisit these"'),
-        items: {
-          type: SchemaType.ARRAY,
-          description: '2 to 3 topics to revisit, based on the user state',
-          items: {
-            type: SchemaType.OBJECT,
-            properties: {
-              id: str('Kebab-case id, unique within the list'),
-              title: str('Topic name'),
-              subtitle: str('Why to revisit it, one short line'),
-              iconString: oneOf(MODEL_ICONS),
-            },
-            required: ['id', 'title', 'subtitle', 'iconString'],
-          },
-        },
-      },
-      required: ['items'],
-    },
-    propSpec: 'title (optional), items: 2-3 × { id, title, subtitle, iconString (zap|book|clock|star) }. No "description".',
-  },
-} satisfies Record<string, RegistryEntry>;
-
-type ComponentName = keyof typeof REGISTRY;
-
-const namesForSlot = (slot: Slot) =>
-  (Object.keys(REGISTRY) as ComponentName[]).filter((name) => REGISTRY[name].slot === slot);
-
-const MAIN_OPTIONS = namesForSlot('mainCard');
-const NEXT_OPTIONS = namesForSlot('nextStepSection');
-
-// ─────────────────────────────────────────────────────────────
-// STEP 1 — DECIDE: the model picks a component for each slot
-// ─────────────────────────────────────────────────────────────
-const DecisionResponseSchema: Schema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    reason: str('One sentence explaining the choice, citing the user signals used'),
-    mainCard: oneOf(MAIN_OPTIONS),
-    nextStepSection: oneOf(NEXT_OPTIONS),
-  },
-  required: ['reason', 'mainCard', 'nextStepSection'],
-};
-
-const DecisionZod = z.object({
-  reason: z.string(),
-  mainCard: z.enum(MAIN_OPTIONS as [ComponentName, ...ComponentName[]]),
-  nextStepSection: z.enum(NEXT_OPTIONS as [ComponentName, ...ComponentName[]]),
-});
-export type AgentDecision = z.infer<typeof DecisionZod>;
-
-function describeCatalogue(slot: Slot): string {
-  return namesForSlot(slot)
-    .map((name) => `  - ${name}: ${REGISTRY[name].purpose} Use when: ${REGISTRY[name].whenToUse}`)
-    .join('\n');
-}
-
-function buildDecisionPrompt(userState: UserState): string {
-  return `
-You are the decision engine for the home screen of a mobile AI-learning app.
-Pick the best component for each slot for THIS user, based on their state.
-
-USER STATE:
-${JSON.stringify(userState)}
-
-AVAILABLE COMPONENTS
-
-mainCard slot (pick exactly one):
-${describeCatalogue('mainCard')}
-
-nextStepSection slot (pick exactly one):
-${describeCatalogue('nextStepSection')}
-
-Weigh all signals you are given (accuracy, trends, streaks, time away, weak topics, etc.).
-Explain your choice in "reason" in one sentence. Return ONLY the JSON object.`.trim();
-}
-
-// ─────────────────────────────────────────────────────────────
-// STEP 2 — FILL: the model writes props for the components it chose
-// ─────────────────────────────────────────────────────────────
-const slotSchema = (component: ComponentName): Schema => ({
-  type: SchemaType.OBJECT,
-  properties: { component: oneOf([component]), props: REGISTRY[component].props },
-  required: ['component', 'props'],
-});
-
-function buildFillSchema(decision: AgentDecision): Schema {
-  return {
-    type: SchemaType.OBJECT,
-    properties: {
-      mainCard: slotSchema(decision.mainCard),
-      nextStepSection: slotSchema(decision.nextStepSection),
-    },
-    required: ['mainCard', 'nextStepSection'],
-  };
-}
-
-function buildFillPrompt(userState: UserState, decision: AgentDecision): string {
-  return `
-You are the content writer for the home screen of a mobile AI-learning app.
-
-USER STATE:
-${JSON.stringify(userState)}
-
-The layout has already been chosen:
-  mainCard = ${decision.mainCard}
-  nextStepSection = ${decision.nextStepSection}
-Reason: ${decision.reason}
-
-Write content that fits that reason. Base topics on the user state where possible.
-Keep titles under 40 characters and subtitles to one short sentence.
-
-ALLOWED PROPS (no others):
-  ${decision.mainCard}: ${REGISTRY[decision.mainCard].propSpec}
-  ${decision.nextStepSection}: ${REGISTRY[decision.nextStepSection].propSpec}
-
-Return ONLY the JSON object.`.trim();
-}
-
-// ─────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────
-function checkApiKey(key: string): string | null {
-  if (!key) return 'Gemini API key is missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env (or paste it for local testing).';
-  if (key.startsWith('ya29.') || key.startsWith('eyJ'))
-    return 'This is an OAuth/JWT token, not a Gemini API key. Create one at aistudio.google.com → Get API key.';
-  if (!key.startsWith('AQ.') && !key.startsWith('AIza'))
-    return `Key doesn't look like a Gemini API key (expected "AQ." or "AIza", got "${key.slice(0, 4)}…").`;
-  return null;
-}
-
-function extractJson(raw: string): unknown {
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start === -1 || end <= start) throw new Error('No JSON object found in model response.');
-  return JSON.parse(raw.slice(start, end + 1));
-}
-
-function explainError(error: unknown): string {
-  const msg = error instanceof Error ? error.message : String(error);
-  if (msg.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED') || msg.includes('[401'))
-    return 'AUTH: Google rejected the key (ACCESS_TOKEN_TYPE_UNSUPPORTED). Regenerate it in AI Studio and test with curl.';
-  if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid'))
-    return 'AUTH: API key is invalid or revoked. Generate a new one in AI Studio.';
-  if (msg.includes('[403')) return "AUTH: Key lacks access. Enable the Generative Language API on the key's project.";
-  if (msg.includes('[404')) return `MODEL: "${MODEL_ID}" not found for this key.`;
-  if (msg.includes('[429')) return 'QUOTA: Rate limit hit. Wait and retry.';
-  if (msg.includes('[400') && msg.toLowerCase().includes('schema'))
-    return `SCHEMA: Gemini rejected the responseSchema. ${msg}`;
-  return msg;
-}
-
-// ─────────────────────────────────────────────────────────────
-// MAIN
-// ─────────────────────────────────────────────────────────────
-const keyProblem = checkApiKey(API_KEY);
-if (keyProblem) console.error('🔑 [agentService]', keyProblem);
-const genAI = keyProblem ? null : new GoogleGenerativeAI(API_KEY);
-
-async function decideLayout(userState: UserState): Promise<AgentDecision> {
-  const model = genAI!.getGenerativeModel({
-    model: MODEL_ID,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: DecisionResponseSchema,
-      temperature: 0.2, // decisions should be consistent
-    },
-  });
-  const result = await model.generateContent(buildDecisionPrompt(userState));
-  const decision = DecisionZod.parse(extractJson(result.response.text()));
-  if (__DEV__) {
-    console.log(`🧠 AGENT DECISION: ${decision.mainCard} + ${decision.nextStepSection}`);
-    console.log(`   Reason: ${decision.reason}`);
-  }
-  return decision;
-}
-
-async function fillLayout(userState: UserState, decision: AgentDecision): Promise<unknown> {
-  const model = genAI!.getGenerativeModel({
-    model: MODEL_ID,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: buildFillSchema(decision),
-      temperature: 0.6, // copy can be a little more varied
-    },
-  });
-  const result = await model.generateContent(buildFillPrompt(userState, decision));
-  const rawText = result.response.text();
-  if (__DEV__) console.log('RAW GEMINI RESPONSE:\n', rawText);
-  return extractJson(rawText);
-}
-
-export async function fetchAgentLayout(
-  userState: UserState = { accuracy: 65, recentTopics: ['Context Windows'] },
-): Promise<ValidatedHomeLayout | null> {
-  if (!genAI) return null;
-
-  try {
-    const decision = await decideLayout(userState);
-    const payload = await fillLayout(userState, decision);
-
-    // THE FIREWALL: Zod is still the final authority.
-    const validation = HomeLayoutSchema.safeParse(payload);
-    if (!validation.success) {
-      console.error('🧱 Zod Firewall Rejected Payload:', JSON.stringify(validation.error.issues, null, 2));
-      return null;
-    }
-
-    if (__DEV__) console.log('✅ Zod Firewall Passed!');
-    return validation.data;
-  } catch (error) {
-    console.error('🔒 Agent Pipeline Error (Fallback Triggered):', explainError(error));
-    return null;
-  }
-}
 </file>
 
 <file path="src/theme/colorsss.ts">
@@ -6378,112 +7448,122 @@ module.exports = {
 };
 </file>
 
-<file path="src/screens/path/PathScreen.tsx">
-// src/screens/path/PathScreen.tsx
-import React, { useEffect, useRef, useState } from 'react';
-import { View, ScrollView, ActivityIndicator, Text, Pressable, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+<file path="jest.config.js">
+module.exports = {
+  preset: 'jest-expo',
+  moduleNameMapper: {
+    '^lucide-react-native$': '<rootDir>/node_modules/lucide-react-native/dist/cjs/lucide-react-native.js',
+  },
+  // The BFF is a separate Node server with its own runner (node:test): `npm run test:bff`.
+  // Jest-expo swaps in Expo's fetch polyfill, which breaks real HTTP calls in those tests.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/bff/'],
+};
+</file>
 
+<file path="tsconfig.json">
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "types": ["jest", "node"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["**/node_modules", "**/Pods"]
+}
+</file>
+
+<file path="src/screens/practice/PracticeScreen.tsx">
+// src/screens/practice/PracticeScreen.tsx
+import React, {useState} from 'react';
+import { View } from 'react-native';
+import tw from 'twrnc';
 import { colors } from '../../ui/tokens/colors';
-import { PathHeader } from '../../ui/organisms/roadmap/PathHeader';
-import { PathStagesList } from '../../ui/organisms/roadmap/PathStagesList';
+import { PracticeTemplate } from './PracticeTemplate';
+import { PracticeHeader } from '../../ui/organisms/practice/PracticeHeader'
+// TODO: Import your practice card, notification banner, and revisit components as you build them
+import { PracticeCard } from '../../ui/organisms/practice/PracticeCard';
+import { PracticeNotification } from '../../ui/molecules/practice/PracticeNotifications';
+// import { SectionTitle } from '../../ui/molecules/home/SectionTitle'; // or a shared section title component
+import { RevisitSection, type RevisitItemData } from '../../ui/organisms/practice/RevisitSection';
+
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
-import { usePathData } from './usePathData';
+import { RefreshCw, FileText } from 'lucide-react-native';
 
-export default function PathScreen() {
-  const { tabs, onTabPress } = useTabNavigation('path');
-  const [view, setView] = useState('Map');
-  const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
+export default function PracticeScreen() {
+  const { tabs, onTabPress } = useTabNavigation('practice');
 
-  const { status, data, error, refreshing, refresh, retry } = usePathData();
+  // Dynamic state for downloaded sets and items to revisit
+  const [downloadedCount] = useState<number>(2);
+  
+  const [revisitItems] = useState<RevisitItemData[]>([
+    {
+      id: '1',
+      title: 'Rewriting a weak prompt',
+      subtitle: 'Prompting at Work · ~3 min',
+      icon: <RefreshCw size={20} color={colors.icon.ink2} strokeWidth={1.8} />,
+    },
+    {
+      id: '2',
+      title: 'Your first reusable brief',
+      subtitle: 'Prompting at Work · ~4 min',
+      icon: <FileText size={20} color={colors.icon.ink2} strokeWidth={1.8} />,
+    },
+  ]);
 
-  // Open the current stage once, the first time data arrives.
-  const didAutoExpand = useRef(false);
-  useEffect(() => {
-    if (data && !didAutoExpand.current) {
-      didAutoExpand.current = true;
-      setExpandedStageId(data.currentStageId);
-    }
-  }, [data]);
-
-  const handleStagePress = (stageId: string) => {
-    setExpandedStageId((current) => (current === stageId ? null : stageId));
+  const handleStartPractice = () => {
+    console.log('Start quick practice clicked');
   };
 
-  const tabBar = (
-    <BottomTabs
-      tabs={tabs}
-      activeTab="path"
-      onTabPress={onTabPress}
-      reserveSlot
-      activeColor={colors.action.primary}
-      inactiveColor={colors.text.muted}
-    />
-  );
-
-  // First load, or a hard failure with nothing to show yet.
-if (status === 'loading') {
-    return (
-      <View style={tw`flex-1 justify-center items-center bg-slate-50`}>
-        <ActivityIndicator size="large" color={colors.action.primary} />
-        <Text style={tw`mt-4 text-gray-500`}>Loading your path...</Text>
-      </View>
-    );
-  }
-
-  if (status === 'error' || !data) {
-    return (
-      <View style={tw`flex-1 justify-center items-center bg-slate-50 px-5`}>
-        <Text style={tw`text-red-500 font-bold mb-2`}>Failed to load</Text>
-        <Text style={tw`text-gray-600 text-center mb-4`}>{error || "No data returned"}</Text>
-        <Pressable onPress={retry} style={tw`px-4 py-2 bg-blue-600 rounded-lg`}>
-          <Text style={tw`text-white font-bold`}>Retry</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const handleItemPress = (id: string) => {
+    console.log(`Navigate to revisit item ID: ${id}`);
+  };
 
   return (
-    <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
-      <SafeAreaView style={tw`flex-1`} edges={['top']}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={tw`pb-8`}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.action.primary} />
-          }
-        >
-          {status === 'error' && (
-            // Refresh failed but we still have the last good data.
-            <Text style={[tw`text-xs text-center py-2`, { color: colors.text.muted }]}>
-              Couldn't refresh — showing last loaded progress.
-            </Text>
-          )}
-          <PathHeader
-            title="Your next chapter."
-            subtitle={data.subtitle}
-            completedLessons={data.completedLessons}
-            totalLessons={data.totalLessons}
-            percent={data.percent}
-            view={view}
-            onViewChange={setView}
-            onWholeJourneyPress={() => setExpandedStageId(null)}
+    <PracticeTemplate
+      background={<View style={tw`bg-slate-50`} />}
+      practiceHeader={
+        <PracticeHeader
+          onSunPress={() => console.log('Sun icon clicked')}
+        />
+      }
+      practiceCard={
+        <PracticeCard
+          eyebrow="Bring an idea back"
+          title={`Five minutes.\nA clearer memory.`}
+          subtitle="A few small questions from what you've already learned."
+          buttonLabel="Start quick practice"
+          onPressButton={handleStartPractice}
+        />
+      }
+      practiceNotification={
+        downloadedCount > 0 ? (
+          <PracticeNotification
+            message={`${downloadedCount} practice sets are downloaded and ready.`}
           />
-          <PathStagesList
-            stages={data.stages}
-            expandedStageId={expandedStageId}
-            onStagePress={handleStagePress}
-            onReviewCtaPress={() => setExpandedStageId(data.currentStageId)}
-            onOutcomeCtaPress={() => console.log('Continue current stage', data.currentActivityUuid)}
-            onOptionalBranchPress={() => console.log('Open flashcards')}
-            onLessonContinuePress={() => console.log('Continue lesson', data.currentActivityUuid)}
-          />
-        </ScrollView>
-      </SafeAreaView>
-      {tabBar}
-    </View>
+        ) : null
+      }
+      revisitList={
+        <RevisitSection
+          title="Ready to revisit"
+          items={revisitItems}
+          onItemPress={handleItemPress}
+        />
+      }
+      nextSection={
+        // If you want to show "One idea to strengthen" section starter
+        null
+      }
+      bottombar={
+        <BottomTabs
+          tabs={tabs}
+          activeTab="practice"
+          onTabPress={onTabPress}
+          reserveSlot={true}
+          activeColor={colors.action.primary}
+          inactiveColor={colors.text.body}
+        />
+      }
+    />
   );
 }
 </file>
@@ -6837,6 +7917,31 @@ export const HomeTemplate: React.FC<HomeTemplateProps> = ({
 };
 </file>
 
+<file path="src/services/agentService.ts">
+// src/services/agentService.ts
+// The app no longer talks to Gemini (W2 review P0: key in the bundle). The BFF builds,
+// authorizes and envelopes the layout; the app re-validates it against the shared contract.
+import { getHomeLayout } from '../core/api/learnhouse/client';
+import { parseHomeLayout, type ParseResult } from '../contracts/homeLayout';
+
+export const LAYOUT_TIMEOUT_MS = 10_000;
+
+export async function fetchHomeLayout(ctx: { learnerId: string; courseUuid: string }): Promise<ParseResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LAYOUT_TIMEOUT_MS); // bounded: hung network -> fallback
+  try {
+    const raw = await getHomeLayout(ctx.courseUuid, controller.signal);
+    const result = parseHomeLayout(raw, ctx);
+    if (!result.ok && __DEV__) console.warn(`[agentService] layout rejected: ${result.reason}`); // reason only, never payload
+    return result;
+  } catch {
+    return { ok: false, reason: 'malformed' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+</file>
+
 <file path="src/ui/tokens/colors.ts">
 // src/ui/tokens/colors.ts
 
@@ -7019,6 +8124,213 @@ export const colors = {
 } as const;
 
 export type Colors = typeof colors;
+</file>
+
+<file path="src/screens/path/PathScreen.tsx">
+// src/screens/path/PathScreen.tsx
+import React, { useEffect, useRef, useState } from 'react';
+import { View, ScrollView, ActivityIndicator, Text, Pressable, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
+
+import { colors } from '../../ui/tokens/colors';
+import { PathHeader } from '../../ui/organisms/roadmap/PathHeader';
+import { PathStagesList } from '../../ui/organisms/roadmap/PathStagesList';
+import BottomTabs from '../../ui/organisms/BottomTabs';
+import { useTabNavigation } from '../../navigation/useTabNavigation';
+import { usePathData } from './usePathData';
+
+export default function PathScreen() {
+  const { tabs, onTabPress } = useTabNavigation('path');
+  const [view, setView] = useState('Map');
+  const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
+
+  const { status, data, error, refreshing, refresh, retry } = usePathData();
+
+  // Open the current stage once, the first time data arrives.
+  const didAutoExpand = useRef(false);
+  useEffect(() => {
+    if (data && !didAutoExpand.current) {
+      didAutoExpand.current = true;
+      setExpandedStageId(data.currentStageId);
+    }
+  }, [data]);
+
+  const handleStagePress = (stageId: string) => {
+    setExpandedStageId((current) => (current === stageId ? null : stageId));
+  };
+
+  const tabBar = (
+    <BottomTabs
+      tabs={tabs}
+      activeTab="path"
+      onTabPress={onTabPress}
+      reserveSlot
+      activeColor={colors.action.primary}
+      inactiveColor={colors.text.muted}
+    />
+  );
+
+  // First load, or a hard failure with nothing to show yet.
+if (status === 'loading') {
+    return (
+      <View style={tw`flex-1 justify-center items-center bg-slate-50`}>
+        <ActivityIndicator size="large" color={colors.action.primary} />
+        <Text style={tw`mt-4 text-gray-500`}>Loading your path...</Text>
+      </View>
+    );
+  }
+
+  if (!data) {
+    return (
+      <View style={tw`flex-1 justify-center items-center bg-slate-50 px-5`}>
+        <Text style={tw`text-red-500 font-bold mb-2`}>Failed to load</Text>
+        <Text style={tw`text-gray-600 text-center mb-4`}>{error || "No data returned"}</Text>
+        <Pressable onPress={retry} style={tw`px-4 py-2 bg-blue-600 rounded-lg`}>
+          <Text style={tw`text-white font-bold`}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
+      <SafeAreaView style={tw`flex-1`} edges={['top']}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={tw`pb-8`}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.action.primary} />
+          }
+        >
+          {status === 'error' && (
+            // Refresh failed but we still have the last good data.
+            <Text style={[tw`text-xs text-center py-2`, { color: colors.text.muted }]}>
+              Couldn't refresh — showing last loaded progress.
+            </Text>
+          )}
+          <PathHeader
+            title="Your next chapter."
+            subtitle={data.subtitle}
+            completedLessons={data.completedLessons}
+            totalLessons={data.totalLessons}
+            percent={data.percent}
+            view={view}
+            onViewChange={setView}
+            onWholeJourneyPress={() => setExpandedStageId(null)}
+          />
+          <PathStagesList
+            stages={data.stages}
+            expandedStageId={expandedStageId}
+            onStagePress={handleStagePress}
+            onReviewCtaPress={() => setExpandedStageId(data.currentStageId)}
+            onOutcomeCtaPress={() => console.log('Continue current stage', data.currentActivityUuid)}
+            onOptionalBranchPress={() => console.log('Open flashcards')}
+            onLessonContinuePress={() => console.log('Continue lesson', data.currentActivityUuid)}
+          />
+        </ScrollView>
+      </SafeAreaView>
+      {tabBar}
+    </View>
+  );
+}
+</file>
+
+<file path="src/ui/organisms/home/HomeCard.tsx">
+// src/components/organisms/ArticleCard.tsx
+import React from 'react';
+import { View, Text, Image } from 'react-native';
+import tw from 'twrnc';
+import { colors } from '../../tokens/colors';
+import { typography } from '../../tokens/typography';
+import { ActiveButton } from '../../atoms/ActiveButton';
+import { FileText, Clock } from 'lucide-react-native';
+
+interface HomeCardProps {
+  stage: string;
+  category: string;
+  title: string;
+  subtitle: string;
+  readTime: string;
+  onPressButton: () => void;
+  imageUrl?: string;
+  buttonLabel?: string;
+  buttonIcon?: React.ReactNode;
+}
+
+export const HomeCard: React.FC<HomeCardProps> = ({
+  stage,
+  category,
+  title,
+  subtitle,
+  readTime,
+  onPressButton,
+  imageUrl,
+  buttonLabel = 'Continue reading',
+  buttonIcon,
+}) => {
+  // M8: Create a unified, natural-sounding label for the screen reader
+  const screenReaderLabel = `${stage}, ${category}. Pick up where you left off. ${title}. ${subtitle}. Reading time: ${readTime}.`;
+
+  return (
+    <View style={[tw`w-full rounded-3xl overflow-hidden`, { backgroundColor: colors.hero.surface }]}>
+      
+      {/* M8: Hide the decorative image section from screen readers to reduce noise using accessibilityElementsHidden */}
+      <View 
+        style={[tw`w-full h-[40] justify-center shadow-md items-center`]}
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden={true}
+      >
+        <Image
+          source={{ uri: imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop' }}
+          style={tw`w-full h-full`}
+          resizeMode="cover"
+        />
+        <View style={[tw`absolute top-4 left-4 px-3 py-1.5 rounded-full flex-row items-center`, { backgroundColor: colors.surface.white }]}>
+          <Text style={[tw`text-xs`, { color: colors.text.primary, fontFamily: typography.fontFamily['jakarta-bold'] }]}>
+            {stage} · {category}
+          </Text>
+        </View>
+      </View>
+
+      <View style={tw`p-5`}>
+        {/* M8: Group all text into ONE focusable element. Screen readers will read the `accessibilityLabel` instead of stuttering through each child text node. */}
+        <View
+          accessible={true}
+          accessibilityRole="text"
+          accessibilityLabel={screenReaderLabel}
+        >
+          <Text style={[tw`uppercase mb-1 `, { color: colors.text.ink, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-11-tracked'] }]}>
+            Pick up where you left off
+          </Text>
+          <Text style={[tw`mb-2`, { color: colors.text.primary, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-24'] }]}>
+            {title}
+          </Text>
+          <Text style={[tw`mb-4`, { color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-14'] }]}>
+            {subtitle}
+          </Text>
+
+          <View style={tw`flex-row items-center mb-5`}>
+            <Text style={{ color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-11'] }}>
+              <FileText size={14} color="#334155" strokeWidth={1.8} /> Article    <Clock size={14} color="#334155" strokeWidth={1.8} />  {readTime}
+            </Text>
+          </View>
+        </View>
+
+        {/* M8: The button remains a separate focusable element for the user to interact with after hearing the card's context. */}
+        <ActiveButton
+          label={buttonLabel}
+          onPress={onPressButton}
+          icon={buttonIcon} 
+          // If your ActiveButton supports passing these props down to its internal TouchableOpacity:
+          accessibilityRole="button"
+          accessibilityLabel={buttonLabel}
+          accessibilityHint={`Double tap to ${buttonLabel.toLowerCase()}`}
+        />
+      </View>
+    </View>
+  );
+};
 </file>
 
 <file path=".gitignore">
@@ -7241,105 +8553,9 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 # LearnHouse test credentials
-src/core/api/learnhouse/config.ts
 .env
-</file>
-
-<file path="src/ui/organisms/home/HomeCard.tsx">
-// src/components/organisms/ArticleCard.tsx
-import React from 'react';
-import { View, Text, Image } from 'react-native';
-import tw from 'twrnc';
-import { colors } from '../../tokens/colors';
-import { typography } from '../../tokens/typography';
-import { ActiveButton } from '../../atoms/ActiveButton';
-import { FileText, Clock } from 'lucide-react-native';
-
-interface HomeCardProps {
-  stage: string;
-  category: string;
-  title: string;
-  subtitle: string;
-  readTime: string;
-  onPressButton: () => void;
-  imageUrl?: string;
-  buttonLabel?: string;
-  buttonIcon?: React.ReactNode;
-}
-
-export const HomeCard: React.FC<HomeCardProps> = ({
-  stage,
-  category,
-  title,
-  subtitle,
-  readTime,
-  onPressButton,
-  imageUrl,
-  buttonLabel = 'Continue reading',
-  buttonIcon,
-}) => {
-  // M8: Create a unified, natural-sounding label for the screen reader
-  const screenReaderLabel = `${stage}, ${category}. Pick up where you left off. ${title}. ${subtitle}. Reading time: ${readTime}.`;
-
-  return (
-    <View style={[tw`w-full rounded-3xl overflow-hidden`, { backgroundColor: colors.hero.surface }]}>
-      
-      {/* M8: Hide the decorative image section from screen readers to reduce noise using accessibilityElementsHidden */}
-      <View 
-        style={[tw`w-full h-[40] justify-center shadow-md items-center`]}
-        importantForAccessibility="no-hide-descendants"
-        accessibilityElementsHidden={true}
-      >
-        <Image
-          source={{ uri: imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop' }}
-          style={tw`w-full h-full`}
-          resizeMode="cover"
-        />
-        <View style={[tw`absolute top-4 left-4 px-3 py-1.5 rounded-full flex-row items-center`, { backgroundColor: colors.surface.white }]}>
-          <Text style={[tw`text-xs`, { color: colors.text.primary, fontFamily: typography.fontFamily['jakarta-bold'] }]}>
-            {stage} · {category}
-          </Text>
-        </View>
-      </View>
-
-      <View style={tw`p-5`}>
-        {/* M8: Group all text into ONE focusable element. Screen readers will read the `accessibilityLabel` instead of stuttering through each child text node. */}
-        <View
-          accessible={true}
-          accessibilityRole="text"
-          accessibilityLabel={screenReaderLabel}
-        >
-          <Text style={[tw`uppercase mb-1 `, { color: colors.text.ink, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-11-tracked'] }]}>
-            Pick up where you left off
-          </Text>
-          <Text style={[tw`mb-2`, { color: colors.text.primary, fontFamily: typography.fontFamily['jakarta-bold'], ...typography.fontSize['type-24'] }]}>
-            {title}
-          </Text>
-          <Text style={[tw`mb-4`, { color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-14'] }]}>
-            {subtitle}
-          </Text>
-
-          <View style={tw`flex-row items-center mb-5`}>
-            <Text style={{ color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-11'] }}>
-              <FileText size={14} color="#334155" strokeWidth={1.8} /> Article    <Clock size={14} color="#334155" strokeWidth={1.8} />  {readTime}
-            </Text>
-          </View>
-        </View>
-
-        {/* M8: The button remains a separate focusable element for the user to interact with after hearing the card's context. */}
-        <ActiveButton
-          label={buttonLabel}
-          onPress={onPressButton}
-          icon={buttonIcon} 
-          // If your ActiveButton supports passing these props down to its internal TouchableOpacity:
-          accessibilityRole="button"
-          accessibilityLabel={buttonLabel}
-          accessibilityHint={`Double tap to ${buttonLabel.toLowerCase()}`}
-        />
-      </View>
-    </View>
-  );
-};
+bff/.env
+bff/users.local.json
 </file>
 
 <file path="src/components/organisms/RoadmapHeader.tsx">
@@ -7441,26 +8657,31 @@ export const HomeCard: React.FC<HomeCardProps> = ({
 </file>
 
 <file path="src/screens/home/HomeScreen.tsx">
-// src/screens/HomeScreen.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+// src/screens/home/HomeScreen.tsx
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
 import { Zap, Book, Clock, Star, ChevronRight } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { colors } from '../../ui/tokens/colors'; // Adjust path if needed
+import { colors } from '../../ui/tokens/colors';
 import { HomeTemplate } from './HomeTemplate';
 import { HomeHeader } from '../../ui/organisms/home/HomeHeader';
 import { ProgressBar } from '../../ui/molecules/ProgressBar';
 import { ActionFooter } from '../../ui/molecules/home/ActionFooter';
 import { SectionTitle } from '../../ui/molecules/home/SectionTitle';
 import BottomTabs from '../../ui/organisms/BottomTabs';
+import { SlotBoundary } from '../../ui/organisms/SlotBoundary';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
-import { TrustedCatalogue, type ValidatedHomeLayout } from '../../schemas/homeLayoutSchema';
-import { fetchAgentLayout } from '../../services/agentService';
+import type { RootStackParamList } from '../../navigation/MainStack';
+import { TrustedCatalogue } from '../../schemas/homeLayoutSchema';
+import type { ParseResult, SlotComponent, SlotName, SlotResult, LayoutAction } from '../../contracts/homeLayout';
+import { fetchHomeLayout } from '../../services/agentService';
+import { runLayoutAction } from './actions';
+import { getLearnerId, getLearnerName } from '../../core/auth/session';
+import { LEARNHOUSE } from '../../core/api/learnhouse/config';
 
-type Slot = NonNullable<ValidatedHomeLayout['mainCard']>;
-
-// 1. DYNAMIC ICON DICTIONARY (The Translation Layer)
 const IconDictionary: Record<string, React.ReactNode> = {
   zap: <Zap size={14} color={colors.text.primary} fill={colors.surface.white} />,
   book: <Book size={18} color={colors.text.primary} />,
@@ -7469,71 +8690,83 @@ const IconDictionary: Record<string, React.ReactNode> = {
   'chevron-right': <ChevronRight size={18} color={colors.iconchev.ink} strokeWidth={2} />,
 };
 
+/** Static fallback per slot: always offers a real next step (open the path). */
+function SlotFallback({ slot, onOpenPath }: { slot: SlotName; onOpenPath: () => void }) {
+  return (
+    <View style={tw`p-4 rounded-2xl bg-white border border-gray-200`} accessibilityRole="summary">
+      <Text style={tw`text-gray-700 mb-2`}>
+        {slot === 'mainCard' ? "We couldn't load your suggested activity." : 'Suggestions are unavailable right now.'}
+      </Text>
+      <TouchableOpacity onPress={onOpenPath} accessibilityRole="button" accessibilityLabel="Open your learning path" style={tw`min-h-11 justify-center`}>
+        <Text style={tw`text-indigo-600 font-semibold`}>Open your learning path</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const { tabs, onTabPress } = useTabNavigation('home');
-  // agentService already runs the Zod firewall, so anything non-null here is validated.
-  const [layout, setLayout] = useState<ValidatedHomeLayout | null>(null);
-  const [loading, setLoading] = useState(true);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [result, setResult] = useState<ParseResult | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // 2. FETCH AGENT PAYLOAD
+  const learnerId = getLearnerId();
+
   useEffect(() => {
+    if (!learnerId) { navigation.replace('Login'); return; } // auth gate
     let cancelled = false;
+    setResult(null);
+    fetchHomeLayout({ learnerId, courseUuid: LEARNHOUSE.courseUuid }).then((r) => { if (!cancelled) setResult(r); });
+    return () => { cancelled = true; };
+  }, [learnerId, navigation, reloadKey]);
 
-    async function loadAgent() {
-      // Toggle to test the Agentic UI live:
-      // const mockUserState = { accuracy: 95, recentTopics: ['Attention', 'Tokenization'] }; // HomeCard + NextStepCard
-      const mockUserState = { accuracy: 100, recentTopics: ['Context Windows', 'Embeddings'] }; // PracticeCard + RevisitSection
+  const openPath = useCallback(() => navigation.navigate('PathScreen'), [navigation]);
 
-      const payload = await fetchAgentLayout(mockUserState);
-      if (!cancelled) {
-        setLayout(payload);
-        setLoading(false);
+  const dispatch = useCallback((action: LayoutAction) => runLayoutAction(action, {
+    navigate: (screen) => navigation.navigate(screen),
+    onCompleted: (_id, status) => {
+      setNotice(status === 'applied' ? 'Progress saved.' : 'Saved — waiting for the course server to confirm.');
+      setReloadKey((k) => k + 1); // refresh so the next activity is suggested
+    },
+    onError: setNotice,
+  }), [navigation]);
+
+  const renderComponent = (c: SlotComponent) => {
+    const Component = TrustedCatalogue[c.component];
+    switch (c.component) {
+      case 'HomeCard':
+      case 'NextStepCard': {
+        const { action, ...props } = c.props;
+        return <Component {...props} onPress={() => dispatch(action)} onPressButton={() => dispatch(action)} />;
+      }
+      case 'PracticeCard': {
+        const { action, buttonIconString, ...props } = c.props;
+        return <Component {...props} buttonIcon={buttonIconString ? IconDictionary[buttonIconString] : undefined} onPressButton={() => dispatch(action)} />;
+      }
+      case 'RevisitSection': {
+        const items = c.props.items.map(({ iconString, action: _a, ...item }) => ({ ...item, icon: IconDictionary[iconString] ?? IconDictionary.book }));
+        return <Component title={c.props.title} items={items} onItemPress={(id: string) => {
+          const hit = c.props.items.find((i) => i.id === id);
+          if (hit) dispatch(hit.action);
+        }} />;
       }
     }
-
-    loadAgent();
-    return () => {
-      cancelled = true; // avoid setState after unmount
-    };
-  }, []);
-
-  // 3. SECURE RENDERER WITH TRANSLATION
-  const renderAgentSlot = (slotData: Slot | null) => {
-    if (!slotData) return null;
-
-    const Component = TrustedCatalogue[slotData.component];
-    if (!Component) return <Text style={tw`text-red-500`}>Unknown Component</Text>;
-
-    // Clone props so we can swap icon strings for React nodes
-    const resolvedProps: Record<string, any> = { ...slotData.props };
-
-    if (slotData.component === 'PracticeCard' && slotData.props.buttonIconString) {
-      resolvedProps.buttonIcon = IconDictionary[slotData.props.buttonIconString];
-      delete resolvedProps.buttonIconString;
-    }
-
-    if (slotData.component === 'RevisitSection') {
-      resolvedProps.items = slotData.props.items.map(({ iconString, ...item }) => ({
-        ...item,
-        icon: IconDictionary[iconString] ?? IconDictionary.book,
-      }));
-    }
-
-    return (
-      <Component
-        {...resolvedProps}
-        onPress={() => console.log(`${slotData.component} pressed`)}
-        onPressButton={() => console.log(`${slotData.component} button pressed`)}
-        onItemPress={(id: string) => console.log(`Revisit item ${id} pressed`)}
-      />
-    );
   };
 
-  if (loading) {
+  const renderSlot = (slot: SlotName) => {
+    const fallback = <SlotFallback slot={slot} onOpenPath={openPath} />;
+    if (!result) return null;
+    const r: SlotResult | undefined = result.ok ? result.slots[slot] : undefined;
+    if (!r || !r.ok) return slot === 'nextStepSection' && r?.reason === 'empty' ? null : fallback;
+    return <SlotBoundary key={`${slot}-${result.ok ? result.layoutId : ''}`} slot={slot} fallback={fallback}>{renderComponent(r.value)}</SlotBoundary>;
+  };
+
+  if (!result) {
     return (
       <View style={tw`flex-1 justify-center items-center bg-slate-50`}>
         <ActivityIndicator size="large" color={colors.action.primary} />
-        <Text style={tw`mt-4 text-gray-500`}>Agent is calculating your path...</Text>
+        <Text style={tw`mt-4 text-gray-500`}>Preparing your next step…</Text>
       </View>
     );
   }
@@ -7541,17 +8774,18 @@ export default function HomeScreen() {
   return (
     <HomeTemplate
       background={<View style={tw`bg-slate-50`} />}
-      homeHeader={<HomeHeader username="Shubham" streakCount={12} />}
-      progressBar={<ProgressBar title="Your 15-minute space" totalSteps={6} completedSteps={2} remainingTimeText="~12 min left" />}
-      sectionTitle={<SectionTitle title="Your Learning Journey" actionLabel="View Progress" />}
-      footerActions={<ActionFooter onPressFormat={() => {}} onPressWhyPlan={() => {}} formatLabel="Any format" />}
-      bottombar={<BottomTabs tabs={tabs} activeTab="home" onTabPress={onTabPress} reserveSlot={true} activeColor={colors.action.primary} inactiveColor={colors.text.body} />}
-      mainCard={
-        layout?.mainCard
-          ? renderAgentSlot(layout.mainCard)
-          : <Text style={tw`text-center text-red-500 p-4`}>Failed to load activity.</Text>
+      homeHeader={<HomeHeader username={getLearnerName() ?? 'Learner'} streakCount={12 /* FIXTURE: streak not yet from LearnHouse (W4) */} />}
+      progressBar={<ProgressBar title="Your 15-minute space" totalSteps={6} completedSteps={2} remainingTimeText="~12 min left" /* FIXTURE (W4) */ />}
+      sectionTitle={<SectionTitle title="Your Learning Journey" actionLabel="View Progress" onPressAction={openPath} />}
+      footerActions={
+        <View>
+          {notice ? <Text accessibilityLiveRegion="polite" style={tw`text-center text-gray-600 mb-2`}>{notice}</Text> : null}
+          <ActionFooter onPressFormat={() => setNotice('Format choice arrives in W4.')} onPressWhyPlan={() => setNotice('Suggestions use only activities you are enrolled in.')} formatLabel="Any format" />
+        </View>
       }
-      nextStepSection={layout ? renderAgentSlot(layout.nextStepSection) : null}
+      bottombar={<BottomTabs tabs={tabs} activeTab="home" onTabPress={onTabPress} reserveSlot={true} activeColor={colors.action.primary} inactiveColor={colors.text.body} />}
+      mainCard={renderSlot('mainCard')}
+      nextStepSection={renderSlot('nextStepSection')}
     />
   );
 }
@@ -7568,10 +8802,13 @@ export default function HomeScreen() {
     "ios": "expo run:ios",
     "lint": "eslint .",
     "start": "expo start",
-    "test": "jest"
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "test:contract": "jest __tests__/contracts",
+    "bff": "npm --prefix bff start",
+    "test:bff": "npm --prefix bff test"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@react-navigation/native": "^7.3.18",
     "@react-navigation/native-stack": "^7.18.10",
     "expo": "^57.0.22",
