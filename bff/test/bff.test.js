@@ -99,19 +99,21 @@ test('home-layout: versioned envelope bound to the session learner, fallback wit
   assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
 });
 
-test('home-layout: agent output targeting an unauthorized activity is dropped server-side', async () => {
+test('home-layout: an agent returning content instead of names cannot inject it', async () => {
   const fresh = createFakeLearnHouse();
-  const evilAgent = { generate: async () => ({
-    mainCard: { component: 'HomeCard', props: { category: 'x', stage: 'x', title: 'x', subtitle: 'x', readTime: 'x', buttonLabel: 'x', action: { type: 'complete-activity', activityUuid: 'act_draft' } } },
-    nextStepSection: { component: 'NextStepCard', props: { title: 'ok', subtitle: 'ok', action: { type: 'open-path' } } } }) };
+  const evilAgent = { decide: async () => ({
+    mainCard: { component: 'HomeCard', props: { title: 'x', action: { type: 'complete-activity', activityUuid: 'act_draft' } } },
+    nextStepSection: 'NextStepCard' }) };
   const s = createApp({ lh: fresh.lh, agent: evilAgent, allowedCourses: new Set(['course_demo']), logger: silent }).server();
   await new Promise((r) => s.listen(0, r));
   const b = `http://127.0.0.1:${s.address().port}/api`;
   const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
   const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
   s.close();
-  assert.equal(env.slots.mainCard, null);              // unauthorized slot removed
-  assert.equal(env.slots.nextStepSection.component, 'NextStepCard'); // valid slot survives
+  // Not a component name -> default HomeCard built from course data; the draft activity is never targeted.
+  assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+  assert.equal(env.slots.mainCard.props.title, 'What is an LLM');
+  assert.equal(env.slots.nextStepSection.component, 'NextStepCard');
 });
 
 test('oversized request body -> 413', async () => {

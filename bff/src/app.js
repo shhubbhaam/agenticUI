@@ -4,7 +4,7 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 const { createSessionStore } = require('./sessions');
-const { fallbackSlots, authorizeSlots } = require('./agent');
+const { buildSlots, fallbackSlots, authorizeSlots } = require('./agent');
 
 const UUID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_BODY = 8 * 1024;
@@ -143,27 +143,35 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
     const { courseUuid } = req.params;
     const learnerId = req.learner.learnerId;
     try {
-      const [activities, trail] = await Promise.all([publishedActivities(courseUuid), trailOrNull(learnerId, courseUuid)]);
+      const [meta, trail] = await Promise.all([lh.getCourseMeta(courseUuid), trailOrNull(learnerId, courseUuid)]);
+      // Published activities in course order, with the chapter they belong to (all content comes from here).
+      const activities = (meta?.chapters ?? []).flatMap((ch) => (ch.activities ?? [])
+        .filter((a) => a.published !== false)
+        .map((a) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? ''), chapterName: String(ch.name ?? ''), activityType: a.activity_type })))
+        .map((a, i) => ({ ...a, index: i + 1 }));
       const done = new Set((trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? [])
         .flatMap((ch) => ch.activities ?? []).filter((a) => a.completed).map((a) => a.activity_uuid));
-      const choices = activities.filter((a) => !done.has(a.activity_uuid)).slice(0, 5)
-        .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
-      const completedList = activities.filter((a) => done.has(a.activity_uuid)).slice(-3)
-        .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
+      const choices = activities.filter((a) => !done.has(a.activityUuid));
+      const completedList = activities.filter((a) => done.has(a.activityUuid)).slice(-3);
+      const ctx = { course: { name: meta?.name }, choices, completed: completedList, totalCount: activities.length };
+      // Telemetry is the ONLY thing the model sees. Add more signals here (last active, streak, quiz scores...).
+      const signals = {
+        completedCount: done.size, remainingCount: choices.length, totalCount: activities.length,
+        progressPercent: activities.length ? Math.round((100 * (activities.length - choices.length)) / activities.length) : 0,
+      };
       // Authorized targets: this learner's unfinished + completed published activities in this course.
       const allowed = new Set([...choices, ...completedList].map((c) => c.activityUuid));
 
-      let slots = null; let source = 'fallback';
+      let decision = null; let source = 'fallback';
       if (agent) {
-        try {
-          const generated = await agent.generate({ choices, completed: completedList, signals: { completedCount: done.size, remainingCount: activities.length - done.size, totalCount: activities.length } });
-          if (generated) { slots = authorizeSlots(generated, allowed); source = 'agent'; }
-        } catch (e) {
+        try { decision = await agent.decide({ signals }); source = 'agent'; }
+        catch (e) {
           // Status/reason only, never model text: e.g. "Gemini HTTP 404" = wrong model name for this key.
           logger.warn?.(`[agent] fallback used: ${e.name === 'TimeoutError' ? 'timeout' : e.message}`);
         }
       }
-      if (!slots || (!slots.mainCard && !slots.nextStepSection)) { slots = fallbackSlots(choices); source = 'fallback'; }
+      let slots = authorizeSlots(decision ? buildSlots(decision, ctx) : fallbackSlots(ctx), allowed);
+      if (!slots.mainCard && !slots.nextStepSection) { slots = authorizeSlots(fallbackSlots(ctx), allowed); source = 'fallback'; }
       logger.info?.(`[home-layout] source=${source} mainCard=${slots.mainCard?.component ?? 'none'} nextStep=${slots.nextStepSection?.component ?? 'none'}`);
 
       const now = Date.now();

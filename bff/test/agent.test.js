@@ -1,18 +1,16 @@
-// The AI chooses components (two-step decide -> fill), and its output is authorized + bounded.
+// The AI only CHOOSES components from telemetry; all card content is built from LearnHouse data.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createGeminiAgent } = require('../src/agent');
 const { createApp } = require('../src/app');
 const { createFakeLearnHouse } = require('./fakeLearnHouse');
 
-// Mock Gemini: answers the DECIDE call, then the FILL call, and records the prompts/schemas it saw.
-function mockGemini(decision, fill) {
+// Mock Gemini: answers the single DECIDE call and records the requests it saw.
+function mockGemini(decision) {
   const seen = [];
   const fetchImpl = async (_url, init) => {
-    const body = JSON.parse(init.body);
-    seen.push(body);
-    const out = seen.length === 1 ? decision : fill;
-    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] }) };
+    seen.push(JSON.parse(init.body));
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(decision) }] } }] }) };
   };
   return { fetchImpl, seen };
 }
@@ -30,34 +28,48 @@ async function layoutWith(agent, { completeFirst = false } = {}) {
   return env;
 }
 
-test('AI picks PracticeCard + RevisitSection -> those components are served', async () => {
-  const g = mockGemini(
-    { reason: 'Stalled after one activity', mainCard: 'PracticeCard', nextStepSection: 'RevisitSection' },
-    { mainCard: { component: 'PracticeCard', props: { eyebrow: 'QUICK PRACTICE', title: 'Prompt drills', subtitle: 'Five minutes.', buttonLabel: 'Start', buttonIconString: 'zap', action: { type: 'open-practice' } } },
-      nextStepSection: { component: 'RevisitSection', props: { title: 'Revisit', items: [{ id: 'What is an LLM!', title: 'What is an LLM', subtitle: 'Refresh it', iconString: 'book', action: { type: 'complete-activity', activityUuid: 'act_1' } }] } } });
+test('AI picks PracticeCard + RevisitSection -> served, with content from the course', async () => {
+  const g = mockGemini({ reason: 'Stalled after one activity', mainCard: 'PracticeCard', nextStepSection: 'RevisitSection' });
   const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }), { completeFirst: true });
   assert.equal(env.slots.mainCard.component, 'PracticeCard');
+  assert.equal(env.slots.mainCard.props.title, 'What is an LLM'); // last completed activity
+  assert.deepEqual(env.slots.mainCard.props.action, { type: 'open-practice' });
   assert.equal(env.slots.nextStepSection.component, 'RevisitSection');
-  assert.equal(env.slots.nextStepSection.props.items[0].id, 'What-is-an-LLM-'); // sanitized for the contract
-  // Decide step offered the whole catalogue; fill step was constrained to the chosen components.
-  const decideSchema = g.seen[0].generationConfig.responseSchema;
-  assert.deepEqual(decideSchema.properties.mainCard.enum, ['HomeCard', 'PracticeCard']);
-  assert.deepEqual(decideSchema.properties.nextStepSection.enum, ['NextStepCard', 'RevisitSection']);
-  assert.deepEqual(g.seen[1].generationConfig.responseSchema.properties.mainCard.properties.component.enum, ['PracticeCard']);
+  assert.deepEqual(env.slots.nextStepSection.props.items.map((i) => i.title), ['What is an LLM']);
+  assert.equal(g.seen.length, 1); // one call: decide only, no content generation
+  const schema = g.seen[0].generationConfig.responseSchema;
+  assert.deepEqual(schema.properties.mainCard.enum, ['HomeCard', 'PracticeCard']);
+  assert.deepEqual(schema.properties.nextStepSection.enum, ['NextStepCard', 'RevisitSection']);
 });
 
-test('AI picks HomeCard + NextStepCard -> those components are served', async () => {
-  const g = mockGemini(
-    { reason: 'On track', mainCard: 'HomeCard', nextStepSection: 'NextStepCard' },
-    { mainCard: { component: 'HomeCard', props: { category: 'LLMs', stage: 'Activity 1', title: 'What is an LLM', subtitle: 'Start here.', readTime: '5 min', buttonLabel: 'Continue', action: { type: 'complete-activity', activityUuid: 'act_1' } } },
-      nextStepSection: { component: 'NextStepCard', props: { title: 'Prompt basics', subtitle: 'Up next.', action: { type: 'open-path' } } } });
+test('AI picks HomeCard + NextStepCard -> titles are the next two course activities', async () => {
+  const g = mockGemini({ reason: 'On track', mainCard: 'HomeCard', nextStepSection: 'NextStepCard' });
   const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
   assert.equal(env.slots.mainCard.component, 'HomeCard');
+  assert.equal(env.slots.mainCard.props.title, 'What is an LLM');
+  assert.equal(env.slots.mainCard.props.category, 'Demo');
+  assert.equal(env.slots.mainCard.props.stage, 'Ch 1');
+  assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+  assert.equal(env.slots.nextStepSection.props.title, 'Prompt basics');
+});
+
+test('model sees telemetry only: no activity names or ids in the prompt', async () => {
+  const g = mockGemini({ reason: 'x', mainCard: 'HomeCard', nextStepSection: 'NextStepCard' });
+  await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
+  const prompt = g.seen[0].contents[0].parts[0].text;
+  assert.ok(prompt.includes('"completedCount":0'));
+  for (const leak of ['act_1', 'What is an LLM', 'Prompt basics']) assert.ok(!prompt.includes(leak), leak);
+  assert.equal(g.seen[0].generationConfig.temperature, 0);
+});
+
+test('RevisitSection with nothing completed -> NextStepCard', async () => {
+  const g = mockGemini({ reason: 'x', mainCard: 'HomeCard', nextStepSection: 'RevisitSection' });
+  const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
   assert.equal(env.slots.nextStepSection.component, 'NextStepCard');
 });
 
 test('decision outside the catalogue -> deterministic fallback, not a crash', async () => {
-  const g = mockGemini({ reason: 'x', mainCard: 'ScriptRunner', nextStepSection: 'NextStepCard' }, {});
+  const g = mockGemini({ reason: 'x', mainCard: 'ScriptRunner', nextStepSection: 'NextStepCard' });
   const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
   assert.equal(env.slots.mainCard.component, 'HomeCard'); // fallback
 });
