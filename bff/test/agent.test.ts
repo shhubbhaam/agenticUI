@@ -1,28 +1,30 @@
 // The AI only CHOOSES components from telemetry; all card content is built from LearnHouse data.
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const { createGeminiAgent } = require('../src/agent');
-const { createApp } = require('../src/app');
-const { createFakeLearnHouse } = require('./fakeLearnHouse');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import type { AddressInfo } from 'node:net';
+import { createGeminiAgent, type Agent } from '../src/agent.ts';
+import { createApp } from '../src/app.ts';
+import type { FetchLike } from '../src/util.ts';
+import { createFakeLearnHouse } from './fakeLearnHouse.ts';
 
 // Mock Gemini: answers the single DECIDE call and records the requests it saw.
-function mockGemini(decision) {
-  const seen = [];
-  const fetchImpl = async (_url, init) => {
-    seen.push(JSON.parse(init.body));
-    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(decision) }] } }] }) };
+function mockGemini(decision: unknown) {
+  const seen: any[] = [];
+  const fetchImpl: FetchLike = async (_url, init) => {
+    seen.push(JSON.parse(init!.body as string));
+    return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(decision) }] } }] }) };
   };
   return { fetchImpl, seen };
 }
 const quiet = { info() {}, warn() {} };
 
-async function layoutWith(agent, { completeFirst = false } = {}) {
+async function layoutWith(agent: Agent, { completeFirst = false } = {}): Promise<any> {
   const fake = createFakeLearnHouse();
   if (completeFirst) await fake.lh.completeActivity('101', 'act_1');
   const s = createApp({ lh: fake.lh, agent, allowedCourses: new Set(['course_demo']), logger: quiet }).server();
-  await new Promise((r) => s.listen(0, r));
-  const b = `http://127.0.0.1:${s.address().port}/api`;
-  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
   const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
   s.close();
   return env;
@@ -35,7 +37,7 @@ test('AI picks PracticeCard + RevisitSection -> served, with content from the co
   assert.equal(env.slots.mainCard.props.title, 'What is an LLM'); // last completed activity
   assert.deepEqual(env.slots.mainCard.props.action, { type: 'open-practice' });
   assert.equal(env.slots.nextStepSection.component, 'RevisitSection');
-  assert.deepEqual(env.slots.nextStepSection.props.items.map((i) => i.title), ['What is an LLM']);
+  assert.deepEqual(env.slots.nextStepSection.props.items.map((i: { title: string }) => i.title), ['What is an LLM']);
   assert.equal(g.seen.length, 1); // one call: decide only, no content generation
   const schema = g.seen[0].generationConfig.responseSchema;
   assert.deepEqual(schema.properties.mainCard.enum, ['HomeCard', 'PracticeCard']);
@@ -75,7 +77,7 @@ test('decision outside the catalogue -> deterministic fallback, not a crash', as
 });
 
 test('Gemini HTTP error -> deterministic fallback', async () => {
-  const agent = createGeminiAgent({ apiKey: 'k', model: 'm', logger: quiet, fetchImpl: async () => ({ ok: false, status: 404 }) });
+  const agent = createGeminiAgent({ apiKey: 'k', model: 'm', logger: quiet, fetchImpl: async () => ({ ok: false, status: 404, json: async () => null }) });
   const env = await layoutWith(agent);
   assert.equal(env.slots.mainCard.props.action.activityUuid, 'act_1');
 });

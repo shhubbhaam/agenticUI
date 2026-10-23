@@ -1,6 +1,6 @@
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const { parseDevUsers, withDevLogin } = require('../src/devLogin');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseDevUsers, withDevLogin } from '../src/devLogin.ts';
 
 const users = parseDevUsers('Asha@test.local:101, ravi@test.local:202, bad@x:../1');
 const lh = withDevLogin({ getTrail() {} }, { users, password: 'Devpass@123', env: 'development' });

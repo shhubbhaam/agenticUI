@@ -1,37 +1,70 @@
-// bff/src/app.js — authenticated BFF (W3 FB001). Zero dependencies (node:http).
+// bff/src/app.ts — authenticated BFF (W3 FB001). Zero runtime dependencies (node:http).
 // Every /me route derives learner + org from the session. Course access is checked
 // against a server-side allow-list; activity access against the course's published content.
-const http = require('node:http');
-const crypto = require('node:crypto');
-const { createSessionStore } = require('./sessions');
-const { buildSlots, fallbackSlots, authorizeSlots } = require('./agent');
+import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
+import { createSessionStore, type Session, type SessionStore } from './sessions.ts';
+import { buildSlots, fallbackSlots, authorizeSlots, type Agent, type Decision, type BuildContext } from './agent.ts';
+import type { LearnHouse, Trail } from './learnhouse.ts';
+import { causeCode, type HttpError, type Logger } from './util.ts';
 
 const UUID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_BODY = 8 * 1024;
 
 // ---- tiny router: route('GET', '/api/me/courses/:courseUuid/meta', ...handlers) ----
-function compile(pattern) {
-  const keys = [];
-  const re = new RegExp('^' + pattern.replace(/:([A-Za-z]+)/g, (_, k) => { keys.push(k); return '([^/]+)'; }) + '$');
+export interface Req extends IncomingMessage {
+  params: Record<string, string>;
+  body: Record<string, unknown>;
+  learner: Session;
+}
+export interface Res extends ServerResponse {
+  status(code: number): Res;
+  json(obj: unknown): Res;
+}
+type Next = () => Promise<void>;
+type Handler = (req: Req, res: Res, next: Next) => unknown;
+interface Route { method: string; path: string; re: RegExp; keys: string[]; handlers: Handler[] }
+
+function compile(pattern: string) {
+  const keys: string[] = [];
+  const re = new RegExp('^' + pattern.replace(/:([A-Za-z]+)/g, (_, k: string) => { keys.push(k); return '([^/]+)'; }) + '$');
   return { re, keys };
 }
-function decorate(res) {
+function decorate(raw: ServerResponse): Res {
+  const res = raw as Res;
   res.status = (code) => { res.statusCode = code; return res; };
   res.json = (obj) => { const b = JSON.stringify(obj); res.setHeader('Content-Type', 'application/json'); res.end(b); return res; };
   return res;
 }
-async function readJson(req) {
-  let size = 0; const chunks = [];
-  for await (const c of req) { size += c.length; if (size > MAX_BODY) { const e = new Error('too large'); e.status = 413; throw e; } chunks.push(c); }
+const withStatus = (message: string, status: number) => Object.assign(new Error(message), { status });
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  let size = 0; const chunks: Buffer[] = [];
+  for await (const c of req as AsyncIterable<Buffer>) { size += c.length; if (size > MAX_BODY) throw withStatus('too large', 413); chunks.push(c); }
   if (!chunks.length) return {};
-  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { const e = new Error('bad json'); e.status = 400; throw e; }
+  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw withStatus('bad json', 400); }
 }
+const statusOf = (e: unknown) => (e as HttpError | null)?.status;
 
-function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console }) {
-  const routes = [];
-  const app = {};
-  for (const m of ['get', 'post']) app[m] = (path, ...handlers) => routes.push({ method: m.toUpperCase(), path, ...compile(path), handlers });
-  const idempotency = new Map(); // `${learnerId}:${key}` -> result   (W5: move to SQLite)
+export interface AppOptions {
+  lh: LearnHouse;
+  agent?: Agent | null;
+  allowedCourses: Set<string>;
+  sessions?: SessionStore;
+  layoutTtlMs?: number;
+  logger?: Logger;
+}
+export interface App {
+  handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
+  listen(...args: Parameters<Server['listen']>): Server;
+  server(): Server;
+}
+interface CompletionResult { activityUuid: string; idempotencyKey: string; status: 'applied' | 'received' }
+
+export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console }: AppOptions): App {
+  const routes: Route[] = [];
+  const route = (method: string) => (path: string, ...handlers: Handler[]) => { routes.push({ method, path, ...compile(path), handlers }); };
+  const app = { get: route('GET'), post: route('POST') };
+  const idempotency = new Map<string, CompletionResult>(); // `${learnerId}:${key}` -> result   (W5: move to SQLite)
 
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
@@ -52,26 +85,29 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
   });
 
   // ---- auth gate for everything under /api/me ----
-  const requireSession = (req, res, next) => {
-    const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
-    const session = m && sessions.get(m[1]);
+  const bearer = (req: IncomingMessage) => /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1];
+  const requireSession: Handler = (req, res, next) => {
+    const token = bearer(req);
+    const session = token ? sessions.get(token) : null;
     if (!session) return res.status(401).json({ error: 'unauthenticated' });
     req.learner = session;
-    next();
+    return next();
   };
-  const requireCourse = (req, res, next) => {
+  const requireCourse: Handler = (req, res, next) => {
     const { courseUuid } = req.params;
     if (!UUID_RE.test(courseUuid) || !allowedCourses.has(courseUuid)) return res.status(403).json({ error: 'course_forbidden' });
-    next();
+    return next();
   };
-  const upstreamError = (res, e) => {
+  const upstreamError = (res: Res, e: unknown) => {
     // Sanitized: method, LearnHouse path and status (or network code). Never headers, tokens or bodies.
-    logger.warn?.(`[upstream] ${e.message}${e.cause?.code ? ` (${e.cause.code})` : ''}`);
-    res.status(e.status === 404 ? 404 : 502).json({ error: e.status === 404 ? 'not_found' : 'upstream_error', upstreamStatus: e.status ?? null });
+    const code = causeCode(e);
+    logger.warn?.(`[upstream] ${(e as Error).message}${code ? ` (${code})` : ''}`);
+    const status = statusOf(e);
+    res.status(status === 404 ? 404 : 502).json({ error: status === 404 ? 'not_found' : 'upstream_error', upstreamStatus: status ?? null });
   };
 
   app.post('/api/auth/logout', requireSession, (req, res) => {
-    sessions.destroy(/^Bearer (.+)$/.exec(req.headers.authorization)[1]);
+    sessions.destroy(bearer(req)!);
     res.statusCode = 204; res.end();
   });
 
@@ -89,17 +125,17 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
 
   // LearnHouse answers 400/404/422 for a learner with no trail (not enrolled / never started).
   // Treat that as "no progress yet" instead of a server failure.
-  async function trailOrNull(learnerId, courseUuid) {
+  async function trailOrNull(learnerId: string, courseUuid: string): Promise<Trail | null> {
     try { return await lh.getTrail(learnerId, courseUuid); }
-    catch (e) { if ([400, 404, 422].includes(e.status)) return null; throw e; }
+    catch (e) { if ([400, 404, 422].includes(statusOf(e) as number)) return null; throw e; }
   }
 
   // Published activities of an allowed course, in order.
-  async function publishedActivities(courseUuid) {
+  async function publishedActivities(courseUuid: string) {
     const meta = await lh.getCourseMeta(courseUuid);
     return (meta?.chapters ?? []).flatMap((ch) => ch.activities ?? []).filter((a) => a.published !== false);
   }
-  async function isCompleted(learnerId, courseUuid, activityUuid) {
+  async function isCompleted(learnerId: string, courseUuid: string, activityUuid: string) {
     const trail = await trailOrNull(learnerId, courseUuid);
     const course = trail?.courses?.find((c) => c.course_uuid === courseUuid);
     return !!course?.chapters?.some((ch) => ch.activities?.some((a) => a.activity_uuid === activityUuid && a.completed));
@@ -109,7 +145,7 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
   app.post('/api/me/courses/:courseUuid/activities/:activityUuid/complete', requireSession, requireCourse, async (req, res) => {
     const { courseUuid, activityUuid } = req.params;
     const key = req.headers['idempotency-key'];
-    if (!key || !UUID_RE.test(key)) return res.status(400).json({ error: 'idempotency_key_required' });
+    if (typeof key !== 'string' || !UUID_RE.test(key)) return res.status(400).json({ error: 'idempotency_key_required' });
     if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
     const learnerId = req.learner.learnerId;
     const cacheKey = `${learnerId}:${key}`;
@@ -122,17 +158,18 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
       const activities = await publishedActivities(courseUuid);
       if (!activities.some((a) => a.activity_uuid === activityUuid)) return res.status(403).json({ error: 'activity_forbidden' });
 
-      let writeError = null;
+      let writeError: unknown = null;
       if (!(await isCompleted(learnerId, courseUuid, activityUuid))) {
         try { await lh.completeActivity(learnerId, activityUuid); } catch (e) { writeError = e; }
       }
       // Reconcile: a lost/timeout response may still have been applied upstream.
       const applied = await isCompleted(learnerId, courseUuid, activityUuid).catch(() => false);
-      const result = { activityUuid, idempotencyKey: key, status: applied ? 'applied' : 'received' };
+      const result: CompletionResult = { activityUuid, idempotencyKey: key, status: applied ? 'applied' : 'received' };
       idempotency.set(cacheKey, result);
       if (!applied && writeError) {
-        logger.warn?.(`[upstream] ${writeError.message}${writeError.cause?.code ? ` (${writeError.cause.code})` : ''}`);
-        return res.status(502).json({ ...result, error: 'upstream_write_failed', upstreamStatus: writeError.status ?? null });
+        const code = causeCode(writeError);
+        logger.warn?.(`[upstream] ${(writeError as Error).message}${code ? ` (${code})` : ''}`);
+        return res.status(502).json({ ...result, error: 'upstream_write_failed', upstreamStatus: statusOf(writeError) ?? null });
       }
       res.status(applied ? 200 : 202).json(result);
     } catch (e) { upstreamError(res, e); }
@@ -153,7 +190,7 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
         .flatMap((ch) => ch.activities ?? []).filter((a) => a.completed).map((a) => a.activity_uuid));
       const choices = activities.filter((a) => !done.has(a.activityUuid));
       const completedList = activities.filter((a) => done.has(a.activityUuid)).slice(-3);
-      const ctx = { course: { name: meta?.name }, choices, completed: completedList, totalCount: activities.length };
+      const ctx: BuildContext = { course: { name: meta?.name }, choices, completed: completedList, totalCount: activities.length };
       // Telemetry is the ONLY thing the model sees. Add more signals here (last active, streak, quiz scores...).
       const signals = {
         completedCount: done.size, remainingCount: choices.length, totalCount: activities.length,
@@ -162,12 +199,12 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
       // Authorized targets: this learner's unfinished + completed published activities in this course.
       const allowed = new Set([...choices, ...completedList].map((c) => c.activityUuid));
 
-      let decision = null; let source = 'fallback';
+      let decision: Decision | null = null; let source = 'fallback';
       if (agent) {
         try { decision = await agent.decide({ signals }); source = 'agent'; }
         catch (e) {
           // Status/reason only, never model text: e.g. "Gemini HTTP 404" = wrong model name for this key.
-          logger.warn?.(`[agent] fallback used: ${e.name === 'TimeoutError' ? 'timeout' : e.message}`);
+          logger.warn?.(`[agent] fallback used: ${(e as Error).name === 'TimeoutError' ? 'timeout' : (e as Error).message}`);
         }
       }
       let slots = authorizeSlots(decision ? buildSlots(decision, ctx) : fallbackSlots(ctx), allowed);
@@ -177,7 +214,7 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
       const now = Date.now();
       res.json({
         version: 1,
-        layoutId: crypto.randomUUID().replace(/-/g, ''),
+        layoutId: randomUUID().replace(/-/g, ''),
         learnerId, courseUuid,
         issuedAt: new Date(now).toISOString(),
         expiresAt: new Date(now + layoutTtlMs).toISOString(),
@@ -187,26 +224,28 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
   });
 
   // Sanitized request log: method, route pattern, status, ms. Never bodies, headers or tokens.
-  async function handle(req, res) {
-    decorate(res);
+  async function handle(rawReq: IncomingMessage, rawRes: ServerResponse) {
+    const req = rawReq as Req;
+    const res = decorate(rawRes);
     const t = Date.now();
-    const url = new URL(req.url, 'http://bff');
-    let matched = null;
+    const url = new URL(req.url ?? '/', 'http://bff');
+    let matched: Route | null = null;
     for (const r of routes) {
       const m = r.method === req.method && r.re.exec(url.pathname);
       if (m) { matched = r; req.params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); break; }
     }
     res.on('finish', () => logger.info?.(`${req.method} ${matched?.path ?? 'unmatched'} ${res.statusCode} ${Date.now() - t}ms`));
-    if (!matched) return res.status(404).json({ error: 'not_found' });
+    if (!matched) { res.status(404).json({ error: 'not_found' }); return; }
+    const handlers = matched.handlers;
     try {
       req.body = req.method === 'POST' ? await readJson(req) : {};
       let i = 0;
-      const next = async () => { const h = matched.handlers[i++]; if (h) await h(req, res, next); };
+      const next: Next = async () => { const h = handlers[i++]; if (h) await h(req, res, next); };
       await next();
     } catch (e) {
-      if (!res.headersSent) res.status(e.status === 413 || e.status === 400 ? e.status : 500).json({ error: e.status === 413 ? 'too_large' : e.status === 400 ? 'invalid_json' : 'internal' });
+      const status = statusOf(e);
+      if (!res.headersSent) res.status(status === 413 || status === 400 ? status : 500).json({ error: status === 413 ? 'too_large' : status === 400 ? 'invalid_json' : 'internal' });
     }
   }
-  return { handle, listen: (...a) => http.createServer(handle).listen(...a), server: () => http.createServer(handle) };
+  return { handle, listen: (...a) => createServer(handle).listen(...a), server: () => createServer(handle) };
 }
-module.exports = { createApp };

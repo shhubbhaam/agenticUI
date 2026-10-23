@@ -1,23 +1,28 @@
 // W3 FB001 evidence: authenticated BFF, allow/deny matrix, completion write + read-back, idempotency.
-const { test, before, after } = require('node:test');
-const assert = require('node:assert/strict');
-const { createApp } = require('../src/app');
-const { createFakeLearnHouse } = require('./fakeLearnHouse');
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { createApp } from '../src/app.ts';
+import { createFakeLearnHouse } from './fakeLearnHouse.ts';
 
-let server, base, fake;
+const port = (s: Server) => (s.address() as AddressInfo).port;
+let server: Server, base: string, fake: ReturnType<typeof createFakeLearnHouse>;
 const silent = { info() {}, warn() {} };
 before(async () => {
   fake = createFakeLearnHouse();
   server = createApp({ lh: fake.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
-  await new Promise((r) => server.listen(0, r));
-  base = `http://127.0.0.1:${server.address().port}/api`;
+  await new Promise<void>((r) => server.listen(0, () => r()));
+  base = `http://127.0.0.1:${port(server)}/api`;
 });
 after(() => server.close());
 
-const call = (path, { method = 'GET', token, body, headers = {} } = {}) =>
+// Test responses are untyped JSON.
+type Reply = { status: number; body: any };
+const call = (path: string, { method = 'GET', token, body, headers = {} }: { method?: string; token?: string; body?: object; headers?: Record<string, string> } = {}): Promise<Reply> =>
   fetch(base + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers }, body: body && JSON.stringify(body) })
     .then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }));
-const login = async (email) => (await call('/auth/login', { method: 'POST', body: { email, password: 'Passw0rd!' } })).body.token;
+const login = async (email: string): Promise<string> => (await call('/auth/login', { method: 'POST', body: { email, password: 'Passw0rd!' } })).body.token;
 
 test('login: wrong password -> 401, response carries no token', async () => {
   const r = await call('/auth/login', { method: 'POST', body: { email: 'asha@test.local', password: 'nope' } });
@@ -54,9 +59,9 @@ test('completion write is applied and read back; other learner is unaffected', a
   // Read-back through a SECOND session (stands in for the second client, e.g. web).
   const asha2 = await login('asha@test.local');
   const trail = (await call('/me/courses/course_demo/trail', { token: asha2 })).body;
-  assert.equal(trail.courses[0].chapters[0].activities.find((a) => a.activity_uuid === 'act_1').completed, true);
+  assert.equal(trail.courses[0].chapters[0].activities.find((a: { activity_uuid: string }) => a.activity_uuid === 'act_1').completed, true);
   const raviTrail = (await call('/me/courses/course_demo/trail', { token: ravi })).body;
-  assert.equal(raviTrail.courses[0].chapters[0].activities.find((a) => a.activity_uuid === 'act_1').completed, false);
+  assert.equal(raviTrail.courses[0].chapters[0].activities.find((a: { activity_uuid: string }) => a.activity_uuid === 'act_1').completed, false);
 });
 
 test('retry with same Idempotency-Key -> one upstream effect, replayed result', async () => {
@@ -89,10 +94,10 @@ test('missing Idempotency-Key -> 400', async () => {
 test('home-layout: versioned envelope bound to the session learner, fallback without Gemini', async () => {
   const fresh = createFakeLearnHouse();
   const s = createApp({ lh: fresh.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
-  await new Promise((r) => s.listen(0, r));
-  const b = `http://127.0.0.1:${s.address().port}/api`;
-  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
-  const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${port(s)}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
+  const env: any = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
   s.close();
   assert.equal(env.version, 1); assert.equal(env.learnerId, '101'); assert.equal(env.courseUuid, 'course_demo');
   assert.ok(Date.parse(env.expiresAt) > Date.now());
@@ -105,10 +110,10 @@ test('home-layout: an agent returning content instead of names cannot inject it'
     mainCard: { component: 'HomeCard', props: { title: 'x', action: { type: 'complete-activity', activityUuid: 'act_draft' } } },
     nextStepSection: 'NextStepCard' }) };
   const s = createApp({ lh: fresh.lh, agent: evilAgent, allowedCourses: new Set(['course_demo']), logger: silent }).server();
-  await new Promise((r) => s.listen(0, r));
-  const b = `http://127.0.0.1:${s.address().port}/api`;
-  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
-  const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${port(s)}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
+  const env: any = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
   s.close();
   // Not a component name -> default HomeCard built from course data; the draft activity is never targeted.
   assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
@@ -136,12 +141,12 @@ test('not-enrolled learner: home-layout still works, suggests the first publishe
 
 test('real upstream failure (500) is still reported as 502 with the upstream status', async () => {
   const broken = createFakeLearnHouse();
-  broken.lh.getCourseMeta = async () => { const e = new Error('LearnHouse GET /courses -> 500'); e.status = 500; throw e; };
+  broken.lh.getCourseMeta = async () => { throw Object.assign(new Error('LearnHouse GET /courses -> 500'), { status: 500 }); };
   const s = createApp({ lh: broken.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
-  await new Promise((r) => s.listen(0, r));
-  const b = `http://127.0.0.1:${s.address().port}/api`;
-  const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${port(s)}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
   const r = await fetch(b + '/me/courses/course_demo/meta', { headers: { Authorization: `Bearer ${tok}` } });
-  const body = await r.json(); s.close();
+  const body: any = await r.json(); s.close();
   assert.equal(r.status, 502); assert.equal(body.upstreamStatus, 500);
 });

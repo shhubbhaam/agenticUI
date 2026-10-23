@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test:contract": "jest __tests__/contracts",
     "bff": "npm --prefix bff start",
-    "test:bff": "npm --prefix bff test"
+    "test:bff": "npm --prefix bff test",
+    "typecheck:bff": "npm --prefix bff run typecheck",
+    "check:contract": "cd bff && npx tsx scripts/check-contract.ts"
   },
   "dependencies": {
     "@react-navigation/native": "^7.3.18",

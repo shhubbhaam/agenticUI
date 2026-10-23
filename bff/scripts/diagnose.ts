@@ -1,29 +1,30 @@
-// bff/scripts/diagnose.js — step-by-step LearnHouse check. Prints status codes and error
+// bff/scripts/diagnose.ts — step-by-step LearnHouse check. Prints status codes and error
 // messages only; never prints tokens, passwords or full response bodies.
-// Usage (from bff/):  node --env-file=.env scripts/diagnose.js you@example.com "YourPassword"
+// Usage (from bff/):  npx tsx --env-file=.env scripts/diagnose.ts you@example.com "YourPassword"
 const [, , email, password] = process.argv;
 const { LH_BASE_URL: base, LH_API_TOKEN: orgToken, LH_ORG_SLUG: org, LH_ALLOWED_COURSES } = process.env;
 const course = (LH_ALLOWED_COURSES ?? '').split(',')[0]?.trim();
 
 const SECRET = /token|password|secret|authorization|cookie/i;
-const redact = (v) => Array.isArray(v) ? v.slice(0, 3).map(redact)
-  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(0, 12).map(([k, x]) => [k, SECRET.test(k) ? '[REDACTED]' : redact(x)]))
+const redact = (v: unknown): unknown => Array.isArray(v) ? v.slice(0, 3).map(redact)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v as Record<string, unknown>).slice(0, 12).map(([k, x]) => [k, SECRET.test(k) ? '[REDACTED]' : redact(x)]))
   : typeof v === 'string' && v.length > 80 ? v.slice(0, 80) + '…' : v;
 
-async function step(label, path, { auth, form } = {}) {
-  const headers = { Accept: 'application/json' };
+async function step(label: string, path: string, { auth, form }: { auth?: string; form?: Record<string, string> } = {}): Promise<{ ok: boolean; json?: any }> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
   if (auth) headers.Authorization = `Bearer ${auth}`;
-  let body;
+  let body: string | undefined;
   if (form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(form).toString(); }
   try {
     const res = await fetch(base + path, { method: form ? 'POST' : 'GET', headers, body, redirect: 'manual', signal: AbortSignal.timeout(15000) });
     const text = await res.text();
-    let json = null; try { json = JSON.parse(text); } catch {}
+    let json: any = null; try { json = JSON.parse(text); } catch {}
     const loc = res.headers.get('location');
     console.log(`\n[${label}] ${form ? 'POST' : 'GET'} ${path.replace(/\/trails\/[^/]+/, '/trails/<id>')}\n  status: ${res.status}${loc ? `  redirect -> ${loc}` : ''}`);
     if (!res.ok) console.log('  error:', json ? JSON.stringify(redact(json)) : text.slice(0, 200));
     return { ok: res.ok, json };
-  } catch (e) {
+  } catch (err) {
+    const e = err as Error & { cause?: { code?: string } };
     console.log(`\n[${label}] ${path}\n  NETWORK ERROR: ${e.name} ${e.message} ${e.cause?.code ?? ''}`);
     return { ok: false };
   }
@@ -31,7 +32,7 @@ async function step(label, path, { auth, form } = {}) {
 
 (async () => {
   console.log(`base=${base} org=${org} course=${course} orgToken=${orgToken ? 'set' : 'MISSING'}`);
-  if (!email || !password) return console.log('Usage: node --env-file=.env scripts/diagnose.js EMAIL "PASSWORD"');
+  if (!email || !password) return console.log('Usage: npx tsx --env-file=.env scripts/diagnose.ts EMAIL "PASSWORD"');
 
   const login = await step('1 login', '/auth/login', { form: { username: email, password } });
   const data = login.json ?? {};
@@ -48,3 +49,5 @@ async function step(label, path, { auth, form } = {}) {
   if (userToken) await step('5 my orgs (user token) — to confirm the org slug', '/orgs/user/page/1/limit/10', { auth: userToken });
   console.log('\nPaste everything above into the chat.');
 })();
+
+export {};

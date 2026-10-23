@@ -1,12 +1,12 @@
-// bff/server.js — entry point. All secrets come from bff/.env (see bff/.env.example).
-// Node >= 22 loads bff/.env natively: `node --env-file=.env server.js` (see npm start).
-const { createApp } = require('./src/app');
-const { createLearnHouse } = require('./src/learnhouse');
-const { createGeminiAgent } = require('./src/agent');
+// bff/server.ts — entry point. All secrets come from bff/.env (see bff/.env.example).
+// `npm start` runs `tsx --env-file=.env server.ts` (Node >= 22 loads bff/.env natively).
+import { createApp } from './src/app.ts';
+import { createLearnHouse, type LearnHouse } from './src/learnhouse.ts';
+import { createGeminiAgent } from './src/agent.ts';
+import { parseDevUsers, withDevLogin } from './src/devLogin.ts';
 
 const env = process.env;
-const { parseDevUsers, withDevLogin } = require('./src/devLogin');
-let lh = createLearnHouse({ baseUrl: env.LH_BASE_URL, orgToken: env.LH_API_TOKEN, orgSlug: env.LH_ORG_SLUG });
+let lh: LearnHouse = createLearnHouse({ baseUrl: env.LH_BASE_URL, orgToken: env.LH_API_TOKEN, orgSlug: env.LH_ORG_SLUG });
 const devLogin = env.LH_DEV_LOGIN === 'true';
 if (devLogin) {
   lh = withDevLogin(lh, { users: parseDevUsers(env.LH_DEV_USERS), password: env.LH_DEV_PASSWORD });

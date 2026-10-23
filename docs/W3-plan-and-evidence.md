@@ -47,7 +47,7 @@ This file answers W3 FB001 (P0), FB002 (P1) and FB003 (P1). Every "Observed" res
 
 Covers: valid layout; version 2; expired; future-issued; wrong learner; wrong course; unknown envelope field (`tenant`); million-char title (too large); malformed JSON; two JSON objects joined together; **one bad slot (other survives)**; both slots null; unknown component; extra prop; wrong prop type; extra wrapper field; allowed actions ×2; unknown action; old free-form `actionId` string; action missing its target; path-like target (`../admin`); extra field on an action.
 
-### 2c. Integration — `docs/evidence/bff-contract-integration.txt` (run: `npx tsx scripts/check-bff-contract.ts`)
+### 2c. Integration — `docs/evidence/bff-contract-integration.txt` (run: `npx tsx scripts/check-bff-contract.ts`; since M0: `npm run check:contract`, script moved to `bff/scripts/check-contract.ts`)
 
 The envelope the BFF actually emits is **accepted** by the client contract. The same envelope checked against another learner gives **`wrong-context`**.
 
