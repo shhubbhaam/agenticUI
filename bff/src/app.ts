@@ -45,6 +45,19 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 }
 const statusOf = (e: unknown) => (e as HttpError | null)?.status;
 
+/**
+ * A fixed reason code for an agent failure. Never the error message: a JSON.parse SyntaxError quotes
+ * the model's output, which may echo learner data (W3 review). Codes only, safe to log.
+ */
+export function agentFailureCode(e: unknown): string {
+  const err = e as { name?: unknown; status?: unknown; message?: unknown } | null;
+  if (err?.name === 'TimeoutError' || err?.name === 'AbortError') return 'timeout';
+  if (typeof err?.status === 'number') return `gemini_http_${err.status}`;
+  if (err?.name === 'SyntaxError') return 'malformed_json';
+  if (err?.message === 'decision outside catalogue') return 'outside_catalogue';
+  return 'agent_error';
+}
+
 export interface AppOptions {
   lh: LearnHouse;
   agent?: Agent | null;
@@ -61,12 +74,18 @@ export interface App {
   server(): Server;
 }
 interface CompletionResult { activityUuid: string; idempotencyKey: string; status: 'applied' | 'received' }
+interface Outcome { http: number; body: Record<string, unknown> }
 
 export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org }: AppOptions): App {
   const routes: Route[] = [];
   const route = (method: string) => (path: string, ...handlers: Handler[]) => { routes.push({ method, path, ...compile(path), handlers }); };
   const app = { get: route('GET'), post: route('POST') };
-  const idempotency = new Map<string, CompletionResult>(); // `${learnerId}:${key}` -> result   (W5: move to SQLite)
+  // Idempotency, keyed by `${learnerId}:${key}`. A key is bound to ONE course + activity (scope).
+  // `inflight` reserves the key while its write runs, so concurrent retries share one upstream write.
+  // Still in memory: a BFF restart forgets it (durable inbox is M5); LearnHouse completion is itself
+  // idempotent (read-back), so a forgotten key cannot double-complete.
+  const idempotency = new Map<string, { scope: string; result: CompletionResult }>();
+  const inflight = new Map<string, { scope: string; outcome: Promise<Outcome> }>();
 
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
@@ -176,10 +195,29 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     catch (e) { if ([400, 404, 422].includes(statusOf(e) as number)) return null; throw e; }
   }
 
+  // An activity counts as published only when LearnHouse says so. A missing flag is NOT published
+  // (W3 review); then the learner's trail, which carries `published` per activity, decides.
+  const trailPublished = (trail: Trail | null, courseUuid: string) => new Set(
+    (trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? [])
+      .flatMap((ch) => ch.activities ?? []).filter((a) => a.published === true).map((a) => a.activity_uuid));
+  const isPublished = (a: { activity_uuid: string; published?: boolean }, fromTrail: Set<string>) =>
+    a.published === true || (a.published === undefined && fromTrail.has(a.activity_uuid));
+
   // Published activities of an allowed course, in order.
-  async function publishedActivities(courseUuid: string) {
+  async function publishedActivities(courseUuid: string, trail: Trail | null) {
     const meta = await lh.getCourseMeta(courseUuid);
-    return (meta?.chapters ?? []).flatMap((ch) => ch.activities ?? []).filter((a) => a.published !== false);
+    const fromTrail = trailPublished(trail, courseUuid);
+    return (meta?.chapters ?? []).flatMap((ch) => ch.activities ?? []).filter((a) => isPublished(a, fromTrail));
+  }
+
+  // Enrolled = the course is among the learner's LearnHouse courses. The server allow-list alone is
+  // not entitlement (W3 review), and LearnHouse's completion call would silently enroll anyone.
+  async function isEnrolled(learnerId: string, courseUuid: string): Promise<boolean> {
+    if (lh.getAllTrails) {
+      try { return !!(await lh.getAllTrails(learnerId))?.courses?.some((c) => c.course_uuid === courseUuid); }
+      catch (e) { if ([400, 404, 422].includes(statusOf(e) as number)) return false; throw e; }
+    }
+    return (await trailOrNull(learnerId, courseUuid)) !== null;
   }
   async function isCompleted(learnerId: string, courseUuid: string, activityUuid: string) {
     const trail = await trailOrNull(learnerId, courseUuid);
@@ -195,14 +233,25 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
     const learnerId = req.learner.learnerId;
     const cacheKey = `${learnerId}:${key}`;
+    const scope = `${courseUuid}/${activityUuid}`;
+
     const prior = idempotency.get(cacheKey);
     if (prior) {
-      if (prior.activityUuid !== activityUuid) return res.status(409).json({ error: 'idempotency_key_reused' });
-      if (prior.status === 'applied') return res.json({ ...prior, replayed: true });
+      if (prior.scope !== scope) return res.status(409).json({ error: 'idempotency_key_reused' });
+      if (prior.result.status === 'applied') return res.json({ ...prior.result, replayed: true });
     }
-    try {
-      const activities = await publishedActivities(courseUuid);
-      if (!activities.some((a) => a.activity_uuid === activityUuid)) return res.status(403).json({ error: 'activity_forbidden' });
+    const running = inflight.get(cacheKey);
+    if (running) {
+      if (running.scope !== scope) return res.status(409).json({ error: 'idempotency_key_reused' });
+      try { const o = await running.outcome; return res.status(o.http).json({ ...o.body, replayed: true }); }
+      catch (e) { return upstreamError(res, e); }
+    }
+
+    const outcome = (async (): Promise<Outcome> => {
+      const trail = await trailOrNull(learnerId, courseUuid);
+      if (!(await isEnrolled(learnerId, courseUuid))) return { http: 403, body: { error: 'not_enrolled' } };
+      const activities = await publishedActivities(courseUuid, trail);
+      if (!activities.some((a) => a.activity_uuid === activityUuid)) return { http: 403, body: { error: 'activity_forbidden' } };
 
       let writeError: unknown = null;
       if (!(await isCompleted(learnerId, courseUuid, activityUuid))) {
@@ -211,14 +260,18 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
       // Reconcile: a lost/timeout response may still have been applied upstream.
       const applied = await isCompleted(learnerId, courseUuid, activityUuid).catch(() => false);
       const result: CompletionResult = { activityUuid, idempotencyKey: key, status: applied ? 'applied' : 'received' };
-      idempotency.set(cacheKey, result);
+      idempotency.set(cacheKey, { scope, result });
       if (!applied && writeError) {
         const code = causeCode(writeError);
         logger.warn?.(`[upstream] ${(writeError as Error).message}${code ? ` (${code})` : ''}`);
-        return res.status(502).json({ ...result, error: 'upstream_write_failed', upstreamStatus: statusOf(writeError) ?? null });
+        return { http: 502, body: { ...result, error: 'upstream_write_failed', upstreamStatus: statusOf(writeError) ?? null } };
       }
-      res.status(applied ? 200 : 202).json(result);
-    } catch (e) { upstreamError(res, e); }
+      return { http: applied ? 200 : 202, body: { ...result } };
+    })();
+    inflight.set(cacheKey, { scope, outcome });
+    try { const o = await outcome; res.status(o.http).json(o.body); }
+    catch (e) { upstreamError(res, e); }
+    finally { inflight.delete(cacheKey); }
   });
 
   // Agent layout: built here, authorized here, wrapped in the versioned envelope.
@@ -230,8 +283,9 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
       // Published activities in course order, with the chapter they belong to (all content comes from here).
       // Chapters with published activities. Stage label = the Path screen's rule (usePathData):
       // STAGE <trail chapter order + 1>, falling back to the chapter's position when the trail has no order.
+      const fromTrail = trailPublished(trail, courseUuid);
       const chapters = (meta?.chapters ?? [])
-        .map((ch) => ({ ch, acts: (ch.activities ?? []).filter((a) => a.published !== false) }))
+        .map((ch) => ({ ch, acts: (ch.activities ?? []).filter((a) => isPublished(a, fromTrail)) }))
         .filter((c) => c.acts.length > 0);
       const trailOrder = new Map((trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? [])
         .filter((c) => typeof c.order === 'number' && c.chapter_uuid).map((c) => [c.chapter_uuid as string, c.order as number]));
@@ -250,15 +304,17 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
         completedCount: done.size, remainingCount: choices.length, totalCount: activities.length,
         progressPercent: activities.length ? Math.round((100 * (activities.length - choices.length)) / activities.length) : 0,
       };
-      // Authorized targets: this learner's unfinished + completed published activities in this course.
-      const allowed = new Set([...choices, ...completedList].map((c) => c.activityUuid));
+      // Authorized targets: this learner's unfinished + completed published activities in this course,
+      // and none at all if they are not enrolled (the cards then only open the path).
+      const enrolled = await isEnrolled(learnerId, courseUuid);
+      const allowed = new Set(enrolled ? [...choices, ...completedList].map((c) => c.activityUuid) : []);
 
       let decision: Decision | null = null; let source = 'fallback';
       if (agent) {
         try { decision = await agent.decide({ signals }); source = 'agent'; }
         catch (e) {
-          // Status/reason only, never model text: e.g. "Gemini HTTP 404" = wrong model name for this key.
-          logger.warn?.(`[agent] fallback used: ${(e as Error).name === 'TimeoutError' ? 'timeout' : (e as Error).message}`);
+          // Reason code only, never model text: e.g. gemini_http_404 = wrong model name for this key.
+          logger.warn?.(`[agent] fallback used: ${agentFailureCode(e)}`);
         }
       }
       let slots = authorizeSlots(decision ? buildSlots(decision, ctx) : fallbackSlots(ctx), allowed);
@@ -284,12 +340,21 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     const t = Date.now();
     const url = new URL(req.url ?? '/', 'http://bff');
     let matched: Route | null = null;
+    let badParam = false;
     for (const r of routes) {
       const m = r.method === req.method && r.re.exec(url.pathname);
-      if (m) { matched = r; req.params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); break; }
+      if (m) {
+        matched = r;
+        // decodeURIComponent throws URIError on bad %-sequences (e.g. %E0%A4%A). That used to escape
+        // handle() as an unhandled rejection and leave the request unanswered; answer 400 instead.
+        try { req.params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); }
+        catch { badParam = true; }
+        break;
+      }
     }
     res.on('finish', () => logger.info?.(`${req.method} ${matched?.path ?? 'unmatched'} ${res.statusCode} ${Date.now() - t}ms`));
     if (!matched) { res.status(404).json({ error: 'not_found' }); return; }
+    if (badParam) { res.status(400).json({ error: 'bad_request' }); return; }
     const handlers = matched.handlers;
     try {
       req.body = req.method === 'POST' ? await readJson(req) : {};

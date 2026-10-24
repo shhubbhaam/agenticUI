@@ -13,6 +13,7 @@ export function createFakeLearnHouse() {
   const completed = new Map<string, Set<string>>(); // learnerId -> Set
   const calls = { complete: 0 };
   let failNextWriteAfterApply = false;
+  let writeDelayMs = 0; // >0 makes the write slow, so concurrent requests overlap as they do on a real server
   // LearnHouse /users/session shape; Ravi also belongs to a second org that /api/me must not show.
   const profileOf = (email: string): LearnerProfile => {
     const u = users[email];
@@ -39,11 +40,12 @@ export function createFakeLearnHouse() {
     },
     async completeActivity(learnerId, activityUuid) {
       calls.complete++;
+      if (writeDelayMs) await new Promise((r) => setTimeout(r, writeDelayMs));
       if (!completed.has(learnerId)) completed.set(learnerId, new Set());
       completed.get(learnerId)!.add(activityUuid);
       if (failNextWriteAfterApply) { failNextWriteAfterApply = false; throw fail('timeout', 504); }
       return { ok: true };
     },
   };
-  return { lh, calls, completed, loseNextWriteResponse: () => { failNextWriteAfterApply = true; } };
+  return { lh, calls, completed, loseNextWriteResponse: () => { failNextWriteAfterApply = true; }, slowWrites: (ms: number) => { writeDelayMs = ms; } };
 }

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createGeminiAgent, type Agent } from '../src/agent.ts';
-import { createApp } from '../src/app.ts';
+import { createApp, agentFailureCode } from '../src/app.ts';
 import type { FetchLike } from '../src/util.ts';
 import { createFakeLearnHouse } from './fakeLearnHouse.ts';
 
@@ -83,4 +83,31 @@ test('Gemini HTTP error -> deterministic fallback', async () => {
   const agent = createGeminiAgent({ apiKey: 'k', model: 'm', logger: quiet, fetchImpl: async () => ({ ok: false, status: 404, json: async () => null }) });
   const env = await layoutWith(agent);
   assert.equal(env.slots.mainCard.props.action.activityUuid, 'act_1');
+});
+
+test('malformed model JSON -> fallback, and the log carries a reason code, not model text (W3 review)', async () => {
+  const warnings: string[] = [];
+  const logger = { info() {}, warn: (...a: unknown[]) => { warnings.push(a.map(String).join(' ')); } };
+  const leak = 'LEARNER_SECRET_Asha_answered_42';
+  const fetchImpl: FetchLike = async () => ({ ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: `${leak} not json` }] } }] }) });
+  const agent = createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl, logger: quiet });
+  const fake = createFakeLearnHouse();
+  const s = createApp({ lh: fake.lh, agent, allowedCourses: new Set(['course_demo']), logger }).server();
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
+  const env: any = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
+  s.close();
+  assert.equal(env.slots.mainCard.component, 'HomeCard'); // deterministic fallback
+  assert.ok(warnings.some((w) => w.includes('[agent] fallback used: malformed_json')), warnings.join('\n'));
+  // V8 quotes the start of bad JSON ("LEARNER_SE"...), so check that prefix, not the whole string.
+  assert.ok(!warnings.join('\n').includes(leak.slice(0, 10)), 'model text must not reach the logs');
+});
+
+test('agentFailureCode: fixed codes for each failure class', () => {
+  assert.equal(agentFailureCode(Object.assign(new Error('x'), { name: 'TimeoutError' })), 'timeout');
+  assert.equal(agentFailureCode(Object.assign(new Error('Gemini HTTP 404'), { status: 404 })), 'gemini_http_404');
+  assert.equal(agentFailureCode(new SyntaxError('Unexpected token in JSON at "secret"')), 'malformed_json');
+  assert.equal(agentFailureCode(new Error('decision outside catalogue')), 'outside_catalogue');
+  assert.equal(agentFailureCode(new Error('anything with learner text')), 'agent_error');
 });

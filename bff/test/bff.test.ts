@@ -132,11 +132,14 @@ test('not-enrolled learner: trail -> 404 not_enrolled (not a 502)', async () => 
   assert.equal(r.status, 404); assert.equal(r.body.error, 'not_enrolled');
 });
 
-test('not-enrolled learner: home-layout still works, suggests the first published activity', async () => {
+// Changed after the W3 review: a learner who is not enrolled used to get a "Mark complete" card for
+// act_1 (and the write would have enrolled them). Now the layout still loads, with no write target.
+test('not-enrolled learner: home-layout still works, but offers no completion target', async () => {
   const t = await login('neha@test.local');
   const r = await call('/me/courses/course_demo/home-layout', { token: t });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+  assert.ok(!JSON.stringify(r.body.slots).includes('complete-activity'), JSON.stringify(r.body.slots));
+  assert.deepEqual(r.body.slots.nextStepSection.props.action, { type: 'open-path' });
 });
 
 test('real upstream failure (500) is still reported as 502 with the upstream status', async () => {
@@ -149,4 +152,67 @@ test('real upstream failure (500) is still reported as 502 with the upstream sta
   const r = await fetch(b + '/me/courses/course_demo/meta', { headers: { Authorization: `Bearer ${tok}` } });
   const body: any = await r.json(); s.close();
   assert.equal(r.status, 502); assert.equal(body.upstreamStatus, 500);
+});
+
+test('malformed percent-encoding in a route param -> 400, and the server keeps serving (W3 review)', async () => {
+  const t = await login('asha@test.local');
+  const r = await call('/me/courses/%E0%A4%A/meta', { token: t });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error, 'bad_request');
+  assert.equal((await call('/health')).status, 200);
+});
+
+// ---- W3 review: concurrency, key scope, entitlement, visibility ----
+
+test('concurrent requests with the same Idempotency-Key -> exactly one upstream write, same result', async () => {
+  const t = await login('ravi@test.local');
+  const before = fake.calls.complete;
+  fake.slowWrites(80);
+  const send = () => call('/me/courses/course_demo/activities/act_1/complete', { method: 'POST', token: t, headers: { 'Idempotency-Key': 'k-concurrent' } });
+  const [a, b] = await Promise.all([send(), send()]);
+  fake.slowWrites(0);
+  assert.equal(fake.calls.complete - before, 1);
+  assert.equal(a.body.status, 'applied'); assert.equal(b.body.status, 'applied');
+  assert.ok(a.body.replayed || b.body.replayed);
+});
+
+test('same key reused for the same activity in another course -> 409 before any upstream call', async () => {
+  const f = createFakeLearnHouse();
+  const s = createApp({ lh: f.lh, allowedCourses: new Set(['course_demo', 'course_two']), logger: silent }).server();
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${port(s)}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
+  const post = (course: string) => fetch(`${b}/me/courses/${course}/activities/act_1/complete`, { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Idempotency-Key': 'k-scope' } });
+  assert.equal((await post('course_demo')).status, 200);
+  const calls = f.calls.complete;
+  assert.equal((await post('course_two')).status, 409);
+  assert.equal(f.calls.complete, calls);
+  s.close();
+});
+
+test('not-enrolled learner: completion -> 403 not_enrolled and no upstream write', async () => {
+  const t = await login('neha@test.local');
+  const before = fake.calls.complete;
+  const r = await call('/me/courses/course_demo/activities/act_1/complete', { method: 'POST', token: t, headers: { 'Idempotency-Key': 'k-neha' } });
+  assert.equal(r.status, 403); assert.equal(r.body.error, 'not_enrolled');
+  assert.equal(fake.calls.complete, before);
+});
+
+test('activity with no published flag is not published (no card, no write); the trail flag can publish it', async () => {
+  const f = createFakeLearnHouse();
+  const realMeta = f.lh.getCourseMeta; const realTrail = f.lh.getTrail;
+  // act_2 loses its meta flag; nothing else says it is published.
+  f.lh.getCourseMeta = async (u) => { const m = await realMeta(u); return { ...m, chapters: m.chapters!.map((c) => ({ ...c, activities: c.activities!.map((a) => (a.activity_uuid === 'act_2' ? { activity_uuid: a.activity_uuid, name: a.name } : a)) })) }; };
+  const s = createApp({ lh: f.lh, allowedCourses: new Set(['course_demo']), logger: silent }).server();
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${port(s)}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
+  const hdr = (k: string) => ({ method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Idempotency-Key': k } });
+  assert.equal((await fetch(`${b}/me/courses/course_demo/activities/act_2/complete`, hdr('k-unflagged'))).status, 403);
+  const env: any = await (await fetch(`${b}/me/courses/course_demo/home-layout`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+  assert.ok(!JSON.stringify(env).includes('Prompt basics'), 'unflagged activity must not be suggested');
+  // Now the learner's trail marks it published -> allowed.
+  f.lh.getTrail = async (l, c) => { const tr = await realTrail(l, c); return { ...tr, courses: tr.courses!.map((co) => ({ ...co, chapters: co.chapters!.map((ch) => ({ ...ch, activities: ch.activities!.map((a) => ({ ...a, published: true })) })) })) }; };
+  assert.equal((await fetch(`${b}/me/courses/course_demo/activities/act_2/complete`, hdr('k-trailflag'))).status, 200);
+  s.close();
 });
