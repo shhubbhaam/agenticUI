@@ -1,7 +1,7 @@
 // bff/scripts/diagnose.ts — step-by-step LearnHouse check. Prints status codes and error
 // messages only; never prints tokens, passwords or full response bodies.
-// Usage (from bff/):  npx tsx --env-file=.env scripts/diagnose.ts you@example.com "YourPassword"
-const [, , email, password] = process.argv;
+// Usage (from bff/):  npx tsx --env-file=.env scripts/diagnose.ts you@example.com "YourPassword" [activity_uuid]
+const [, , email, password, activityArg] = process.argv;
 const { LH_BASE_URL: base, LH_API_TOKEN: orgToken, LH_ORG_SLUG: org, LH_ALLOWED_COURSES } = process.env;
 const course = (LH_ALLOWED_COURSES ?? '').split(',')[0]?.trim();
 
@@ -30,8 +30,30 @@ async function step(label: string, path: string, { auth, form }: { auth?: string
   }
 }
 
+// 6. Where activity CONTENT lives (needed for the lesson player, M4). Prints only the type, sub-type
+//    and the NAMES of content/details fields (plus content.type, e.g. "youtube"): never values or URLs.
+//    Uses the org token only, so it also runs when learner login fails (e.g. dev-login setups).
+async function contentShapes() {
+  const shape = (a: any) => a && ({
+    activity_uuid: a.activity_uuid, activity_type: a.activity_type, activity_sub_type: a.activity_sub_type,
+    published: a.published, content_keys: a.content && typeof a.content === 'object' ? Object.keys(a.content) : typeof a.content,
+    content_type: typeof a.content?.type === 'string' ? a.content.type : undefined,
+    details_keys: a.details && typeof a.details === 'object' ? Object.keys(a.details) : typeof a.details,
+  });
+  const full = await step('6a course meta WITHOUT slim (org token)', `/courses/${course}/meta`, { auth: orgToken });
+  const acts: any[] = (full.json?.chapters ?? []).flatMap((ch: any) => ch.activities ?? []);
+  console.log(`  activities: ${acts.length}; by type:`, JSON.stringify(acts.reduce((m: any, a: any) => ({ ...m, [`${a.activity_type}/${a.activity_sub_type}`]: (m[`${a.activity_type}/${a.activity_sub_type}`] ?? 0) + 1 }), {})));
+  const target = acts.find((a) => a.activity_uuid === activityArg) ?? acts.find((a) => a.activity_type === 'TYPE_VIDEO') ?? acts[0];
+  if (target) {
+    console.log('  first video (or given) activity in meta:', JSON.stringify(shape(target)));
+    const one = await step('6b single activity (org token)', `/activities/${target.activity_uuid}`, { auth: orgToken });
+    if (one.ok) console.log('  GET /activities/{uuid}:', JSON.stringify(shape(one.json)));
+  }
+}
+
 (async () => {
   console.log(`base=${base} org=${org} course=${course} orgToken=${orgToken ? 'set' : 'MISSING'}`);
+  await contentShapes();
   if (!email || !password) return console.log('Usage: npx tsx --env-file=.env scripts/diagnose.ts EMAIL "PASSWORD"');
 
   const login = await step('1 login', '/auth/login', { form: { username: email, password } });
