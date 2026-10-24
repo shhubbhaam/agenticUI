@@ -10,15 +10,19 @@ export type StageTone = 'indigo' | 'teal' | 'plum';
 interface StageCrestProps {
   tone: StageTone;
   icon: IconType;
-  size?: 'sm' | 'lg';
+  size?: 'sm' | 'lg' | 'xl';
   locked?: boolean;
 }
 
-// Figma: height = icon (25, both sizes) + 2×vertical padding — 39×41 (sm),
+// Figma: height = icon (25, sm/lg) + 2×vertical padding — 39×41 (sm),
 // 47×49 (lg). Width (box) is an independent, given value, not derived.
+// xl (75×78) is the auth/launchpad hero crest (node 33-4794 etc.):
+// icon 38, padding 20 — same formula, bigger numbers, plus a deeper
+// unlocked shadow offset (5px, vs sm/lg's 4px) per that frame's source.
 const DIMENSIONS = {
-  sm: { box: 39, radius: 12, icon: 25, padding: 8 },
-  lg: { box: 47, radius: 15, icon: 25, padding: 12 },
+  sm: { box: 39, radius: 12, icon: 25, padding: 8, shadowOffsetY: { locked: 3, unlocked: 4 } },
+  lg: { box: 47, radius: 15, icon: 25, padding: 12, shadowOffsetY: { locked: 3, unlocked: 4 } },
+  xl: { box: 75, radius: 23, icon: 38, padding: 20, shadowOffsetY: { locked: 3, unlocked: 5 } },
 };
 
 export const StageCrest: React.FC<StageCrestProps> = ({ tone, icon, size = 'sm', locked = false }) => {
@@ -37,7 +41,7 @@ export const StageCrest: React.FC<StageCrestProps> = ({ tone, icon, size = 'sm',
           backgroundColor: locked ? colors.path.stage.locked.base : stage.base,
           borderColor: locked ? colors.path.stage.locked.border : colors.path.stage.ring,
           shadowColor: locked ? colors.path.stage.locked.shadow : stage.shadow,
-          shadowOffset: { width: 0, height: locked ? 3 : 4 },
+          shadowOffset: { width: 0, height: locked ? dims.shadowOffsetY.locked : dims.shadowOffsetY.unlocked },
           shadowOpacity: 1,
           shadowRadius: 0,
           elevation: 3,

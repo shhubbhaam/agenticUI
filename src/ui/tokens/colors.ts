@@ -84,6 +84,38 @@ const primitives = {
   outcomeSurface: '#F8F4FC',
   outcomeBorder: '#E1D5ED',
   miniIconPlumSurface: '#EEE6F7',
+  // Auth flow (AI Launchpad — Mobile Design System, node 33-4794/4847/4899/4953)
+  alertErrorSurface: '#FCEEEE',
+  alertErrorSurface2: '#EFD7D7',
+  alertErrorInk: '#954B4F',
+  inputBorder: '#DCE3EE',
+  inputInk: '#33425E',
+  btnGhostInk: '#4A608B',
+  actionPrimaryShadow: '#2442A9',
+  brandMarkSurface: '#4262E5',
+  brandMarkShadow: '#2943A9',
+  // Onboarding questionnaire (AI Launchpad — Mobile Design System, nodes 33-5062..36-915)
+  choiceBorder: '#DDE4EF',
+  choiceInk: '#44516B',
+  choiceSelectedSurface: '#F0F3FD',
+  choiceSelectedBorder: '#758BDA',
+  choiceSelectedInk: '#314FA9',
+  radioBorder: '#C7D0DF',
+  radioSelected: '#5270D2',
+  spanInk: '#8290A4',
+  badgeNeutralSurface: '#F0F3F8',
+  badgeNeutralInk: '#596982',
+  alertInfoSurface: '#EDF3FF',
+  alertInfoBorder: '#D7E3FA',
+  alertInfoInk: '#4F6388',
+  budgetBorder: '#E0E5EF',
+  budgetInk: '#77859D',
+  budgetSelectedSurface: '#EDF1FE',
+  budgetSelectedBorder: '#879BDD',
+  budgetSelectedInk: '#3656B0',
+  rhythmCardSurface: '#F0EAF8',
+  rhythmCardBorder: '#E4D8F0',
+  miniIconSurface: '#E9EEF9',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -101,6 +133,8 @@ export const colors = {
   action: {
     primary: primitives.blue600, // used in: HomeScreen, BottomTabs, PathScreen
     lesson: primitives.purple500, // used in: ActiveButton
+    ghost: primitives.btnGhostInk, // used in: LoginScreen ghost links
+    primaryShadow: primitives.actionPrimaryShadow, // used in: LoginScreen primary CTA
   },
   surface: {
     white: primitives.white, // used in: HomeCard
@@ -115,6 +149,10 @@ export const colors = {
   },
   hero: {
     surface: primitives.lavender100, // used in: HomeCard
+    brandMark: {
+      surface: primitives.brandMarkSurface, // used in: LaunchpadScreen, LoginScreen
+      shadow: primitives.brandMarkShadow,
+    },
   },
   dot: {
     surface: primitives.slate200, // used in: ProgressBar
@@ -175,6 +213,40 @@ export const colors = {
     },
     outcome: { surface: primitives.outcomeSurface, border: primitives.outcomeBorder },
     miniIconPlum: primitives.miniIconPlumSurface,
+  },
+  alert: {
+    error: {
+      surface: primitives.alertErrorSurface, // used in: Alert (login error state)
+      border: primitives.alertErrorSurface2,
+      ink: primitives.alertErrorInk,
+    },
+  },
+  onboarding: {
+    // used in: ChoiceCard, Radio, BackHeader, Badge (neutral), Alert (info), BudgetPicker, BudgetScreen
+    choice: {
+      border: primitives.choiceBorder,
+      ink: primitives.choiceInk,
+      selectedSurface: primitives.choiceSelectedSurface,
+      selectedBorder: primitives.choiceSelectedBorder,
+      selectedInk: primitives.choiceSelectedInk,
+    },
+    radio: { border: primitives.radioBorder, selected: primitives.radioSelected },
+    spanInk: primitives.spanInk,
+    badge: { surface: primitives.badgeNeutralSurface, ink: primitives.badgeNeutralInk },
+    alertInfo: { surface: primitives.alertInfoSurface, border: primitives.alertInfoBorder, ink: primitives.alertInfoInk },
+    budget: {
+      border: primitives.budgetBorder,
+      ink: primitives.budgetInk,
+      selectedSurface: primitives.budgetSelectedSurface,
+      selectedBorder: primitives.budgetSelectedBorder,
+      selectedInk: primitives.budgetSelectedInk,
+    },
+    rhythmCard: { surface: primitives.rhythmCardSurface, border: primitives.rhythmCardBorder },
+    miniIconSurface: primitives.miniIconSurface,
+  },
+  input: {
+    border: primitives.inputBorder, // used in: TextField (login)
+    ink: primitives.inputInk,
   },
 } as const;
 

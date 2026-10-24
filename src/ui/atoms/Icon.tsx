@@ -1,11 +1,14 @@
 import React from 'react';
-import { Dumbbell, Play, LockKeyhole } from 'lucide-react-native';
+import { Dumbbell, Play, LockKeyhole, Eye, EyeOff, TriangleAlert } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 
 export type IconType =
   | 'dumbbell'
   | 'play'
   | 'lock'
+  | 'eye'
+  | 'eye-off'
+  | 'warning'
   // Path screen redesign glyphs — hand-converted from the exact Figma-exported
   // SVGs (source: AI Launchpad — Mobile Design System, node 18:407/18:107/18:604).
   // No svg-transformer is configured in metro.config.js, so raw .svg files can't
@@ -26,7 +29,18 @@ export type IconType =
   | 'headphones'
   | 'arrow'
   | 'plus'
-  | 'route';
+  | 'route'
+  // Auth flow glyph (source: AI Launchpad — Mobile Design System, node 33:4794,
+  // "Sign in with your organization" button icon).
+  | 'building'
+  // Onboarding glyphs — Figma nodes 25:92/95/101/104/113/65/137
+  | 'back'
+  | 'flag'
+  | 'user'
+  | 'sun'
+  | 'clock'
+  | 'sparkles'
+  | 'play-outline';
 
 export interface IconProps {
   name: IconType;
@@ -52,6 +66,14 @@ const FIGMA_PATHS: Partial<Record<IconType, { viewBox: string; d: string; stroke
   arrow: { viewBox: '0 0 18 18', strokeWidth: 1.35, d: 'M3 9H15M10.5 13.5L15 9L10.5 4.5' },
   plus: { viewBox: '0 0 15 15', strokeWidth: 1.125, d: 'M7.5 2.5V12.5M2.5 7.5H12.5' },
   route: { viewBox: '0 0 20 20', strokeWidth: 1.83333, d: 'M5.83333 3.33333C5.82237 2.89505 5.63916 2.47874 5.32339 2.1746C5.00763 1.87046 4.58474 1.70298 4.14635 1.70846C3.70797 1.71394 3.2894 1.89194 2.98133 2.20388C2.67327 2.51582 2.50052 2.93658 2.50052 3.375C2.50052 3.81342 2.67327 4.23418 2.98133 4.54612C3.2894 4.85806 3.70797 5.03606 4.14635 5.04154C4.58474 5.04702 5.00763 4.87954 5.32339 4.5754C5.63916 4.27126 5.82237 3.85495 5.83333 3.41667M14.1667 15C14.1557 14.5617 13.9725 14.1454 13.6567 13.8413C13.341 13.5371 12.9181 13.3696 12.4797 13.3751C12.0413 13.3806 11.6227 13.5586 11.3147 13.8705C11.0066 14.1825 10.8339 14.6032 10.8339 15.0417C10.8339 15.4801 11.0066 15.9008 11.3147 16.2128C11.6227 16.5247 12.0413 16.7027 12.4797 16.7082C12.9181 16.7137 13.341 16.5462 13.6567 16.2421C13.9725 15.9379 14.1557 15.5216 14.1667 15.0833M5.83333 5.83333V8.33333C5.83333 8.99637 6.09673 9.63226 6.56557 10.1011C7.03441 10.5699 7.67029 10.8333 8.33333 10.8333H11.6667C12.3297 10.8333 12.9656 11.0967 13.4344 11.5656C13.9033 12.0344 14.1667 12.6703 14.1667 13.3333' },
+  building: { viewBox: '0 0 18 18', strokeWidth: 1.35, d: 'M6.75 5.25H6.7575M11.25 5.25H11.2575M6.75 8.25H6.7575M11.25 8.25H11.2575M6.75 11.25H6.7575M11.25 11.25H11.2575M7.5 16.5V13.5H10.5V16.5M3.75 2.25H14.25V16.5H3.75V2.25Z' },
+  back: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M13.75 4.5835L7.33337 11.0002L13.75 17.4168' },
+  flag: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M3.66667 20.1665V2.74988C9.16667 -0.916785 12.8333 6.41655 18.3333 2.74988V12.8332C12.8333 16.4999 9.16667 9.16655 3.66667 12.8332' },
+  user: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M3.66663 19.25V16.5C3.66663 15.0413 4.24609 13.6424 5.27754 12.6109C6.30899 11.5795 7.70794 11 9.16663 11H12.8333C14.292 11 15.6909 11.5795 16.7224 12.6109C17.7538 13.6424 18.3333 15.0413 18.3333 16.5V19.25M14.6666 6.41667C14.6666 7.38913 14.2803 8.32176 13.5927 9.00939C12.9051 9.69703 11.9724 10.0833 11 10.0833C10.0275 10.0833 9.09487 9.69703 8.40723 9.00939C7.7196 8.32176 7.33329 7.38913 7.33329 6.41667C7.33329 5.44421 7.7196 4.51158 8.40723 3.82394C9.09487 3.13631 10.0275 2.75 11 2.75C11.9724 2.75 12.9051 3.13631 13.5927 3.82394C14.2803 4.51158 14.6666 5.44421 14.6666 6.41667Z' },
+  sun: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M11 0.916504V3.6665M11 18.3332V21.0832M0.916687 10.9998H3.66669M18.3334 10.9998H21.0834M3.66669 3.6665L5.50002 5.49984M16.5 16.4998L18.3334 18.3332M3.66669 18.3332L5.50002 16.4998M16.5 5.49984L18.3334 3.6665M14.6667 10.9998C14.6667 11.9723 14.2804 12.9049 13.5927 13.5926C12.9051 14.2802 11.9725 14.6665 11 14.6665C10.0276 14.6665 9.09493 14.2802 8.4073 13.5926C7.71966 12.9049 7.33335 11.9723 7.33335 10.9998C7.33335 10.0274 7.71966 9.09475 8.4073 8.40711C9.09493 7.71948 10.0276 7.33317 11 7.33317C11.9725 7.33317 12.9051 7.71948 13.5927 8.40711C14.2804 9.09475 14.6667 10.0274 14.6667 10.9998Z' },
+  clock: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M11 5.50016V11.0002L14.6666 12.8335M20.1666 11.0002C20.1666 13.4313 19.2009 15.7629 17.4818 17.482C15.7627 19.2011 13.4311 20.1668 11 20.1668C8.56883 20.1668 6.23725 19.2011 4.51817 17.482C2.79908 15.7629 1.83331 13.4313 1.83331 11.0002C1.83331 8.56901 2.79908 6.23743 4.51817 4.51835C6.23725 2.79927 8.56883 1.8335 11 1.8335C13.4311 1.8335 15.7627 2.79927 17.4818 4.51835C19.2009 6.23743 20.1666 8.56901 20.1666 11.0002Z' },
+  sparkles: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M18.3333 1.8335V5.50016M16.5 3.66683H20.1666M11 1.8335L13.2916 8.7085L20.1666 11.0002L13.2916 13.2918L11 20.1668L8.70831 13.2918L1.83331 11.0002L8.70831 8.7085L11 1.8335Z' },
+  'play-outline': { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M7.33331 3.6665L18.3333 10.9998L7.33331 18.3332V3.6665Z' },
 };
 
 export const Icon: React.FC<IconProps> = ({ name, color, size = 24 }) => {
@@ -62,6 +84,12 @@ export const Icon: React.FC<IconProps> = ({ name, color, size = 24 }) => {
       return <Play size={size} color={color} fill={color} strokeWidth={2} />;
     case 'lock':
       return <LockKeyhole size={size} color={color} strokeWidth={2.4} />;
+    case 'eye':
+      return <Eye size={size} color={color} strokeWidth={2} />;
+    case 'eye-off':
+      return <EyeOff size={size} color={color} strokeWidth={2} />;
+    case 'warning':
+      return <TriangleAlert size={size} color={color} strokeWidth={2} />;
     default: {
       const spec = FIGMA_PATHS[name];
       if (!spec) return null;

@@ -216,3 +216,12 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+.worktrees/
+.superpowers/
+
+# Local-only, never committed
+graphify-out/
+scripts/test-learnhouse-api.mjs
+# LearnHouse test credentials
+src/core/api/learnhouse/config.ts

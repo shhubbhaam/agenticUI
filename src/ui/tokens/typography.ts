@@ -14,6 +14,7 @@ export const typography = {
     'type-10-tracked': { fontSize: 10, lineHeight: 16, letterSpacing: 1 },
     'type-10-alt': { fontSize: 10, lineHeight: 12, letterSpacing: 1 },
     'type-11': { fontSize: 11, lineHeight: 13.2, letterSpacing: 0 },
+    'type-11-base': { fontSize: 11, lineHeight: 17.6, letterSpacing: 0 },
     'type-11-tracked': { fontSize: 11, lineHeight: 17.6, letterSpacing: 1 },
     'type-11-tight': { fontSize: 11, lineHeight: 13.2, letterSpacing: 0.2 },
     'type-11-loose': { fontSize: 11, lineHeight: 18.7, letterSpacing: 0.2 },

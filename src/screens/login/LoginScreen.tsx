@@ -1,312 +1,189 @@
-import React, {useState} from 'react';
-import {
-  SafeAreaView,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import {Rocket} from 'lucide-react-native';
-import twrnc from 'twrnc';
+import React from 'react';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
+import { colors } from '../../ui/tokens/colors';
+import { typography } from '../../ui/tokens/typography';
+import { ActiveButton } from '../../ui/atoms/ActiveButton';
+import { Icon } from '../../ui/atoms/Icon';
+import { StageCrest } from '../../ui/atoms/roadmap/StageCrest';
+import { Alert } from '../../ui/molecules/Alert';
+import { TextField } from './TextField';
+import { useLoginFlow, type Provider } from './useLoginFlow';
 
-const s = twrnc;
+const PROVIDER_LABEL: Record<Provider, string> = {
+  google: 'Continue with Google',
+  linkedin: 'Continue with LinkedIn',
+  org: 'Sign in with your organization',
+};
+
+function GhostLink({ label, onPress, compact = false }: { label: string; onPress: () => void; compact?: boolean }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={compact ? tw`items-start` : tw`items-center py-3`}>
+      <Text
+        style={{
+          fontFamily: typography.fontFamily['jakarta-bold'],
+          color: colors.action.ghost,
+          ...(compact ? typography.fontSize['type-12'] : typography.fontSize['type-14-base']),
+        }}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function Footer() {
+  return (
+    <Text style={[tw`text-center mt-4`, { fontFamily: typography.fontFamily.jakarta, color: colors.eyebrow.ink, ...typography.fontSize['type-12-base'] }]}>
+      By continuing, you agree to our{' '}
+      <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.path.linkInk, ...typography.fontSize['type-13-alt'] }}>Terms</Text>
+      {' '}and{' '}
+      <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.path.linkInk, ...typography.fontSize['type-13-alt'] }}>Privacy Policy</Text>.
+    </Text>
+  );
+}
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-
-  // Email validation
-  const validateEmail = (value: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(value);
-  };
-
-  // Password validation
-  const validatePassword = (value: string) => {
-    const minLength = value.length >= 8;
-    const hasUppercase = /[A-Z]/.test(value);
-    const hasSpecialCharacter = /[^A-Za-z0-9]/.test(value);
-
-    return {
-      minLength,
-      hasUppercase,
-      hasSpecialCharacter,
-      valid: minLength && hasUppercase && hasSpecialCharacter,
-    };
-  };
-
-  const handleLogin = () => {
-    let valid = true;
-
-    // Validate email
-    if (!email) {
-      setEmailError('Email is required.');
-      valid = false;
-    } else if (!validateEmail(email)) {
-      setEmailError('Please enter a valid email address.');
-      valid = false;
-    } else {
-      setEmailError('');
-    }
-
-    // Validate password
-    const passwordValidation = validatePassword(password);
-
-    if (!password) {
-      setPasswordError('Password is required.');
-      valid = false;
-    } else if (!passwordValidation.valid) {
-      const errors: string[] = [];
-
-      if (!passwordValidation.minLength) {
-        errors.push('at least 8 characters');
-      }
-
-      if (!passwordValidation.hasUppercase) {
-        errors.push('one uppercase letter');
-      }
-
-      if (!passwordValidation.hasSpecialCharacter) {
-        errors.push('one special character');
-      }
-
-      setPasswordError(`Password must contain ${errors.join(', ')}.`);
-      valid = false;
-    } else {
-      setPasswordError('');
-    }
-
-    if (!valid) {
-      return;
-    }
-
-    console.log('Login:', {
-      email,
-      password,
-    });
-  };
+  const flow = useLoginFlow();
 
   return (
-    <SafeAreaView style={s`flex-1 bg-gray-50`}>
-      <KeyboardAvoidingView
-        style={s`flex-1`}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={s`flex-grow justify-center px-5 py-6`}
-          keyboardShouldPersistTaps="handled">
-
-          {/* Main Card */}
+    <SafeAreaView style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]} edges={['top']}>
+      <ScrollView contentContainerStyle={tw`px-5 pt-9 pb-8`} keyboardShouldPersistTaps="handled">
+        <View style={tw`flex-row items-center gap-2 mb-8`}>
           <View
-            style={s` bg-white rounded-2xl border border-gray-200 px-5 py-6 shadow-md`}>
-
-            {/* Rocket Icon */}
-            <View style={s`items-center mb-5`}>
-              <View
-                style={s`
-                  w-18
-                  h-18
-                  rounded-full
-                  bg-indigo-500
-                  items-center
-                  justify-center
-                `}>
-                <Rocket
-                  size={32}
-                  color="white"
-                  strokeWidth={2.2}
-                />
-              </View>
-            </View>
-
-            {/* Heading */}
-            <Text
-              style={s`
-                text-center
-                text-[30px]
-                font-bold
-                text-gray-900
-                leading-[36px]
-              `}>
-              Welcome to AI
-            </Text>
-
-            <Text
-              style={s`
-                text-center
-                text-[30px]
-                font-bold
-                text-gray-900
-                leading-[36px]
-                mb-2
-              `}>
-              Launchpad
-            </Text>
-
-            {/* Subtitle */}
-            <Text
-              style={s`
-                text-center
-                text-[15px]
-                text-gray-600
-                leading-5
-                mb-7
-              `}>
-              Sign in to continue to your dashboard
-            </Text>
-
-            {/* Email */}
-            <View style={s`mb-4`}>
-              <Text
-                style={s`
-                  text-[15px]
-                  font-medium
-                  text-gray-900
-                  mb-2
-                `}>
-                Email Address
-              </Text>
-
-              <TextInput
-                value={email}
-                onChangeText={value => {
-                  setEmail(value);
-
-                  if (emailError) {
-                    setEmailError('');
-                  }
-                }}
-                placeholder="Enter your email"
-                placeholderTextColor="#737d8c"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={s`
-                  h-13
-                  border
-                  border-gray-300
-                  rounded-lg
-                  px-4
-                  text-[15px]
-                  text-gray-900
-                `}
-              />
-
-              {emailError !== '' && (
-                <Text style={s`text-red-500 text-xs mt-1`}>
-                  {emailError}
-                </Text>
-              )}
-            </View>
-
-            {/* Password */}
-            <View style={s`mb-4`}>
-              <View style={s`flex-row justify-between items-center mb-2`}>
-                <Text
-                  style={s`
-                    text-[15px]
-                    font-medium
-                    text-gray-900
-                  `}>
-                  Password
-                </Text>
-
-                <TouchableOpacity>
-                  <Text
-                    style={s`
-                      text-[14px]
-                      font-semibold
-                      text-indigo-600
-                    `}>
-                    Forgot Password?
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <TextInput
-                value={password}
-                onChangeText={value => {
-                  setPassword(value);
-
-                  if (passwordError) {
-                    setPasswordError('');
-                  }
-                }}
-                placeholder="Enter your password"
-                placeholderTextColor="#737d8c"
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={s`
-                  h-13
-                  border
-                  border-gray-300
-                  rounded-lg
-                  px-4
-                  text-[15px]
-                  text-gray-900
-                `}
-              />
-
-              {passwordError !== '' && (
-                <Text style={s`text-red-500 text-xs mt-1`}>
-                  {passwordError}
-                </Text>
-              )}
-            </View>
-
-            {/* Login Button */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={handleLogin}
-              style={s`
-                h-13
-                rounded-lg
-                bg-indigo-600
-                items-center
-                justify-center
-                mb-7
-              `}>
-              <Text
-                style={s`
-                  text-white
-                  text-[16px]
-                  font-medium
-                `}>
-                Login
-              </Text>
-            </TouchableOpacity>
-
-            {/* Sign Up */}
-            <View style={s`flex-row justify-center items-center`}>
-              <Text
-                style={s`
-                  text-[15px]
-                  text-gray-600
-                `}>
-                Don't have an account?{' '}
-              </Text>
-
-              <TouchableOpacity>
-                <Text
-                  style={s`
-                    text-[15px]
-                    font-medium
-                    text-indigo-600
-                  `}>
-                  Sign Up
-                </Text>
-              </TouchableOpacity>
-            </View>
-
+            style={[
+              tw`items-center justify-center rounded-xl`,
+              { width: 39, height: 42, backgroundColor: colors.hero.brandMark.surface },
+            ]}
+          >
+            <Text style={{ fontFamily: typography.fontFamily['jakarta-extrabold'], color: colors.text.primary, ...typography.fontSize['type-25-alt'] }}>Λ</Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.text.primary, ...typography.fontSize['type-15'] }}>AI Launchpad</Text>
+        </View>
+
+        <Text style={[tw`mb-1`, { fontFamily: typography.fontFamily['jakarta-bold'], color: colors.eyebrow.ink, ...typography.fontSize['type-11-tracked'] }]}>
+          A LITTLE LEARNING. A LOT OF POSSIBILITY.
+        </Text>
+        <Text style={[tw`mb-2`, { fontFamily: typography.fontFamily['jakarta-extrabold'], color: colors.text.primary, ...typography.fontSize['type-31'] }]}>
+          Make room for what's next.
+        </Text>
+        <Text style={[tw`mb-7`, { fontFamily: typography.fontFamily.jakarta, color: colors.text.body, ...typography.fontSize['type-15-alt'] }]}>
+          Practical AI, one useful step at a time.
+        </Text>
+
+        <View style={tw`mb-7`}>
+          <StageCrest tone="plum" icon="layers" size="xl" />
+        </View>
+
+        {flow.step === 'choice' ? (
+          <View style={tw`gap-3`}>
+            {flow.erroredProvider && (
+              <Alert tone="warning" message="We couldn't finish signing you in. Please try again." />
+            )}
+            {(['google', 'linkedin'] as const).map((provider) => (
+              <ActiveButton
+                key={provider}
+                variant="secondary"
+                label={flow.connectingProvider === provider ? 'Connecting…' : PROVIDER_LABEL[provider]}
+                disabled={flow.connectingProvider === provider}
+                onPress={() => flow.onContinueWithProvider(provider)}
+              />
+            ))}
+            <GhostLink label="Use your email instead" onPress={flow.onUseEmailInstead} />
+            <View style={[tw`w-full`, { height: 1, backgroundColor: colors.path.stage.locked.base }]} />
+            <ActiveButton
+              variant="secondary"
+              label={PROVIDER_LABEL.org}
+              icon={<Icon name="building" color={colors.path.btnSecondary.ink} size={18} />}
+              onPress={() => flow.onContinueWithProvider('org')}
+            />
+            <Footer />
+          </View>
+        ) : flow.step === 'org' ? (
+          <View style={tw`gap-4`}>
+            <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.text.primary, ...typography.fontSize['type-20-alt'] }}>
+              {'Your team\u2019s learning starts here.'}
+            </Text>
+            <TextField
+              label="Work email"
+              placeholder="priya@company.com"
+              value={flow.email}
+              onChangeText={flow.onChangeEmail}
+              error={flow.emailError}
+              keyboardType="email-address"
+            />
+            <View
+              style={{
+                shadowColor: colors.action.primaryShadow,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 1,
+                shadowRadius: 0,
+                elevation: 3,
+              }}
+            >
+              <ActiveButton
+                variant="primary"
+                label="Continue with email"
+                icon={<Icon name="arrow" color={colors.surface.white} size={18} />}
+                onPress={flow.onSubmitOrgEmail}
+                fillColor={colors.action.primary}
+              />
+            </View>
+            <GhostLink label="Other sign-in options" onPress={flow.onBackToChoice} />
+            <Footer />
+          </View>
+        ) : (
+          <View style={tw`gap-4`}>
+            <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.text.primary, ...typography.fontSize['type-20-alt'] }}>
+              Welcome back.
+            </Text>
+            {flow.formError && (
+              <Alert tone="warning" message={flow.formError} />
+            )}
+            <TextField
+              label="Email address"
+              placeholder="you@example.com"
+              value={flow.email}
+              onChangeText={flow.onChangeEmail}
+              error={flow.emailError}
+              keyboardType="email-address"
+            />
+            {flow.showPasswordField && (
+              <TextField
+                label="Password"
+                value={flow.password}
+                onChangeText={flow.onChangePassword}
+                error={flow.passwordError}
+                secureTextEntry
+              />
+            )}
+            {__DEV__ && (
+              <GhostLink label="Test creds" onPress={flow.onFillTestCreds} compact />
+            )}
+            <View
+              style={{
+                shadowColor: colors.action.primaryShadow,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 1,
+                shadowRadius: 0,
+                elevation: 3,
+              }}
+            >
+              <ActiveButton
+                variant="primary"
+                label={flow.isSubmitting ? 'Signing in…' : flow.ctaLabel}
+                disabled={flow.isSubmitting}
+                icon={<Icon name="arrow" color={colors.surface.white} size={18} />}
+                onPress={flow.onSubmit}
+                fillColor={colors.action.primary}
+              />
+            </View>
+            <GhostLink label="Other sign-in options" onPress={flow.onBackToChoice} />
+            <Footer />
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
