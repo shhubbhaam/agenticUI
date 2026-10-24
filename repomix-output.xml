@@ -440,21 +440,19 @@ module.exports = { createSessionStore };
 </file>
 
 <file path="bff/test/agent.test.js">
-// The AI chooses components (two-step decide -> fill), and its output is authorized + bounded.
+// The AI only CHOOSES components from telemetry; all card content is built from LearnHouse data.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createGeminiAgent } = require('../src/agent');
 const { createApp } = require('../src/app');
 const { createFakeLearnHouse } = require('./fakeLearnHouse');
 
-// Mock Gemini: answers the DECIDE call, then the FILL call, and records the prompts/schemas it saw.
-function mockGemini(decision, fill) {
+// Mock Gemini: answers the single DECIDE call and records the requests it saw.
+function mockGemini(decision) {
   const seen = [];
   const fetchImpl = async (_url, init) => {
-    const body = JSON.parse(init.body);
-    seen.push(body);
-    const out = seen.length === 1 ? decision : fill;
-    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] }) };
+    seen.push(JSON.parse(init.body));
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(decision) }] } }] }) };
   };
   return { fetchImpl, seen };
 }
@@ -472,34 +470,48 @@ async function layoutWith(agent, { completeFirst = false } = {}) {
   return env;
 }
 
-test('AI picks PracticeCard + RevisitSection -> those components are served', async () => {
-  const g = mockGemini(
-    { reason: 'Stalled after one activity', mainCard: 'PracticeCard', nextStepSection: 'RevisitSection' },
-    { mainCard: { component: 'PracticeCard', props: { eyebrow: 'QUICK PRACTICE', title: 'Prompt drills', subtitle: 'Five minutes.', buttonLabel: 'Start', buttonIconString: 'zap', action: { type: 'open-practice' } } },
-      nextStepSection: { component: 'RevisitSection', props: { title: 'Revisit', items: [{ id: 'What is an LLM!', title: 'What is an LLM', subtitle: 'Refresh it', iconString: 'book', action: { type: 'complete-activity', activityUuid: 'act_1' } }] } } });
+test('AI picks PracticeCard + RevisitSection -> served, with content from the course', async () => {
+  const g = mockGemini({ reason: 'Stalled after one activity', mainCard: 'PracticeCard', nextStepSection: 'RevisitSection' });
   const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }), { completeFirst: true });
   assert.equal(env.slots.mainCard.component, 'PracticeCard');
+  assert.equal(env.slots.mainCard.props.title, 'What is an LLM'); // last completed activity
+  assert.deepEqual(env.slots.mainCard.props.action, { type: 'open-practice' });
   assert.equal(env.slots.nextStepSection.component, 'RevisitSection');
-  assert.equal(env.slots.nextStepSection.props.items[0].id, 'What-is-an-LLM-'); // sanitized for the contract
-  // Decide step offered the whole catalogue; fill step was constrained to the chosen components.
-  const decideSchema = g.seen[0].generationConfig.responseSchema;
-  assert.deepEqual(decideSchema.properties.mainCard.enum, ['HomeCard', 'PracticeCard']);
-  assert.deepEqual(decideSchema.properties.nextStepSection.enum, ['NextStepCard', 'RevisitSection']);
-  assert.deepEqual(g.seen[1].generationConfig.responseSchema.properties.mainCard.properties.component.enum, ['PracticeCard']);
+  assert.deepEqual(env.slots.nextStepSection.props.items.map((i) => i.title), ['What is an LLM']);
+  assert.equal(g.seen.length, 1); // one call: decide only, no content generation
+  const schema = g.seen[0].generationConfig.responseSchema;
+  assert.deepEqual(schema.properties.mainCard.enum, ['HomeCard', 'PracticeCard']);
+  assert.deepEqual(schema.properties.nextStepSection.enum, ['NextStepCard', 'RevisitSection']);
 });
 
-test('AI picks HomeCard + NextStepCard -> those components are served', async () => {
-  const g = mockGemini(
-    { reason: 'On track', mainCard: 'HomeCard', nextStepSection: 'NextStepCard' },
-    { mainCard: { component: 'HomeCard', props: { category: 'LLMs', stage: 'Activity 1', title: 'What is an LLM', subtitle: 'Start here.', readTime: '5 min', buttonLabel: 'Continue', action: { type: 'complete-activity', activityUuid: 'act_1' } } },
-      nextStepSection: { component: 'NextStepCard', props: { title: 'Prompt basics', subtitle: 'Up next.', action: { type: 'open-path' } } } });
+test('AI picks HomeCard + NextStepCard -> titles are the next two course activities', async () => {
+  const g = mockGemini({ reason: 'On track', mainCard: 'HomeCard', nextStepSection: 'NextStepCard' });
   const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
   assert.equal(env.slots.mainCard.component, 'HomeCard');
+  assert.equal(env.slots.mainCard.props.title, 'What is an LLM');
+  assert.equal(env.slots.mainCard.props.category, 'Demo');
+  assert.equal(env.slots.mainCard.props.stage, 'Ch 1');
+  assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+  assert.equal(env.slots.nextStepSection.props.title, 'Prompt basics');
+});
+
+test('model sees telemetry only: no activity names or ids in the prompt', async () => {
+  const g = mockGemini({ reason: 'x', mainCard: 'HomeCard', nextStepSection: 'NextStepCard' });
+  await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
+  const prompt = g.seen[0].contents[0].parts[0].text;
+  assert.ok(prompt.includes('"completedCount":0'));
+  for (const leak of ['act_1', 'What is an LLM', 'Prompt basics']) assert.ok(!prompt.includes(leak), leak);
+  assert.equal(g.seen[0].generationConfig.temperature, 0);
+});
+
+test('RevisitSection with nothing completed -> NextStepCard', async () => {
+  const g = mockGemini({ reason: 'x', mainCard: 'HomeCard', nextStepSection: 'RevisitSection' });
+  const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
   assert.equal(env.slots.nextStepSection.component, 'NextStepCard');
 });
 
 test('decision outside the catalogue -> deterministic fallback, not a crash', async () => {
-  const g = mockGemini({ reason: 'x', mainCard: 'ScriptRunner', nextStepSection: 'NextStepCard' }, {});
+  const g = mockGemini({ reason: 'x', mainCard: 'ScriptRunner', nextStepSection: 'NextStepCard' });
   const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
   assert.equal(env.slots.mainCard.component, 'HomeCard'); // fallback
 });
@@ -3796,26 +3808,12 @@ To learn more about React Native, take a look at the following resources:
 
 <file path="bff/src/agent.js">
 // bff/src/agent.js — home-layout generation, SERVER-SIDE (W2 review P0: Gemini key was in the app).
-// The model may only choose from activities the BFF has already authorized for this learner,
-// enforced by an enum in the response schema AND re-checked after generation (authorizeSlots).
+// Gemini ONLY chooses which catalogue component goes in each slot, from learner telemetry.
+// Every title, subtitle and action is built here from LearnHouse course data (buildSlots),
+// so the model never writes learner-facing text and can never target an activity.
 const ICONS = ['zap', 'book', 'clock', 'star'];
-// Same bounds as src/contracts/homeLayout.ts, so a long model title is trimmed instead of rejected.
+// Same bounds as src/contracts/homeLayout.ts.
 const LIMITS = { category: 40, stage: 40, title: 60, subtitle: 140, readTime: 24, buttonLabel: 24, eyebrow: 24 };
-
-/** Deterministic layout from LearnHouse data. Used when no model is configured or it fails/times out. */
-function fallbackSlots(choices) {
-  const next = choices[0];
-  return {
-    mainCard: next
-      ? { component: 'HomeCard', props: {
-          category: 'Your course', stage: `Activity ${next.position}`, title: next.name.slice(0, 60),
-          subtitle: 'Pick up where you left off.', readTime: '~5 min', buttonLabel: 'Mark complete',
-          action: { type: 'complete-activity', activityUuid: next.activityUuid } } }
-      : null,
-    nextStepSection: { component: 'NextStepCard', props: {
-      title: 'See your full path', subtitle: 'Every stage and what is left.', action: { type: 'open-path' } } },
-  };
-}
 
 // Catalogue the model may choose from (mirrors src/contracts/homeLayout.ts and your W2 REGISTRY).
 const CATALOGUE = {
@@ -3825,79 +3823,107 @@ const CATALOGUE = {
   RevisitSection: { slot: 'nextStepSection', purpose: 'List of 1-3 earlier activities worth reviewing.', whenToUse: 'Learner has completed activities that are worth revisiting.' },
 };
 const namesFor = (slot) => Object.keys(CATALOGUE).filter((n) => CATALOGUE[n].slot === slot);
+const DEFAULT_DECISION = { mainCard: 'HomeCard', nextStepSection: 'NextStepCard' };
 
-function createGeminiAgent({ apiKey, model, timeoutMs = 8000, fetchImpl = fetch, logger = console }) {
-  async function gemini(prompt, schema, temperature) {
-    const res = await fetchImpl(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      { method: 'POST', signal: AbortSignal.timeout(timeoutMs),
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature, maxOutputTokens: 800 } }) });
-    if (!res.ok) { const e = new Error(`Gemini HTTP ${res.status}`); e.status = res.status; throw e; }
-    const data = await res.json();
-    return JSON.parse(data?.candidates?.[0]?.content?.parts?.[0]?.text); // never logged raw
+// ---- Content from LearnHouse ---------------------------------------------
+const clip = (s, max, fallback) => { const t = String(s ?? '').trim(); return (t || fallback).slice(0, max); };
+const TYPE_LABELS = { TYPE_VIDEO: 'Video', TYPE_DOCUMENT: 'Document', TYPE_DYNAMIC: 'Reading', TYPE_ASSIGNMENT: 'Assignment', TYPE_CUSTOM: 'Activity' };
+const TYPE_ICONS = { TYPE_VIDEO: 'star', TYPE_DOCUMENT: 'book', TYPE_DYNAMIC: 'book', TYPE_ASSIGNMENT: 'zap' };
+const typeLabel = (t) => TYPE_LABELS[t] ?? 'Activity';
+
+/**
+ * Build the slots for a decision using only course data.
+ * course: { name }  choices: unfinished activities in course order  completed: last completed (course order)
+ * Each activity: { activityUuid, name, chapterName, activityType, index } (index = 1-based position in course)
+ */
+function buildSlots(decision, { course = {}, choices = [], completed = [], totalCount = 0 }) {
+  let main = CATALOGUE[decision?.mainCard]?.slot === 'mainCard' ? decision.mainCard : DEFAULT_DECISION.mainCard;
+  let next = CATALOGUE[decision?.nextStepSection]?.slot === 'nextStepSection' ? decision.nextStepSection : DEFAULT_DECISION.nextStepSection;
+  if (next === 'RevisitSection' && completed.length === 0) next = 'NextStepCard';
+  if (main === 'HomeCard' && choices.length === 0) main = 'PracticeCard'; // nothing left to continue
+
+  const current = choices[0];
+  const lastDone = completed[completed.length - 1];
+  const courseName = clip(course.name, 40, 'Your course');
+
+  let mainCard = null;
+  if (main === 'HomeCard' && current) {
+    mainCard = { component: 'HomeCard', props: {
+      category: courseName,
+      stage: clip(current.chapterName, 40, `Activity ${current.index}`),
+      title: clip(current.name, 60, 'Next activity'),
+      subtitle: clip(`Activity ${current.index} of ${totalCount}${current.chapterName ? ` in ${current.chapterName}` : ''}`, 140, 'Your next activity'),
+      readTime: typeLabel(current.activityType),
+      buttonLabel: 'Mark complete',
+      action: { type: 'complete-activity', activityUuid: current.activityUuid } } };
+  } else if (main === 'PracticeCard') {
+    const target = lastDone ?? current; // reinforce what was just done; else the upcoming one
+    if (target) {
+      mainCard = { component: 'PracticeCard', props: {
+        eyebrow: 'Practice',
+        title: clip(target.name, 60, 'Practice'),
+        subtitle: clip(target.chapterName ? `From ${target.chapterName}` : courseName, 140, 'Quick practice'),
+        buttonLabel: 'Start practice',
+        buttonIconString: 'zap',
+        action: { type: 'open-practice' } } };
+    }
   }
 
+  let nextStepSection;
+  if (next === 'RevisitSection') {
+    nextStepSection = { component: 'RevisitSection', props: {
+      title: 'Revisit',
+      items: completed.slice(-3).reverse().map((a, n) => ({
+        id: clip(String(a.activityUuid).replace(/[^A-Za-z0-9_-]/g, '-'), 64, `item-${n + 1}`),
+        title: clip(a.name, 60, 'Activity'),
+        subtitle: clip(a.chapterName, 140, courseName),
+        iconString: TYPE_ICONS[a.activityType] ?? 'book',
+        action: { type: 'open-path' } })) } };
+  } else {
+    const upcoming = choices[1];
+    nextStepSection = { component: 'NextStepCard', props: upcoming
+      ? { title: clip(upcoming.name, 60, 'Up next'), subtitle: clip(upcoming.chapterName ? `Up next in ${upcoming.chapterName}` : 'Up next', 140, 'Up next'), action: { type: 'open-path' } }
+      : { title: 'See your full path', subtitle: clip(`${choices.length} of ${totalCount} activities left`, 140, 'Your path'), action: { type: 'open-path' } } };
+  }
+  return { mainCard, nextStepSection };
+}
+
+/** Deterministic layout from LearnHouse data. Used when no model is configured or it fails/times out. */
+const fallbackSlots = (ctx) => buildSlots(DEFAULT_DECISION, ctx);
+
+// ---- Gemini: decision only -----------------------------------------------
+function createGeminiAgent({ apiKey, model, timeoutMs = 8000, fetchImpl = fetch, logger = console }) {
   const S = { type: 'STRING' };
-  const actionSchema = (uuids) => ({
-    type: 'OBJECT',
-    properties: { type: { type: 'STRING', enum: ['complete-activity', 'open-path', 'open-practice'] },
-                  ...(uuids.length ? { activityUuid: { type: 'STRING', enum: uuids } } : {}) },
-    required: ['type'],
-  });
-  const propsSchema = (name, uuids, revisitUuids) => {
-    const action = actionSchema(uuids);
-    switch (name) {
-      case 'HomeCard': return { type: 'OBJECT', properties: { category: S, stage: S, title: S, subtitle: S, readTime: S, buttonLabel: S, action }, required: ['category', 'stage', 'title', 'subtitle', 'readTime', 'buttonLabel', 'action'] };
-      case 'PracticeCard': return { type: 'OBJECT', properties: { eyebrow: S, title: S, subtitle: S, buttonLabel: S, buttonIconString: { type: 'STRING', enum: ICONS }, action }, required: ['title', 'subtitle', 'action'] };
-      case 'NextStepCard': return { type: 'OBJECT', properties: { title: S, subtitle: S, action }, required: ['title', 'subtitle', 'action'] };
-      case 'RevisitSection': return { type: 'OBJECT', properties: { title: S, items: { type: 'ARRAY', items: { type: 'OBJECT',
-        properties: { id: S, title: S, subtitle: S, iconString: { type: 'STRING', enum: ICONS }, action: actionSchema(revisitUuids) },
-        required: ['id', 'title', 'subtitle', 'iconString', 'action'] } } }, required: ['items'] };
-    }
-  };
   const describe = (slot) => namesFor(slot).map((n) => `  - ${n}: ${CATALOGUE[n].purpose} Use when: ${CATALOGUE[n].whenToUse}`).join('\n');
-
   return {
-    async generate({ choices, completed = [], signals }) {
-      if (choices.length === 0 && completed.length === 0) return null;
-      const lines = [
-        'Unfinished activities the learner may do now (in course order):',
-        ...(choices.length ? choices.map((c) => `- ${c.activityUuid}: ${c.name}`) : ['- (none)']),
-        'Completed activities (can be revisited):',
-        ...(completed.length ? completed.map((c) => `- ${c.activityUuid}: ${c.name}`) : ['- (none)']),
-        `Learner signals: ${JSON.stringify(signals)}`,
-      ].join('\n');
-
-      // STEP 1 — DECIDE which component goes in each slot.
-      const decision = await gemini(
-        `You are the decision engine for the home screen of an AI-learning app.\n${lines}\n\nmainCard options:\n${describe('mainCard')}\n\nnextStepSection options:\n${describe('nextStepSection')}\n\nPick one per slot and give a one-sentence reason citing the signals.`,
-        { type: 'OBJECT', properties: { reason: S, mainCard: { type: 'STRING', enum: namesFor('mainCard') }, nextStepSection: { type: 'STRING', enum: namesFor('nextStepSection') } }, required: ['reason', 'mainCard', 'nextStepSection'] },
-        0.2);
-      if (!CATALOGUE[decision?.mainCard] || !CATALOGUE[decision?.nextStepSection]) throw new Error('decision outside catalogue');
-      if (decision.nextStepSection === 'RevisitSection' && completed.length === 0) decision.nextStepSection = 'NextStepCard';
-      logger.info?.(`[agent] decision: ${decision.mainCard} + ${decision.nextStepSection}`); // names only, no content
-
-      // STEP 2 — FILL props for the chosen components only.
-      const uuids = choices.map((c) => c.activityUuid);
-      const revisitUuids = completed.map((c) => c.activityUuid);
-      const slotSchema = (name) => ({ type: 'OBJECT', properties: { component: { type: 'STRING', enum: [name] }, props: propsSchema(name, uuids, revisitUuids) }, required: ['component', 'props'] });
-      return gemini(
-        `You write the home screen content for an AI-learning app.\n${lines}\n\nLayout chosen: mainCard=${decision.mainCard}, nextStepSection=${decision.nextStepSection}. Reason: ${decision.reason}\nRules: titles under 60 chars, subtitles one short sentence. Use action complete-activity with an unfinished activityUuid to continue, open-practice for practice, open-path to view the path. RevisitSection items use complete-activity with a completed activityUuid only if relevant, otherwise open-path.`,
-        { type: 'OBJECT', properties: { mainCard: slotSchema(decision.mainCard), nextStepSection: slotSchema(decision.nextStepSection) }, required: ['mainCard', 'nextStepSection'] },
-        0.6);
+    /** Returns { mainCard, nextStepSection, reason } with component NAMES only. Sees telemetry only. */
+    async decide({ signals }) {
+      const prompt = `You are the decision engine for the home screen of an AI-learning app.\nLearner telemetry: ${JSON.stringify(signals)}\n\nmainCard options:\n${describe('mainCard')}\n\nnextStepSection options:\n${describe('nextStepSection')}\n\nPick one component per slot based only on the telemetry, and give a one-sentence reason citing it.`;
+      const res = await fetchImpl(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        { method: 'POST', signal: AbortSignal.timeout(timeoutMs),
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 200,
+              responseSchema: { type: 'OBJECT', properties: { reason: S, mainCard: { type: 'STRING', enum: namesFor('mainCard') }, nextStepSection: { type: 'STRING', enum: namesFor('nextStepSection') } }, required: ['reason', 'mainCard', 'nextStepSection'] } } }) });
+      if (!res.ok) { const e = new Error(`Gemini HTTP ${res.status}`); e.status = res.status; throw e; }
+      const data = await res.json();
+      const decision = JSON.parse(data?.candidates?.[0]?.content?.parts?.[0]?.text); // never logged raw
+      if (CATALOGUE[decision?.mainCard]?.slot !== 'mainCard' || CATALOGUE[decision?.nextStepSection]?.slot !== 'nextStepSection') {
+        throw new Error('decision outside catalogue');
+      }
+      logger.info?.(`[agent] decision: ${decision.mainCard} + ${decision.nextStepSection}`); // names only
+      return { mainCard: decision.mainCard, nextStepSection: decision.nextStepSection };
     },
   };
 }
 
-/** Server-side authorization of every action target in a generated layout. Bad slot -> null. */
+/** Server-side authorization of every action target in a layout. Bad slot -> null. Defence in depth. */
 function authorizeSlots(slots, allowedUuids) {
   const okAction = (a) => a && (a.type === 'open-path' || a.type === 'open-practice' ||
     (a.type === 'complete-activity' && allowedUuids.has(a.activityUuid)));
   const check = (slot) => {
     if (!slot || typeof slot !== 'object' || !slot.props) return null;
-    // RevisitSection carries actions per item; every other card has one card-level action.
     if (slot.component !== 'RevisitSection' && !okAction(slot.props.action)) return null;
     if (slot.component === 'RevisitSection' && 'action' in slot.props) return null;
     for (const [k, max] of Object.entries(LIMITS)) {
@@ -3905,21 +3931,14 @@ function authorizeSlots(slots, allowedUuids) {
     }
     if (Array.isArray(slot.props.items)) {
       if (!slot.props.items.every((i) => okAction(i?.action))) return null;
-      // Bound the list and make ids contract-safe (model may write "Prompt Basics!").
-      slot.props.items = slot.props.items.slice(0, 3).map((i, n) => ({
-        ...i,
-        id: (String(i.id ?? '').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 64)) || `item-${n + 1}`,
-        title: String(i.title ?? '').slice(0, 60),
-        subtitle: String(i.subtitle ?? '').slice(0, 140),
-      }));
+      slot.props.items = slot.props.items.slice(0, 3);
       if (slot.props.items.length === 0) return null;
     }
-    if (typeof slot.props.title === 'string') slot.props.title = slot.props.title.slice(0, 60);
     return slot;
   };
   return { mainCard: check(slots?.mainCard), nextStepSection: check(slots?.nextStepSection) };
 }
-module.exports = { createGeminiAgent, fallbackSlots, authorizeSlots, ICONS, CATALOGUE };
+module.exports = { createGeminiAgent, buildSlots, fallbackSlots, authorizeSlots, ICONS, CATALOGUE };
 </file>
 
 <file path="bff/src/learnhouse.js">
@@ -4079,19 +4098,21 @@ test('home-layout: versioned envelope bound to the session learner, fallback wit
   assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
 });
 
-test('home-layout: agent output targeting an unauthorized activity is dropped server-side', async () => {
+test('home-layout: an agent returning content instead of names cannot inject it', async () => {
   const fresh = createFakeLearnHouse();
-  const evilAgent = { generate: async () => ({
-    mainCard: { component: 'HomeCard', props: { category: 'x', stage: 'x', title: 'x', subtitle: 'x', readTime: 'x', buttonLabel: 'x', action: { type: 'complete-activity', activityUuid: 'act_draft' } } },
-    nextStepSection: { component: 'NextStepCard', props: { title: 'ok', subtitle: 'ok', action: { type: 'open-path' } } } }) };
+  const evilAgent = { decide: async () => ({
+    mainCard: { component: 'HomeCard', props: { title: 'x', action: { type: 'complete-activity', activityUuid: 'act_draft' } } },
+    nextStepSection: 'NextStepCard' }) };
   const s = createApp({ lh: fresh.lh, agent: evilAgent, allowedCourses: new Set(['course_demo']), logger: silent }).server();
   await new Promise((r) => s.listen(0, r));
   const b = `http://127.0.0.1:${s.address().port}/api`;
   const tok = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()).token;
   const env = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } })).json();
   s.close();
-  assert.equal(env.slots.mainCard, null);              // unauthorized slot removed
-  assert.equal(env.slots.nextStepSection.component, 'NextStepCard'); // valid slot survives
+  // Not a component name -> default HomeCard built from course data; the draft activity is never targeted.
+  assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
+  assert.equal(env.slots.mainCard.props.title, 'What is an LLM');
+  assert.equal(env.slots.nextStepSection.component, 'NextStepCard');
 });
 
 test('oversized request body -> 413', async () => {
@@ -5765,7 +5786,7 @@ module.exports = config;
 const http = require('node:http');
 const crypto = require('node:crypto');
 const { createSessionStore } = require('./sessions');
-const { fallbackSlots, authorizeSlots } = require('./agent');
+const { buildSlots, fallbackSlots, authorizeSlots } = require('./agent');
 
 const UUID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_BODY = 8 * 1024;
@@ -5904,27 +5925,35 @@ function createApp({ lh, agent = null, allowedCourses, sessions = createSessionS
     const { courseUuid } = req.params;
     const learnerId = req.learner.learnerId;
     try {
-      const [activities, trail] = await Promise.all([publishedActivities(courseUuid), trailOrNull(learnerId, courseUuid)]);
+      const [meta, trail] = await Promise.all([lh.getCourseMeta(courseUuid), trailOrNull(learnerId, courseUuid)]);
+      // Published activities in course order, with the chapter they belong to (all content comes from here).
+      const activities = (meta?.chapters ?? []).flatMap((ch) => (ch.activities ?? [])
+        .filter((a) => a.published !== false)
+        .map((a) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? ''), chapterName: String(ch.name ?? ''), activityType: a.activity_type })))
+        .map((a, i) => ({ ...a, index: i + 1 }));
       const done = new Set((trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? [])
         .flatMap((ch) => ch.activities ?? []).filter((a) => a.completed).map((a) => a.activity_uuid));
-      const choices = activities.filter((a) => !done.has(a.activity_uuid)).slice(0, 5)
-        .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
-      const completedList = activities.filter((a) => done.has(a.activity_uuid)).slice(-3)
-        .map((a, i) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? 'Activity'), position: i + 1 }));
+      const choices = activities.filter((a) => !done.has(a.activityUuid));
+      const completedList = activities.filter((a) => done.has(a.activityUuid)).slice(-3);
+      const ctx = { course: { name: meta?.name }, choices, completed: completedList, totalCount: activities.length };
+      // Telemetry is the ONLY thing the model sees. Add more signals here (last active, streak, quiz scores...).
+      const signals = {
+        completedCount: done.size, remainingCount: choices.length, totalCount: activities.length,
+        progressPercent: activities.length ? Math.round((100 * (activities.length - choices.length)) / activities.length) : 0,
+      };
       // Authorized targets: this learner's unfinished + completed published activities in this course.
       const allowed = new Set([...choices, ...completedList].map((c) => c.activityUuid));
 
-      let slots = null; let source = 'fallback';
+      let decision = null; let source = 'fallback';
       if (agent) {
-        try {
-          const generated = await agent.generate({ choices, completed: completedList, signals: { completedCount: done.size, remainingCount: activities.length - done.size, totalCount: activities.length } });
-          if (generated) { slots = authorizeSlots(generated, allowed); source = 'agent'; }
-        } catch (e) {
+        try { decision = await agent.decide({ signals }); source = 'agent'; }
+        catch (e) {
           // Status/reason only, never model text: e.g. "Gemini HTTP 404" = wrong model name for this key.
           logger.warn?.(`[agent] fallback used: ${e.name === 'TimeoutError' ? 'timeout' : e.message}`);
         }
       }
-      if (!slots || (!slots.mainCard && !slots.nextStepSection)) { slots = fallbackSlots(choices); source = 'fallback'; }
+      let slots = authorizeSlots(decision ? buildSlots(decision, ctx) : fallbackSlots(ctx), allowed);
+      if (!slots.mainCard && !slots.nextStepSection) { slots = authorizeSlots(fallbackSlots(ctx), allowed); source = 'fallback'; }
       logger.info?.(`[home-layout] source=${source} mainCard=${slots.mainCard?.component ?? 'none'} nextStep=${slots.nextStepSection?.component ?? 'none'}`);
 
       const now = Date.now();
