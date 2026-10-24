@@ -63,6 +63,32 @@ test('contract: long course and chapter names (up to the 40-char clip) still giv
   assert.ok(r.ok && r.slots.mainCard.ok && r.slots.mainCard.value.component === 'HomeCard', JSON.stringify(r));
 });
 
+test('HomeCard: badge is the Path stage + format, subtitle the chapter, meta line the course', async () => {
+  const fake = createFakeLearnHouse();
+  await fake.lh.completeActivity('101', 'act_1');
+  fake.lh.getCourseMeta = async () => ({ course_uuid: 'course_demo', name: 'Applied AI Professional Certification Programme', chapters: [
+    { chapter_uuid: 'c1', name: 'Foundations', activities: [{ activity_uuid: 'act_1', name: 'What is an LLM', published: true }] },
+    { chapter_uuid: 'c2', name: 'Engineering Reliable Single Agent Systems', activities: [{ activity_uuid: 'act_2', name: 'V1', published: true, activity_type: 'TYPE_VIDEO' }] },
+    { chapter_uuid: 'c3', name: 'Empty chapter', activities: [{ activity_uuid: 'act_draft', name: 'Draft', published: false }] },
+    { chapter_uuid: 'c4', name: 'Capstone project', activities: [{ activity_uuid: 'act_3', name: 'Build it', published: true }] },
+  ] });
+  const s = createApp({ lh: fake.lh, allowedCourses: new Set(['course_demo']), logger: quiet }).server();
+  await new Promise<void>((r) => s.listen(0, r));
+  const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}/api`;
+  const login = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as { token: string; learner: { id: string } };
+  const raw = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${login.token}` } })).json();
+  s.close();
+  const r = parseHomeLayout(raw, { learnerId: login.learner.id, courseUuid: 'course_demo' });
+  assert.ok(r.ok && r.slots.mainCard.ok && r.slots.mainCard.value.component === 'HomeCard', JSON.stringify(r));
+  assert.deepEqual(
+    { stage: r.slots.mainCard.value.props.stage, category: r.slots.mainCard.value.props.category, title: r.slots.mainCard.value.props.title,
+      subtitle: r.slots.mainCard.value.props.subtitle, readTime: r.slots.mainCard.value.props.readTime },
+    { stage: 'STAGE 02', category: 'Video', title: 'V1', subtitle: 'Engineering Reliable Single Agent Systems', readTime: 'Applied AI Professional Certification Programme' });
+  // Empty chapters are not counted, and the last stage is CAPSTONE, as on the Path screen.
+  const upNext = raw as { slots: { nextStepSection: { props: { title: string } } } };
+  assert.equal(upNext.slots.nextStepSection.props.title, 'Build it');
+});
+
 test('contract: the same envelope is rejected for another learner', async () => {
   const { raw } = await serve();
   assert.deepEqual(parseHomeLayout(raw, { learnerId: '202', courseUuid: 'course_demo' }), { ok: false, reason: 'wrong-context' });

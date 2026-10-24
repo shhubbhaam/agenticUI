@@ -12,7 +12,7 @@ type IconString = Extract<SlotComponent, { component: 'RevisitSection' }>['props
 
 export const ICONS = ['zap', 'book', 'clock', 'star'] as const;
 // Same bounds as src/contracts/homeLayout.ts.
-const LIMITS: Record<string, number> = { category: 40, stage: 40, title: 60, subtitle: 140, readTime: 24, buttonLabel: 24, eyebrow: 24 };
+const LIMITS: Record<string, number> = { category: 40, stage: 40, title: 60, subtitle: 140, readTime: 60, buttonLabel: 24, eyebrow: 24 };
 
 // Catalogue the model may choose from (mirrors src/contracts/homeLayout.ts and your W2 REGISTRY).
 export const CATALOGUE = {
@@ -48,6 +48,8 @@ export interface ActivityInfo {
   activityUuid: string;
   name: string;
   chapterName: string;
+  /** Same label the Path screen shows for this chapter, e.g. "STAGE 04". */
+  stageLabel: string;
   activityType?: string;
   index: number;
 }
@@ -63,9 +65,10 @@ export interface BuiltSlots {
 }
 
 const clip = (s: unknown, max: number, fallback: string) => { const t = String(s ?? '').trim(); return (t || fallback).slice(0, max); };
-const TYPE_LABELS: Record<string, string> = { TYPE_VIDEO: 'Video', TYPE_DOCUMENT: 'Document', TYPE_DYNAMIC: 'Reading', TYPE_ASSIGNMENT: 'Assignment', TYPE_CUSTOM: 'Activity' };
+// Same format names as the Path screen (src/screens/path/mapPathData.ts formatLabel).
+const TYPE_LABELS: Record<string, string> = { TYPE_DYNAMIC: 'Article', TYPE_VIDEO: 'Video', TYPE_DOCUMENT: 'Slides', TYPE_ASSIGNMENT: 'Worksheet', TYPE_SCORM: 'Interactive' };
 const TYPE_ICONS: Record<string, IconString> = { TYPE_VIDEO: 'star', TYPE_DOCUMENT: 'book', TYPE_DYNAMIC: 'book', TYPE_ASSIGNMENT: 'zap' };
-const typeLabel = (t: string | undefined) => TYPE_LABELS[t ?? ''] ?? 'Activity';
+const typeLabel = (t: string | undefined) => TYPE_LABELS[t ?? ''] ?? 'Lesson';
 
 /** Build the slots for a decision using only course data. */
 export function buildSlots(decision: Decision | null | undefined, { course = {}, choices = [], completed = [], totalCount = 0 }: BuildContext): BuiltSlots {
@@ -81,11 +84,12 @@ export function buildSlots(decision: Decision | null | undefined, { course = {},
   let mainCard: SlotComponent | null = null;
   if (main === 'HomeCard' && current) {
     mainCard = { component: 'HomeCard', props: {
-      category: courseName,
-      stage: clip(current.chapterName, 40, `Activity ${current.index}`),
+      // Badge: "STAGE 04 · Video". Title: the activity. Subtitle: its chapter. Meta line: the course.
+      stage: clip(current.stageLabel, 40, 'STAGE'),
+      category: typeLabel(current.activityType),
       title: clip(current.name, 60, 'Next activity'),
-      subtitle: clip(`Activity ${current.index} of ${totalCount}${current.chapterName ? ` in ${current.chapterName}` : ''}`, 140, 'Your next activity'),
-      readTime: typeLabel(current.activityType),
+      subtitle: clip(current.chapterName, 140, courseName),
+      readTime: clip(course.name, 60, 'Your course'),
       buttonLabel: 'Mark complete',
       action: { type: 'complete-activity', activityUuid: current.activityUuid } } };
   } else if (main === 'PracticeCard') {

@@ -14,7 +14,7 @@ export interface LhActivity {
 export interface CourseMeta {
   course_uuid?: string;
   name?: string;
-  chapters?: Array<{ chapter_uuid?: string; name?: string; activities?: LhActivity[] }>;
+  chapters?: Array<{ chapter_uuid?: string; name?: string; extra_metadata?: { stage_label?: unknown } | null; activities?: LhActivity[] }>;
 }
 export interface Trail {
   user_id?: number;

@@ -182,9 +182,18 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     try {
       const [meta, trail] = await Promise.all([lh.getCourseMeta(courseUuid), trailOrNull(learnerId, courseUuid)]);
       // Published activities in course order, with the chapter they belong to (all content comes from here).
-      const activities = (meta?.chapters ?? []).flatMap((ch) => (ch.activities ?? [])
-        .filter((a) => a.published !== false)
-        .map((a) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? ''), chapterName: String(ch.name ?? ''), activityType: a.activity_type })))
+      // Chapters with published activities, numbered like the Path screen: STAGE 01.., the last one CAPSTONE
+      // (unless the chapter sets extra_metadata.stage_label).
+      const chapters = (meta?.chapters ?? [])
+        .map((ch) => ({ ch, acts: (ch.activities ?? []).filter((a) => a.published !== false) }))
+        .filter((c) => c.acts.length > 0);
+      const stageLabel = (ch: (typeof chapters)[number]['ch'], i: number) => {
+        const custom = ch.extra_metadata?.stage_label;
+        if (typeof custom === 'string' && custom.trim()) return custom;
+        return i === chapters.length - 1 && chapters.length > 1 ? 'CAPSTONE' : `STAGE ${String(i + 1).padStart(2, '0')}`;
+      };
+      const activities = chapters.flatMap(({ ch, acts }, ci) => acts
+        .map((a) => ({ activityUuid: a.activity_uuid, name: String(a.name ?? ''), chapterName: String(ch.name ?? ''), stageLabel: stageLabel(ch, ci), activityType: a.activity_type })))
         .map((a, i) => ({ ...a, index: i + 1 }));
       const done = new Set((trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? [])
         .flatMap((ch) => ch.activities ?? []).filter((a) => a.completed).map((a) => a.activity_uuid));

@@ -49,8 +49,11 @@ test('AI picks HomeCard + NextStepCard -> titles are the next two course activit
   const env = await layoutWith(createGeminiAgent({ apiKey: 'k', model: 'm', fetchImpl: g.fetchImpl, logger: quiet }));
   assert.equal(env.slots.mainCard.component, 'HomeCard');
   assert.equal(env.slots.mainCard.props.title, 'What is an LLM');
-  assert.equal(env.slots.mainCard.props.category, 'Demo');
-  assert.equal(env.slots.mainCard.props.stage, 'Ch 1');
+  // Badge "STAGE 01 · Lesson"; subtitle = chapter; meta line = course (fake activities carry no activity_type).
+  assert.equal(env.slots.mainCard.props.stage, 'STAGE 01');
+  assert.equal(env.slots.mainCard.props.category, 'Lesson');
+  assert.equal(env.slots.mainCard.props.subtitle, 'Ch 1');
+  assert.equal(env.slots.mainCard.props.readTime, 'Demo');
   assert.deepEqual(env.slots.mainCard.props.action, { type: 'complete-activity', activityUuid: 'act_1' });
   assert.equal(env.slots.nextStepSection.props.title, 'Prompt basics');
 });

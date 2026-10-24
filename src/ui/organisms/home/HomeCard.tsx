@@ -5,7 +5,7 @@ import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 import { ActiveButton } from '../../atoms/ActiveButton';
-import { FileText, Clock } from 'lucide-react-native';
+import { BookOpen } from 'lucide-react-native';
 
 interface HomeCardProps {
   stage: string;
@@ -31,7 +31,7 @@ export const HomeCard: React.FC<HomeCardProps> = ({
   buttonIcon,
 }) => {
   // M8: Create a unified, natural-sounding label for the screen reader
-  const screenReaderLabel = `${stage}, ${category}. Pick up where you left off. ${title}. ${subtitle}. Reading time: ${readTime}.`;
+  const screenReaderLabel = `${stage}, ${category}. Pick up where you left off. ${title}. ${subtitle}. Course: ${readTime}.`;
 
   return (
     <View style={[tw`w-full rounded-3xl overflow-hidden`, { backgroundColor: colors.hero.surface }]}>
@@ -73,7 +73,7 @@ export const HomeCard: React.FC<HomeCardProps> = ({
 
           <View style={tw`flex-row items-center mb-5`}>
             <Text style={{ color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-11'] }}>
-              <FileText size={14} color="#334155" strokeWidth={1.8} /> Article    <Clock size={14} color="#334155" strokeWidth={1.8} />  {readTime}
+              <BookOpen size={14} color="#334155" strokeWidth={1.8} />  {readTime}
             </Text>
           </View>
         </View>

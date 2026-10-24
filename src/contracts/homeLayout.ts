@@ -40,7 +40,8 @@ const HomeCard = z.object({
   component: z.literal('HomeCard'),
   props: z.object({
     category: ShortLine, stage: ShortLine, title: Title, subtitle: Line,
-    readTime: Label, buttonLabel: Label, action: ActionSchema,
+    // readTime is shown as the card's meta line (currently the course name); rename in v2.
+    readTime: Title, buttonLabel: Label, action: ActionSchema,
   }).strict(),
 }).strict();
 
