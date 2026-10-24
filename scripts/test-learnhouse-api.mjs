@@ -32,9 +32,21 @@ async function promptChoice(question, choices) {
   return choices[index];
 }
 
+// Redact anything token/password-like before printing (W2 review P0: raw login response was logged).
+const SECRET_KEYS = /token|password|secret|authorization|cookie|api[_-]?key/i;
+function redact(value) {
+  if (Array.isArray(value)) return value.map(redact);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, SECRET_KEYS.test(k) ? "[REDACTED]" : redact(v)])
+    );
+  }
+  return value;
+}
+
 function log(step, data) {
   console.log(`\n=== ${step} ===`);
-  console.log(typeof data === "string" ? data : JSON.stringify(data, null, 2));
+  console.log(typeof data === "string" ? data : JSON.stringify(redact(data), null, 2));
 }
 
 async function request(path, { method = "GET", token, body, form } = {}) {

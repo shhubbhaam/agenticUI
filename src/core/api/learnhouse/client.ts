@@ -1,15 +1,7 @@
-// src/data/learnhouse/client.ts
+// src/core/api/learnhouse/client.ts
 // Thin LearnHouse client + response types (shapes taken from the API reference).
 
-// Read from EXPO_PUBLIC_* env vars (see .env.example) instead of a gitignored
-// config.ts, so this compiles on a fresh checkout.
-const LEARNHOUSE = {
-  baseUrl: process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL ?? '',
-  apiToken: process.env.EXPO_PUBLIC_LEARNHOUSE_ADMIN_TOKEN_TESTING_ONLY ?? '',
-  courseUuid: process.env.EXPO_PUBLIC_LEARNHOUSE_COURSE_UUID ?? '',
-  userId: process.env.EXPO_PUBLIC_LEARNHOUSE_USER_ID ?? '',
-  orgSlug: process.env.EXPO_PUBLIC_LEARNHOUSE_ORG_SLUG ?? '',
-};
+import { LEARNHOUSE } from './config';
 
 // ---------- /courses/{uuid}/meta ----------
 export interface LHActivity {
@@ -85,39 +77,69 @@ export class LearnHouseError extends Error {
   }
 }
 
-async function lhGet<T>(path: string): Promise<T> {
-  const url = `${LEARNHOUSE.baseUrl}${path}`;
-  const res = await fetch(url, {
+import { getSessionToken } from '../../auth/session';
+
+// All calls go to the BFF with the learner's session token. The BFF resolves
+// learner + org from the session and holds the LearnHouse org token server-side,
+// so nothing here can choose whose progress is read or written.
+async function bffFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getSessionToken();
+  const res = await fetch(`${LEARNHOUSE.baseUrl}${path}`, {
+    ...init,
     headers: {
-      Authorization: `Bearer ${LEARNHOUSE.apiToken}`,
       Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
     },
   });
-
   if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = typeof body?.detail === 'string' ? body.detail : JSON.stringify(body?.detail ?? body);
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new LearnHouseError(res.status, path, `${res.status} on ${path}: ${detail}`);
+    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
 
-// ---------- endpoints ----------
-export function getCourseMeta(courseUuid = LEARNHOUSE.courseUuid) {
-  // slim=true drops heavy activity content. If you store durations in
-  // activity `details`, switch slim off.
-  return lhGet<LHCourseMeta>(`/courses/${courseUuid}/meta?slim=true`);
+export interface LoginResult {
+  token: string;
+  learner: { id: string; displayName: string };
+  expiresAt: string;
 }
 
-export function getUserCourseTrail(
-  userId = LEARNHOUSE.userId,
-  courseUuid = LEARNHOUSE.courseUuid,
-  orgSlug = LEARNHOUSE.orgSlug,
+export function login(email: string, password: string) {
+  return bffFetch<LoginResult>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function getCourseMeta(courseUuid: string = LEARNHOUSE.courseUuid) {
+  return bffFetch<LHCourseMeta>(`/me/courses/${encodeURIComponent(courseUuid)}/meta`);
+}
+
+export function getUserCourseTrail(courseUuid: string = LEARNHOUSE.courseUuid) {
+  return bffFetch<LHUserTrail>(`/me/courses/${encodeURIComponent(courseUuid)}/trail`);
+}
+
+export interface CompletionResult {
+  activityUuid: string;
+  /** received = BFF accepted the request; applied = read-back from LearnHouse shows completed. */
+  status: 'applied' | 'received';
+  idempotencyKey: string;
+}
+
+/** Write completion through the BFF. Same idempotency key => one effect on retry. */
+export function markActivityComplete(
+  activityUuid: string,
+  idempotencyKey: string,
+  courseUuid: string = LEARNHOUSE.courseUuid,
 ) {
-  return lhGet<LHUserTrail>(`/admin/${orgSlug}/trails/${userId}/courses/${courseUuid}`);
+  return bffFetch<CompletionResult>(
+    `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/complete`,
+    { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } },
+  );
+}
+
+/** Agent-generated home layout, built server-side (Gemini key never reaches the app). */
+export function getHomeLayout(courseUuid: string = LEARNHOUSE.courseUuid, signal?: AbortSignal) {
+  return bffFetch<unknown>(`/me/courses/${encodeURIComponent(courseUuid)}/home-layout`, { signal });
 }

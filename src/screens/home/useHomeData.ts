@@ -22,6 +22,8 @@ export interface HomeNextActivity {
 
 export interface HomeData {
   username: string;
+  /** The active course; the agent layout is requested for this course. */
+  courseUuid: string;
   status: HomeDataStatus;
   errorMessage: string | null;
   onRetry: () => void;
@@ -35,6 +37,7 @@ export interface HomeData {
 }
 
 const EMPTY_FIELDS = {
+  courseUuid: '',
   courseName: '',
   streakCount: 0,
   currentStageTotal: 0,
@@ -100,6 +103,7 @@ export function useHomeData(): HomeData {
       status: 'complete',
       errorMessage: null,
       onRetry,
+      courseUuid: course.courseUuid,
       courseName: course.courseName,
       streakCount: computeStreak(allCompletionDates(course)),
       currentStageTotal: currentChapter?.totalActivities ?? 0,
@@ -115,6 +119,7 @@ export function useHomeData(): HomeData {
     status: 'ready',
     errorMessage: null,
     onRetry,
+    courseUuid: course.courseUuid,
     courseName: course.courseName,
     streakCount: computeStreak(allCompletionDates(course)),
     currentStageTotal: currentChapter?.totalActivities ?? 0,

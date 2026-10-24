@@ -7,6 +7,7 @@ import { clearTrailCache } from '../data/learnhouse/trailCache';
 import { ONBOARDING_EVERY_LOGIN } from '../config/featureFlags';
 import { useOnboardingStore } from './useOnboardingStore';
 import type { UserSession } from '../data/learnhouse/schemas';
+import { setSession, clearSession } from '../core/auth/session';
 
 const storage = createMMKV({ id: 'session-store' });
 
@@ -55,10 +56,17 @@ function toIdentity(session: UserSession): SessionIdentity {
   };
 }
 
+// Mirror the token in memory for synchronous callers (core/auth/session.ts) and build the identity.
+function signedIn(token: string, session: UserSession): SessionIdentity {
+  const identity = toIdentity(session);
+  setSession(token, String(identity.userId), identity.fullName);
+  return identity;
+}
+
 // identity is persisted (via MMKV) purely as a last-known snapshot for
 // instant paint on cold start — it is never trusted as proof of a valid
 // session. `status` is deliberately NOT persisted; every app boot calls
-// hydrate() to re-fetch a live /users/session with the SecureStore-held
+// hydrate() to re-fetch a live session (BFF GET /me) with the SecureStore-held
 // token, which both refreshes this snapshot and re-validates the JWT
 // (it expires after 8h). See ARCHITECTURE_RULEBOOK.md Section 9.1 note 4
 // on never persisting server-fetched data as if it were the source of truth.
@@ -73,10 +81,11 @@ export const useSessionStore = create<SessionState>()(
         try {
           const token = await loginWithPassword(email, password);
           await setStoredToken(token);
-          const session = await fetchSession(token);
-          set({ status: 'signedIn', identity: toIdentity(session) });
+          const identity = signedIn(token, await fetchSession(token));
+          set({ status: 'signedIn', identity });
         } catch (error) {
           await clearStoredToken();
+          clearSession();
           set({ status: 'signedOut', identity: null });
           throw error;
         }
@@ -87,10 +96,11 @@ export const useSessionStore = create<SessionState>()(
         try {
           const token = await exchangeGoogleToken(email, googleAccessToken);
           await setStoredToken(token);
-          const session = await fetchSession(token);
-          set({ status: 'signedIn', identity: toIdentity(session) });
+          const identity = signedIn(token, await fetchSession(token));
+          set({ status: 'signedIn', identity });
         } catch (error) {
           await clearStoredToken();
+          clearSession();
           set({ status: 'signedOut', identity: null });
           throw error;
         }
@@ -103,10 +113,11 @@ export const useSessionStore = create<SessionState>()(
           return;
         }
         try {
-          const session = await fetchSession(token);
-          set({ status: 'signedIn', identity: toIdentity(session) });
+          const identity = signedIn(token, await fetchSession(token));
+          set({ status: 'signedIn', identity });
         } catch {
           await clearStoredToken();
+          clearSession();
           set({ status: 'signedOut', identity: null });
         }
       },
@@ -117,6 +128,7 @@ export const useSessionStore = create<SessionState>()(
           await apiLogout(token);
         }
         await clearStoredToken();
+        clearSession();
         clearTrailCache();
         if (ONBOARDING_EVERY_LOGIN) {
           useOnboardingStore.getState().resetAnswers();

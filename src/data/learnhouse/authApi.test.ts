@@ -9,57 +9,51 @@ function mockFetchOnce(status: number, body: unknown) {
   });
 }
 
+// All auth goes through the BFF; the app never sees a LearnHouse token.
 describe('authApi', () => {
   beforeEach(() => {
-    process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL = 'https://lh.example.com';
+    process.env.EXPO_PUBLIC_BFF_URL = 'http://bff.test/api';
     global.fetch = jest.fn();
   });
 
   describe('loginWithPassword', () => {
-    it('returns the access token on success', async () => {
-      mockFetchOnce(200, { access_token: 'jwt-123', user: { id: 1 } });
+    it('posts the credentials to the BFF and returns its session token', async () => {
+      mockFetchOnce(200, { token: 'sess-123', expiresAt: '2026-10-24T12:00:00Z', learner: { id: '1', displayName: 'Ada' } });
       const token = await loginWithPassword('a@b.com', 'password123');
-      expect(token).toBe('jwt-123');
+      expect(token).toBe('sess-123');
       const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-      expect(url).toBe('https://lh.example.com/api/v1/auth/login');
+      expect(url).toBe('http://bff.test/api/auth/login');
       expect(init.method).toBe('POST');
-      expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
-      expect(init.body).toBe('username=a%40b.com&password=password123');
+      expect(init.headers['Content-Type']).toBe('application/json');
+      expect(JSON.parse(init.body)).toEqual({ email: 'a@b.com', password: 'password123' });
     });
 
-    it('throws an ApiError with the parsed detail on 401', async () => {
-      mockFetchOnce(401, { detail: 'Incorrect email or password' });
-      await expect(loginWithPassword('a@b.com', 'wrong')).rejects.toMatchObject({
-        status: 401,
-        message: 'Incorrect email or password',
-      });
+    it('throws an ApiError with the status on 401', async () => {
+      mockFetchOnce(401, { error: 'invalid_credentials' });
+      await expect(loginWithPassword('a@b.com', 'wrong')).rejects.toMatchObject({ status: 401 });
     });
 
-    it('throws when the response has no recognizable token field', async () => {
-      mockFetchOnce(200, { user: { id: 1 } });
+    it('throws when the response has no session token', async () => {
+      mockFetchOnce(200, { learner: { id: '1' } });
       await expect(loginWithPassword('a@b.com', 'password123')).rejects.toThrow(
-        'Login succeeded but no access token was returned'
+        'Login succeeded but no session token was returned'
       );
     });
   });
 
   describe('exchangeGoogleToken', () => {
-    it('posts the google token and returns the LearnHouse access token', async () => {
-      mockFetchOnce(200, { tokens: { access_token: 'jwt-456' } });
+    it('posts the Google token to the BFF and returns its session token', async () => {
+      mockFetchOnce(200, { token: 'sess-456' });
       const token = await exchangeGoogleToken('a@b.com', 'google-token');
-      expect(token).toBe('jwt-456');
+      expect(token).toBe('sess-456');
       const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-      expect(url).toBe('https://lh.example.com/api/v1/auth/oauth');
-      expect(JSON.parse(init.body)).toEqual({
-        email: 'a@b.com',
-        provider: 'google',
-        access_token: 'google-token',
-      });
+      expect(url).toBe('http://bff.test/api/auth/google');
+      expect(JSON.parse(init.body)).toEqual({ email: 'a@b.com', accessToken: 'google-token' });
     });
   });
 
   describe('fetchSession', () => {
-    it('parses a valid session response', async () => {
+    it('parses the learner session from GET /me with the session token', async () => {
       mockFetchOnce(200, {
         user: {
           id: 1,
@@ -76,26 +70,32 @@ describe('authApi', () => {
           },
         ],
       });
-      const session = await fetchSession('jwt-123');
+      const session = await fetchSession('sess-123');
       expect(session.user.email).toBe('ada@example.com');
       expect(session.roles[0].org.slug).toBe('my-org');
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('http://bff.test/api/me');
+      expect(init.headers.Authorization).toBe('Bearer sess-123');
     });
 
     it('rejects a malformed session response', async () => {
       mockFetchOnce(200, { user: {}, roles: [] });
-      await expect(fetchSession('jwt-123')).rejects.toThrow();
+      await expect(fetchSession('sess-123')).rejects.toThrow();
     });
   });
 
   describe('logout', () => {
-    it('swallows a failed server-side logout', async () => {
-      mockFetchOnce(401, { detail: 'No authenticated session was found' });
-      await expect(logout('jwt-123')).resolves.toBeUndefined();
+    it('posts to the BFF and swallows a failure', async () => {
+      mockFetchOnce(401, { error: 'unauthenticated' });
+      await expect(logout('sess-123')).resolves.toBeUndefined();
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('http://bff.test/api/auth/logout');
+      expect(init.method).toBe('POST');
     });
   });
 
-  it('throws a configuration ApiError when the base URL is missing', async () => {
-    delete process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL;
+  it('throws a configuration ApiError when the BFF URL is missing', async () => {
+    delete process.env.EXPO_PUBLIC_BFF_URL;
     await expect(loginWithPassword('a@b.com', 'password123')).rejects.toBeInstanceOf(ApiError);
   });
 });

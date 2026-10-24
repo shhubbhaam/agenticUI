@@ -1,4 +1,5 @@
 import { getMyTrail } from './progressApi';
+import { setSession, clearSession } from '../../core/auth/session';
 
 function mockFetchOnce(status: number, body: unknown) {
   (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -59,10 +60,11 @@ const RAW_COURSE = {
 
 describe('getMyTrail', () => {
   beforeEach(() => {
-    process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL = 'https://lh.example.com';
-    process.env.EXPO_PUBLIC_LEARNHOUSE_ADMIN_TOKEN_TESTING_ONLY = 'lh_test123';
+    process.env.EXPO_PUBLIC_BFF_URL = 'http://bff.test/api';
+    setSession('sess-123', '3', 'Ada');
     global.fetch = jest.fn();
   });
+  afterEach(() => clearSession());
 
   it('maps a raw trail response into CourseProgress[]', async () => {
     mockFetchOnce(200, { courses: [RAW_COURSE] });
@@ -106,8 +108,9 @@ describe('getMyTrail', () => {
       },
     ]);
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-    expect(url).toBe('https://lh.example.com/api/v1/admin/my-org/trails/3');
-    expect(init.headers.Authorization).toBe('Bearer lh_test123');
+    // Through the BFF with the session token; the learner and org come from the session, not the URL.
+    expect(url).toBe('http://bff.test/api/me/trail');
+    expect(init.headers.Authorization).toBe('Bearer sess-123');
   });
 
   it('returns an empty array when the user has no trail', async () => {
@@ -115,7 +118,7 @@ describe('getMyTrail', () => {
     expect(await getMyTrail('my-org', 3)).toEqual([]);
   });
 
-  it('throws an ApiError on a 401 (e.g. an invalid/expired admin token)', async () => {
+  it('throws an ApiError on a 401 (e.g. an expired session)', async () => {
     mockFetchOnce(401, { detail: 'Invalid token' });
     await expect(getMyTrail('my-org', 3)).rejects.toMatchObject({ status: 401 });
   });

@@ -1,13 +1,13 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import type { OnboardingAnswers } from '../../core/onboarding/types';
-import { hashPassword } from './passwordHash';
+
+// The local profile holds onboarding answers per username. It never stores the password, or
+// anything derived from it: LearnHouse (through the BFF) is the only place a login is checked.
 
 const DATABASE_NAME = 'getting-started.db';
 
 export interface LocalProfile {
   username: string;
-  passwordHash: string | null;
-  passwordSalt: string | null;
   answers: OnboardingAnswers | null;
   completed: boolean;
   updatedAt: string;
@@ -15,8 +15,6 @@ export interface LocalProfile {
 
 interface ProfileRow {
   username: string;
-  password_hash: string | null;
-  password_salt: string | null;
   role: OnboardingAnswers['role'];
   experience: OnboardingAnswers['experience'];
   goal: OnboardingAnswers['goal'];
@@ -36,8 +34,6 @@ function getDatabase(): Promise<SQLiteDatabase> {
         await db.execAsync(`
           CREATE TABLE IF NOT EXISTS profiles (
             username TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
-            password_hash TEXT,
-            password_salt TEXT,
             role TEXT,
             experience TEXT,
             goal TEXT,
@@ -48,6 +44,11 @@ function getDatabase(): Promise<SQLiteDatabase> {
             updated_at TEXT NOT NULL
           );
         `);
+        // Earlier builds stored a salted password hash here. Wipe it on installs that still have it.
+        const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(profiles)');
+        if (columns.some((c) => c.name === 'password_hash')) {
+          await db.runAsync('UPDATE profiles SET password_hash = NULL, password_salt = NULL');
+        }
         return db;
       })
       .catch((error: unknown) => {
@@ -58,17 +59,13 @@ function getDatabase(): Promise<SQLiteDatabase> {
   return databasePromise;
 }
 
-export async function saveCredentials(username: string, password: string): Promise<void> {
-  const { hash, salt } = await hashPassword(password);
+/** Make sure a profile row exists for this user (e.g. right after sign-in). Stores no credentials. */
+export async function saveProfile(username: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    `INSERT INTO profiles (username, password_hash, password_salt, updated_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(username) DO UPDATE SET
-       password_hash = excluded.password_hash,
-       password_salt = excluded.password_salt,
-       updated_at = excluded.updated_at`,
-    [username, hash, salt, new Date().toISOString()]
+    `INSERT INTO profiles (username, updated_at) VALUES (?, ?)
+     ON CONFLICT(username) DO UPDATE SET updated_at = excluded.updated_at`,
+    [username, new Date().toISOString()]
   );
 }
 
@@ -127,8 +124,6 @@ export async function getProfile(username: string): Promise<LocalProfile | null>
 
   return {
     username: row.username,
-    passwordHash: row.password_hash,
-    passwordSalt: row.password_salt,
     answers,
     completed: row.completed === 1,
     updatedAt: row.updated_at,

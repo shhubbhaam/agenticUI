@@ -1,8 +1,6 @@
-// Thin fetch wrapper for the LearnHouse API (docs.learnhouse.app/reference).
-// No cookie handling — React Native's fetch doesn't persist cookies
-// reliably across requests, so every call authenticates via the
-// `Authorization: Bearer` header instead of the httpOnly cookies the API
-// also sets for browser sessions.
+// Thin fetch wrapper for the app's backend-for-frontend (bff/). The app never calls LearnHouse
+// directly: the BFF holds the org API token server-side and derives the learner from an opaque
+// session token, sent as `Authorization: Bearer`. (W2 review P0: no org token in the bundle.)
 
 export class ApiError extends Error {
   status: number;
@@ -33,9 +31,10 @@ function extractErrorMessage(status: number, data: unknown): string {
 }
 
 export async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-  const rawBaseUrl = process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL;
+  // e.g. http://10.0.2.2:3000/api on the Android emulator. Read per call so tests can set it.
+  const rawBaseUrl = process.env.EXPO_PUBLIC_BFF_URL;
   if (!rawBaseUrl) {
-    throw new ApiError(0, 'EXPO_PUBLIC_LEARNHOUSE_BASE_URL is not configured');
+    throw new ApiError(0, 'EXPO_PUBLIC_BFF_URL is not configured');
   }
   // Strip trailing slashes so `${baseUrl}${path}` (path always starts with
   // `/`) can't produce a silent double slash for a URL copied with one.

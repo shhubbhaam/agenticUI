@@ -36,9 +36,9 @@ jest.mock('./googleSignIn', () => ({
   getGoogleAccessToken: () => mockGetGoogleAccessToken(),
 }));
 
-const mockSaveCredentials = jest.fn();
+const mockSaveProfile = jest.fn();
 jest.mock('../../data/local/localProfileDb', () => ({
-  saveCredentials: (...args: unknown[]) => mockSaveCredentials(...args),
+  saveProfile: (...args: unknown[]) => mockSaveProfile(...args),
 }));
 
 describe('validateEmail', () => {
@@ -81,8 +81,8 @@ describe('useLoginFlow state machine', () => {
     mockSignInWithPassword.mockReset();
     mockSignInWithGoogle.mockReset();
     mockGetGoogleAccessToken.mockReset();
-    mockSaveCredentials.mockReset();
-    mockSaveCredentials.mockResolvedValue(undefined);
+    mockSaveProfile.mockReset();
+    mockSaveProfile.mockResolvedValue(undefined);
     require('@react-navigation/native').useNavigation.mockReturnValue({ reset: mockReset });
     jest.useFakeTimers();
   });
@@ -255,14 +255,14 @@ describe('useLoginFlow state machine', () => {
       mockSignInWithPassword.mockResolvedValue(undefined);
       signInWithPasswordFlow();
       await flushMicrotasks();
-      expect(mockSaveCredentials).toHaveBeenCalledWith('a@b.com', 'longenough');
+      expect(mockSaveProfile).toHaveBeenCalledWith('a@b.com'); // username only, never the password
     });
 
     it('does not save anything when the password sign-in is rejected', async () => {
       mockSignInWithPassword.mockRejectedValue(new ApiError(401, 'Incorrect email or password'));
       signInWithPasswordFlow();
       await flushMicrotasks();
-      expect(mockSaveCredentials).not.toHaveBeenCalled();
+      expect(mockSaveProfile).not.toHaveBeenCalled();
     });
 
     it('does not save credentials for Google sign-in, which has no password', async () => {
@@ -272,13 +272,13 @@ describe('useLoginFlow state machine', () => {
       act(() => { ReactTestRenderer.create(<Harness onReady={(f) => { flow = f; }} />); });
       act(() => { flow.onContinueWithProvider('google'); });
       await flushMicrotasks();
-      expect(mockSaveCredentials).not.toHaveBeenCalled();
+      expect(mockSaveProfile).not.toHaveBeenCalled();
     });
 
     it('still navigates into onboarding when the local save fails', async () => {
       jest.spyOn(console, 'error').mockImplementation(() => {});
       mockSignInWithPassword.mockResolvedValue(undefined);
-      mockSaveCredentials.mockRejectedValue(new Error('disk full'));
+      mockSaveProfile.mockRejectedValue(new Error('disk full'));
       signInWithPasswordFlow();
       await flushMicrotasks();
       expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'OnboardingRole' }] });

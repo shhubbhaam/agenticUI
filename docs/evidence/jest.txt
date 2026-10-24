@@ -1,0 +1,12 @@
+
+> AILaunchpad@0.0.1 test
+> jest
+
+PASS __tests__/contracts/homeLayout.test.ts
+PASS __tests__/App.test.tsx
+
+Test Suites: 2 passed, 2 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        4.498 s, estimated 15 s
+Ran all test suites.

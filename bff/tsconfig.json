@@ -1,0 +1,21 @@
+{
+  // BFF TypeScript config. Run with tsx (npm start / npm test); type-check with `npm run typecheck`.
+  // Erasable syntax only + explicit .ts imports: the same files also run under Node's
+  // built-in type stripping (node >= 22.18), so tsx is a convenience, not a lock-in.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true
+  },
+  // ../src/contracts is shared with the app: the BFF type-checks the layout it builds
+  // against the same Zod contract the client parses with.
+  "include": ["server.ts", "src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"]
+}

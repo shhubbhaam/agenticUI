@@ -1,5 +1,6 @@
 import { request } from './client';
-import { getAdminToken } from './adminToken';
+import { getSessionToken } from '../../core/auth/session';
+import { getStoredToken } from './secureToken';
 import { trailResponseSchema, type TrailCourse } from './schemas';
 import type { ActivityType, CourseProgress } from '../../core/learning/types';
 
@@ -38,10 +39,12 @@ function mapCourse(raw: TrailCourse): CourseProgress {
   };
 }
 
-export async function getMyTrail(orgSlug: string, userId: number): Promise<CourseProgress[]> {
-  const data = await request(`/api/v1/admin/${orgSlug}/trails/${userId}`, {
-    token: getAdminToken(),
-  });
+// The BFF derives the learner from the session and returns only allow-listed courses.
+// orgSlug/userId are kept as the trail cache key (trailCache.ts); they are not sent.
+export async function getMyTrail(_orgSlug: string, _userId: number): Promise<CourseProgress[]> {
+  // On a cold start the screens can ask before hydrate() has restored the in-memory token.
+  const token = getSessionToken() ?? (await getStoredToken());
+  const data = await request('/me/trail', { token });
   const parsed = trailResponseSchema.parse(data);
   return parsed.courses.map(mapCourse);
 }

@@ -223,5 +223,8 @@ vite.config.ts.timestamp-*
 # Local-only, never committed
 graphify-out/
 scripts/test-learnhouse-api.mjs
-# LearnHouse test credentials
-src/core/api/learnhouse/config.ts
+# Secrets: app env (EXPO_PUBLIC_* only, no tokens) and the BFF env (org token, Gemini key)
+.env
+bff/.env
+bff/users.local.json
+# src/core/api/learnhouse/config.ts stays TRACKED: it holds only the BFF URL (W2 review: ignoring it broke fresh checkouts)

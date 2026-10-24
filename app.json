@@ -11,12 +11,7 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
-          "NSAllowsLocalNetworking": true,
-          "NSExceptionDomains": {
-            "95.217.0.116": {
-              "NSExceptionAllowsInsecureHTTPLoads": true
-            }
-          }
+          "NSAllowsLocalNetworking": true
         }
       }
     },

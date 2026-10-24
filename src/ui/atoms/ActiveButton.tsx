@@ -1,11 +1,12 @@
-// src/components/atoms/ActiveButton.tsx
+// src/ui/atoms/ActiveButton.tsx
 import React from 'react';
-import { TouchableOpacity, Text, View } from 'react-native';
+import { TouchableOpacity, Text, View, AccessibilityProps } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
 
-interface ActiveButtonProps {
+// Extends React Native's AccessibilityProps so parents can pass labels/hints down (M8).
+interface ActiveButtonProps extends AccessibilityProps {
   onPress?: () => void;
   label: string;
   icon?: React.ReactNode; // Optional icon prop, defaults to empty
@@ -27,7 +28,17 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
   variant = 'primary',
   disabled = false,
   fillColor,
+  // The rest carries accessibility tags (accessibilityLabel/Hint, ...).
+  ...accessibilityProps
 }) => {
+  const a11y = {
+    accessible: true,
+    accessibilityRole: 'button' as const,
+    accessibilityLabel: accessibilityProps.accessibilityLabel || label,
+    accessibilityState: { disabled },
+    ...accessibilityProps,
+  };
+
   if (variant === 'secondary') {
     return (
       <TouchableOpacity
@@ -45,6 +56,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
             opacity: disabled ? 0.6 : 1,
           },
         ]}
+        {...a11y}
       >
         {icon}
         <Text
@@ -60,14 +72,15 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
     );
   }
 
-return (
+  return (
     <TouchableOpacity
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       style={[
         tw`flex-row items-center justify-center py-4 px-6 rounded-2xl w-full`,
-        { backgroundColor: fillColor ?? colors.action.lesson, opacity: disabled ? 0.6 : 1 }
+        { backgroundColor: fillColor ?? colors.action.lesson, opacity: disabled ? 0.6 : 1 },
       ]}
+      {...a11y}
     >
       {icon ? <View style={tw`mr-2 justify-center items-center`}>{icon}</View> : null}
       <Text

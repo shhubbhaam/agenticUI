@@ -1,0 +1,7 @@
+{
+  "bffEnvelopeAccepted": true,
+  "sameEnvelopeOtherLearner": {
+    "ok": false,
+    "reason": "wrong-context"
+  }
+}
