@@ -1,0 +1,1 @@
+bff typecheck: clean (tsc -p bff, 0 errors)

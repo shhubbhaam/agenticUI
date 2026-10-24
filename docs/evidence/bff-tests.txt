@@ -2,193 +2,337 @@ TAP version 13
 # Subtest: AI picks PracticeCard + RevisitSection -> served, with content from the course
 ok 1 - AI picks PracticeCard + RevisitSection -> served, with content from the course
   ---
-  duration_ms: 39.359286
+  duration_ms: 53.160348
   type: 'test'
   ...
 # Subtest: AI picks HomeCard + NextStepCard -> titles are the next two course activities
 ok 2 - AI picks HomeCard + NextStepCard -> titles are the next two course activities
   ---
-  duration_ms: 13.678753
+  duration_ms: 18.25918
   type: 'test'
   ...
 # Subtest: model sees telemetry only: no activity names or ids in the prompt
 ok 3 - model sees telemetry only: no activity names or ids in the prompt
   ---
-  duration_ms: 9.979542
+  duration_ms: 12.600912
   type: 'test'
   ...
 # Subtest: RevisitSection with nothing completed -> NextStepCard
 ok 4 - RevisitSection with nothing completed -> NextStepCard
   ---
-  duration_ms: 11.443559
+  duration_ms: 19.214285
   type: 'test'
   ...
 # Subtest: decision outside the catalogue -> deterministic fallback, not a crash
 ok 5 - decision outside the catalogue -> deterministic fallback, not a crash
   ---
-  duration_ms: 10.143866
+  duration_ms: 15.174051
   type: 'test'
   ...
 # Subtest: Gemini HTTP error -> deterministic fallback
 ok 6 - Gemini HTTP error -> deterministic fallback
   ---
-  duration_ms: 7.671169
+  duration_ms: 8.224662
+  type: 'test'
+  ...
+# Subtest: malformed model JSON -> fallback, and the log carries a reason code, not model text (W3 review)
+ok 7 - malformed model JSON -> fallback, and the log carries a reason code, not model text (W3 review)
+  ---
+  duration_ms: 15.35108
+  type: 'test'
+  ...
+# Subtest: agentFailureCode: fixed codes for each failure class
+ok 8 - agentFailureCode: fixed codes for each failure class
+  ---
+  duration_ms: 0.273711
   type: 'test'
   ...
 # Subtest: login: wrong password -> 401, response carries no token
-ok 7 - login: wrong password -> 401, response carries no token
+ok 9 - login: wrong password -> 401, response carries no token
   ---
-  duration_ms: 30.263622
+  duration_ms: 31.72156
   type: 'test'
   ...
 # Subtest: no session / forged session -> 401 on every /me route
-ok 8 - no session / forged session -> 401 on every /me route
+ok 10 - no session / forged session -> 401 on every /me route
   ---
-  duration_ms: 9.400991
+  duration_ms: 8.433826
   type: 'test'
   ...
 # Subtest: course not on server allow-list -> 403
-ok 9 - course not on server allow-list -> 403
+ok 11 - course not on server allow-list -> 403
   ---
-  duration_ms: 6.979002
+  duration_ms: 9.233563
   type: 'test'
   ...
 # Subtest: old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
-ok 10 - old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
+ok 12 - old forgeable routes (userId/orgSlug in URL) no longer exist -> 404
   ---
-  duration_ms: 6.380623
+  duration_ms: 9.787237
   type: 'test'
   ...
 # Subtest: unpublished / foreign activity -> 403 activity_forbidden, no upstream write
-ok 11 - unpublished / foreign activity -> 403 activity_forbidden, no upstream write
+ok 13 - unpublished / foreign activity -> 403 activity_forbidden, no upstream write
   ---
-  duration_ms: 8.825546
+  duration_ms: 12.040916
   type: 'test'
   ...
 # Subtest: completion write is applied and read back; other learner is unaffected
-ok 12 - completion write is applied and read back; other learner is unaffected
+ok 14 - completion write is applied and read back; other learner is unaffected
   ---
-  duration_ms: 12.155805
+  duration_ms: 19.964841
   type: 'test'
   ...
 # Subtest: retry with same Idempotency-Key -> one upstream effect, replayed result
-ok 13 - retry with same Idempotency-Key -> one upstream effect, replayed result
+ok 15 - retry with same Idempotency-Key -> one upstream effect, replayed result
   ---
-  duration_ms: 5.593345
+  duration_ms: 15.687271
   type: 'test'
   ...
 # Subtest: same key reused for a different activity -> 409
-ok 14 - same key reused for a different activity -> 409
+ok 16 - same key reused for a different activity -> 409
   ---
-  duration_ms: 8.310276
+  duration_ms: 11.133714
   type: 'test'
   ...
 # Subtest: lost upstream response is reconciled by read-back -> applied, not a false failure
-ok 15 - lost upstream response is reconciled by read-back -> applied, not a false failure
+ok 17 - lost upstream response is reconciled by read-back -> applied, not a false failure
   ---
-  duration_ms: 7.175847
+  duration_ms: 5.341857
   type: 'test'
   ...
 # Subtest: missing Idempotency-Key -> 400
-ok 16 - missing Idempotency-Key -> 400
+ok 18 - missing Idempotency-Key -> 400
   ---
-  duration_ms: 11.372994
+  duration_ms: 6.562339
   type: 'test'
   ...
 # Subtest: home-layout: versioned envelope bound to the session learner, fallback without Gemini
-ok 17 - home-layout: versioned envelope bound to the session learner, fallback without Gemini
+ok 19 - home-layout: versioned envelope bound to the session learner, fallback without Gemini
   ---
-  duration_ms: 10.353875
+  duration_ms: 10.643236
   type: 'test'
   ...
 # Subtest: home-layout: an agent returning content instead of names cannot inject it
-ok 18 - home-layout: an agent returning content instead of names cannot inject it
+ok 20 - home-layout: an agent returning content instead of names cannot inject it
   ---
-  duration_ms: 25.988175
+  duration_ms: 12.223123
   type: 'test'
   ...
 # Subtest: oversized request body -> 413
-ok 19 - oversized request body -> 413
+ok 21 - oversized request body -> 413
   ---
-  duration_ms: 3.944196
+  duration_ms: 3.666318
   type: 'test'
   ...
 # Subtest: not-enrolled learner: trail -> 404 not_enrolled (not a 502)
-ok 20 - not-enrolled learner: trail -> 404 not_enrolled (not a 502)
+ok 22 - not-enrolled learner: trail -> 404 not_enrolled (not a 502)
   ---
-  duration_ms: 2.702834
+  duration_ms: 4.429831
   type: 'test'
   ...
-# Subtest: not-enrolled learner: home-layout still works, suggests the first published activity
-ok 21 - not-enrolled learner: home-layout still works, suggests the first published activity
+# Subtest: not-enrolled learner: home-layout still works, but offers no completion target
+ok 23 - not-enrolled learner: home-layout still works, but offers no completion target
   ---
-  duration_ms: 3.232592
+  duration_ms: 4.563294
   type: 'test'
   ...
 # Subtest: real upstream failure (500) is still reported as 502 with the upstream status
-ok 22 - real upstream failure (500) is still reported as 502 with the upstream status
+ok 24 - real upstream failure (500) is still reported as 502 with the upstream status
   ---
-  duration_ms: 4.657914
+  duration_ms: 6.204398
   type: 'test'
   ...
-# (node:28) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///sessions/rcw-01w4h24r8t3k2m3qa5ztkgws/mnt/AILaunchpad/src/contracts/homeLayout.ts is not specified and it doesn't parse as CommonJS.
+# Subtest: malformed percent-encoding in a route param -> 400, and the server keeps serving (W3 review)
+ok 25 - malformed percent-encoding in a route param -> 400, and the server keeps serving (W3 review)
+  ---
+  duration_ms: 5.825767
+  type: 'test'
+  ...
+# Subtest: concurrent requests with the same Idempotency-Key -> exactly one upstream write, same result
+ok 26 - concurrent requests with the same Idempotency-Key -> exactly one upstream write, same result
+  ---
+  duration_ms: 86.381952
+  type: 'test'
+  ...
+# Subtest: same key reused for the same activity in another course -> 409 before any upstream call
+ok 27 - same key reused for the same activity in another course -> 409 before any upstream call
+  ---
+  duration_ms: 9.456196
+  type: 'test'
+  ...
+# Subtest: not-enrolled learner: completion -> 403 not_enrolled and no upstream write
+ok 28 - not-enrolled learner: completion -> 403 not_enrolled and no upstream write
+  ---
+  duration_ms: 4.817198
+  type: 'test'
+  ...
+# Subtest: activity with no published flag is not published (no card, no write); the trail flag can publish it
+ok 29 - activity with no published flag is not published (no card, no write); the trail flag can publish it
+  ---
+  duration_ms: 8.059207
+  type: 'test'
+  ...
+# (node:31) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///sessions/rcw-01w4h24r8t3k2m3qa5ztkgws/mnt/AILaunchpad/src/contracts/homeLayout.ts is not specified and it doesn't parse as CommonJS.
 # Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
 # To eliminate this warning, add "type": "module" to /sessions/rcw-01w4h24r8t3k2m3qa5ztkgws/mnt/AILaunchpad/package.json.
 # (Use `node --trace-warnings ...` to show where the warning was created)
 # Subtest: contract: fallback envelope parses with the client contract, both slots valid
-ok 23 - contract: fallback envelope parses with the client contract, both slots valid
+ok 30 - contract: fallback envelope parses with the client contract, both slots valid
   ---
-  duration_ms: 47.262788
+  duration_ms: 55.26877
   type: 'test'
   ...
 # Subtest: contract: every agent choice produces slots the client accepts
-ok 24 - contract: every agent choice produces slots the client accepts
+ok 31 - contract: every agent choice produces slots the client accepts
   ---
-  duration_ms: 39.979086
+  duration_ms: 43.408272
+  type: 'test'
+  ...
+# Subtest: contract: long course and chapter names (up to the 40-char clip) still give a valid HomeCard
+ok 32 - contract: long course and chapter names (up to the 40-char clip) still give a valid HomeCard
+  ---
+  duration_ms: 9.414908
+  type: 'test'
+  ...
+# Subtest: HomeCard: badge is the Path stage + format, subtitle the chapter, meta line the course
+ok 33 - HomeCard: badge is the Path stage + format, subtitle the chapter, meta line the course
+  ---
+  duration_ms: 13.263395
   type: 'test'
   ...
 # Subtest: contract: the same envelope is rejected for another learner
-ok 25 - contract: the same envelope is rejected for another learner
+ok 34 - contract: the same envelope is rejected for another learner
   ---
-  duration_ms: 11.500527
+  duration_ms: 8.066374
   type: 'test'
   ...
 # Subtest: dev login: mapped email + password -> server-side learner id
-ok 26 - dev login: mapped email + password -> server-side learner id
+ok 35 - dev login: mapped email + password -> server-side learner id
   ---
-  duration_ms: 1.640412
+  duration_ms: 1.687782
   type: 'test'
   ...
 # Subtest: dev login: wrong password / unknown email -> null
-ok 27 - dev login: wrong password / unknown email -> null
+ok 36 - dev login: wrong password / unknown email -> null
   ---
-  duration_ms: 0.293058
+  duration_ms: 0.287747
   type: 'test'
   ...
 # Subtest: dev login: malformed id in config is ignored
-ok 28 - dev login: malformed id in config is ignored
+ok 37 - dev login: malformed id in config is ignored
   ---
-  duration_ms: 0.147792
+  duration_ms: 0.141219
   type: 'test'
   ...
 # Subtest: dev login: refuses production
-ok 29 - dev login: refuses production
+ok 38 - dev login: refuses production
   ---
-  duration_ms: 0.287417
+  duration_ms: 0.290913
   type: 'test'
   ...
 # Subtest: dev login: other adapter methods untouched
-ok 30 - dev login: other adapter methods untouched
+ok 39 - dev login: other adapter methods untouched
   ---
-  duration_ms: 0.16835
+  duration_ms: 0.171106
   type: 'test'
   ...
-1..30
-# tests 30
+# Subtest: adapter: complete activity -> POST /admin/{org}/progress/{user}/activities/{activity}/complete, org token
+ok 40 - adapter: complete activity -> POST /admin/{org}/progress/{user}/activities/{activity}/complete, org token
+  ---
+  duration_ms: 2.168417
+  type: 'test'
+  ...
+# Subtest: adapter: course trail -> GET /admin/{org}/trails/{user}/courses/{course}
+ok 41 - adapter: course trail -> GET /admin/{org}/trails/{user}/courses/{course}
+  ---
+  duration_ms: 0.280404
+  type: 'test'
+  ...
+# Subtest: adapter: course meta -> GET /courses/{course}/meta?slim=true
+ok 42 - adapter: course meta -> GET /courses/{course}/meta?slim=true
+  ---
+  duration_ms: 0.324107
+  type: 'test'
+  ...
+# Subtest: adapter: ids are URL-encoded, so an id cannot change the path
+ok 43 - adapter: ids are URL-encoded, so an id cannot change the path
+  ---
+  duration_ms: 0.322915
+  type: 'test'
+  ...
+# Subtest: adapter: upstream 404 -> error carries the status (BFF reports 502 upstream_write_failed)
+ok 44 - adapter: upstream 404 -> error carries the status (BFF reports 502 upstream_write_failed)
+  ---
+  duration_ms: 0.660607
+  type: 'test'
+  ...
+# Subtest: adapter: all-course trail -> GET /admin/{org}/trails/{user}
+ok 45 - adapter: all-course trail -> GET /admin/{org}/trails/{user}
+  ---
+  duration_ms: 0.311863
+  type: 'test'
+  ...
+# Subtest: adapter: google -> POST /auth/oauth (no org token), then the learner session; LH token not kept
+ok 46 - adapter: google -> POST /auth/oauth (no org token), then the learner session; LH token not kept
+  ---
+  duration_ms: 0.935781
+  type: 'test'
+  ...
+# Subtest: adapter: rejected Google token (401) -> null, not an error
+ok 47 - adapter: rejected Google token (401) -> null, not an error
+  ---
+  duration_ms: 0.361879
+  type: 'test'
+  ...
+# Subtest: google: valid token -> BFF session (no LearnHouse token in the response)
+ok 48 - google: valid token -> BFF session (no LearnHouse token in the response)
+  ---
+  duration_ms: 40.184387
+  type: 'test'
+  ...
+# Subtest: google: rejected token -> 401; missing fields -> 400
+ok 49 - google: rejected token -> 401; missing fields -> 400
+  ---
+  duration_ms: 14.18726
+  type: 'test'
+  ...
+# Subtest: me: requires a session
+ok 50 - me: requires a session
+  ---
+  duration_ms: 8.6907
+  type: 'test'
+  ...
+# Subtest: me: returns the session learner in /users/session shape, only this BFF's org
+ok 51 - me: returns the session learner in /users/session shape, only this BFF's org
+  ---
+  duration_ms: 11.339952
+  type: 'test'
+  ...
+# Subtest: me: learner who is not in this org -> 403 not_org_member
+ok 52 - me: learner who is not in this org -> 403 not_org_member
+  ---
+  duration_ms: 15.31668
+  type: 'test'
+  ...
+# Subtest: me/trail: only allow-listed courses, for the session learner
+ok 53 - me/trail: only allow-listed courses, for the session learner
+  ---
+  duration_ms: 9.309738
+  type: 'test'
+  ...
+# Subtest: me/trail: learner with no progress yet -> empty list, not an error
+ok 54 - me/trail: learner with no progress yet -> empty list, not an error
+  ---
+  duration_ms: 9.218684
+  type: 'test'
+  ...
+1..54
+# tests 54
 # suites 0
-# pass 30
+# pass 54
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2126.511746
+# duration_ms 3016.139433
