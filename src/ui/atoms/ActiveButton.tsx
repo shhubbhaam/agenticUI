@@ -1,6 +1,6 @@
 // src/components/atoms/ActiveButton.tsx
 import React from 'react';
-import { TouchableOpacity, Text } from 'react-native';
+import { TouchableOpacity, Text, View } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../tokens/colors';
 import { typography } from '../tokens/typography';
@@ -13,6 +13,11 @@ interface ActiveButtonProps {
   // 'secondary': the Path screen's bordered white CTA (Figma "Button · secondary",
   // approved source class "btn") — exact height/radius/ink per source tokens.
   variant?: 'primary' | 'secondary';
+  disabled?: boolean;
+  // Optional background color override for the 'primary' variant only.
+  // Leaves the shared purple fill (colors.action.lesson) untouched when
+  // omitted, so other primary-variant call sites are unaffected.
+  fillColor?: string;
 }
 
 export const ActiveButton: React.FC<ActiveButtonProps> = ({
@@ -20,12 +25,15 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
   label,
   icon,
   variant = 'primary',
+  disabled = false,
+  fillColor,
 }) => {
   if (variant === 'secondary') {
     return (
       <TouchableOpacity
-        onPress={onPress}
+        onPress={disabled ? undefined : onPress}
         activeOpacity={0.75}
+        disabled={disabled}
         style={[
           tw`flex-row items-center justify-center rounded-2xl border w-full`,
           {
@@ -34,6 +42,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
             backgroundColor: colors.path.btnSecondary.surface,
             borderColor: colors.path.btnSecondary.border,
             borderWidth: 0.8,
+            opacity: disabled ? 0.6 : 1,
           },
         ]}
       >
@@ -51,22 +60,23 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
     );
   }
 
-  return (
+return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
       style={[
         tw`flex-row items-center justify-center py-4 px-6 rounded-2xl w-full`,
-        { backgroundColor: colors.action.lesson }
+        { backgroundColor: fillColor ?? colors.action.lesson, opacity: disabled ? 0.6 : 1 }
       ]}
     >
-      {icon ? <Text style={tw`mr-2`}>{icon}</Text> : null}
+      {icon ? <View style={tw`mr-2 justify-center items-center`}>{icon}</View> : null}
       <Text
         style={[
           tw`text-white`,
           {
             fontFamily: typography.fontFamily['jakarta-bold'],
             ...typography.fontSize['type-16'],
-          }
+          },
         ]}
       >
         {label}

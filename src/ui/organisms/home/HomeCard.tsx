@@ -12,7 +12,7 @@ interface HomeCardProps {
   category: string;
   title: string;
   subtitle: string;
-  readTime: string;
+  readTime?: string;
   onPressButton: () => void;
   imageUrl?: string;
   buttonLabel?: string;
@@ -31,7 +31,7 @@ export const HomeCard: React.FC<HomeCardProps> = ({
   buttonIcon,
 }) => {``
   return (
-    <View style={[tw`w-full rounded-3xl overflow-hidden shadow-xlmb-4`, { backgroundColor: colors.hero.surface }]}>
+    <View style={[tw`w-full rounded-3xl overflow-hidden `, { backgroundColor: colors.hero.surface }]}>
       <View style={[tw`w-full h-[40] justify-center shadow-md  items-center`]}>
         <Image
           source={{ uri: imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop' }}
@@ -58,7 +58,13 @@ export const HomeCard: React.FC<HomeCardProps> = ({
 
         <View style={tw`flex-row items-center mb-5`}>
           <Text style={{ color: colors.text.body, fontFamily: typography.fontFamily.jakarta, ...typography.fontSize['type-11'] }}>
-            <FileText size={14} color="#334155" strokeWidth={1.8} /> Article    <Clock size={14} color="#334155" strokeWidth={1.8} />  {readTime}
+            <FileText size={14} color="#334155" strokeWidth={1.8} /> {category}
+            {!!readTime && (
+              <>
+                {'    '}
+                <Clock size={14} color="#334155" strokeWidth={1.8} />  {readTime}
+              </>
+            )}
           </Text>
         </View>
 
