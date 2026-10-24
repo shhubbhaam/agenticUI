@@ -85,6 +85,13 @@ describe('catalogue + props', () => {
   it('extra field on the slot wrapper -> invalid (no silent strip)', () => {
     expect(slotOnly({ ...homeCard, version: 9 })).toEqual({ ok: false, reason: 'invalid' });
   });
+  it('40-char chapter name in stage -> valid (regression: was capped at 24)', () => {
+    const stage = 'Engineering Reliable Single Agent Systems'.slice(0, 40);
+    expect(slotOnly({ ...homeCard, props: { ...homeCard.props, stage } })).toMatchObject({ ok: true });
+  });
+  it('41-char stage -> invalid', () => {
+    expect(slotOnly({ ...homeCard, props: { ...homeCard.props, stage: 'x'.repeat(41) } })).toEqual({ ok: false, reason: 'invalid' });
+  });
 });
 
 describe('actions (closed allow-list)', () => {

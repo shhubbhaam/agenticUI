@@ -46,6 +46,23 @@ test('contract: every agent choice produces slots the client accepts', async () 
   }
 });
 
+test('contract: long course and chapter names (up to the 40-char clip) still give a valid HomeCard', async () => {
+  const fake = createFakeLearnHouse();
+  const realMeta = fake.lh.getCourseMeta;
+  fake.lh.getCourseMeta = async (uuid) => {
+    const m = await realMeta(uuid);
+    return { ...m, name: 'Agentic AI Systems: Foundations and Practice', chapters: m.chapters!.map((c) => ({ ...c, name: 'Engineering Reliable Single Agent Systems' })) };
+  };
+  const s = createApp({ lh: fake.lh, allowedCourses: new Set(['course_demo']), logger: quiet }).server();
+  await new Promise<void>((r) => s.listen(0, r));
+  const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}/api`;
+  const login = (await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as { token: string; learner: { id: string } };
+  const raw = await (await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${login.token}` } })).json();
+  s.close();
+  const r = parseHomeLayout(raw, { learnerId: login.learner.id, courseUuid: 'course_demo' });
+  assert.ok(r.ok && r.slots.mainCard.ok && r.slots.mainCard.value.component === 'HomeCard', JSON.stringify(r));
+});
+
 test('contract: the same envelope is rejected for another learner', async () => {
   const { raw } = await serve();
   assert.deepEqual(parseHomeLayout(raw, { learnerId: '202', courseUuid: 'course_demo' }), { ok: false, reason: 'wrong-context' });

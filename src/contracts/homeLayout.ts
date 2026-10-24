@@ -19,6 +19,9 @@ export const MAX_PAYLOAD_BYTES = 16 * 1024;
 const Title = z.string().min(1).max(60);
 const Line = z.string().min(1).max(140);
 const Label = z.string().min(1).max(24);
+// Course / chapter names. Its own schema: chaining Label.max(40) keeps Label's max(24) too
+// (Zod applies every check), which silently rejected 25-40 char chapter names.
+const ShortLine = z.string().min(1).max(40);
 const Id = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
 
 export const IconName = z.enum(['zap', 'book', 'clock', 'star', 'chevron-right']);
@@ -36,7 +39,7 @@ export type LayoutAction = z.infer<typeof ActionSchema>;
 const HomeCard = z.object({
   component: z.literal('HomeCard'),
   props: z.object({
-    category: Label.max(40), stage: Label.max(40), title: Title, subtitle: Line,
+    category: ShortLine, stage: ShortLine, title: Title, subtitle: Line,
     readTime: Label, buttonLabel: Label, action: ActionSchema,
   }).strict(),
 }).strict();
