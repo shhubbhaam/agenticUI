@@ -94,7 +94,9 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
     getCourseMeta: (courseUuid) => call<CourseMeta>('GET', `/courses/${encodeURIComponent(courseUuid)}/meta?slim=true`),
     getTrail: (learnerId, courseUuid) =>
       call<Trail>('GET', `/admin/${orgSlug}/trails/${encodeURIComponent(learnerId)}/courses/${encodeURIComponent(courseUuid)}`),
+    // Completion lives under /progress (reads of the per-course breakdown stay under /trails).
+    // docs.learnhouse.app/reference/headless: POST /admin/{org_slug}/progress/{user_id}/activities/{activity_uuid}/complete
     completeActivity: (learnerId, activityUuid) =>
-      call<unknown>('POST', `/admin/${orgSlug}/trails/${encodeURIComponent(learnerId)}/activities/${encodeURIComponent(activityUuid)}/complete`),
+      call<unknown>('POST', `/admin/${orgSlug}/progress/${encodeURIComponent(learnerId)}/activities/${encodeURIComponent(activityUuid)}/complete`),
   };
 }
