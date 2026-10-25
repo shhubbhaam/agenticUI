@@ -7,6 +7,7 @@ import PathScreen from '../screens/path/PathScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import PracticeScreen from '../screens/practice/PracticeScreen';
 import YouScreen from '../screens/you/YouScreen';
+import LessonScreen from '../screens/lesson/LessonScreen';
 import RoleScreen from '../screens/onboarding/RoleScreen';
 import ExperienceScreen from '../screens/onboarding/ExperienceScreen';
 import GoalScreen from '../screens/onboarding/GoalScreen';
@@ -28,6 +29,7 @@ export type RootStackParamList = {
   HomeScreen: TabScreenParams;
   PracticeScreen: TabScreenParams;
   YouScreen: TabScreenParams;
+  Lesson: undefined;
   OnboardingRole: undefined;
   OnboardingExperience: undefined;
   OnboardingGoal: undefined;
@@ -52,6 +54,7 @@ export default function MainStack() {
         <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
         <Stack.Screen name="PracticeScreen" component={PracticeScreen} options={tabScreenOptions} />
         <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
+        <Stack.Screen name="Lesson" component={LessonScreen} />
         <Stack.Screen name="OnboardingRole" component={RoleScreen} />
         <Stack.Screen name="OnboardingExperience" component={ExperienceScreen} />
         <Stack.Screen name="OnboardingGoal" component={GoalScreen} />

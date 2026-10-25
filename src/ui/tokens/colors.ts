@@ -116,6 +116,12 @@ const primitives = {
   rhythmCardSurface: '#F0EAF8',
   rhythmCardBorder: '#E4D8F0',
   miniIconSurface: '#E9EEF9',
+  // Lesson video player ("WATCH & NOTICE" frame). No Figma node was shared for the player; these
+  // two are sampled from the design screenshot (25 Oct 2026). Replace with Figma values when available.
+  playerStageSurface: '#25365A',
+  playerStageEyebrow: '#7F8DAA',
+  playerOverlayButton: 'rgba(255,255,255,0.16)',
+  playerBuffered: '#C9D2EC',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -247,6 +253,30 @@ export const colors = {
   input: {
     border: primitives.inputBorder, // used in: TextField (login)
     ink: primitives.inputInk,
+  },
+  player: {
+    // used in: VideoStage, PlayPauseButton, PlayerTimeline, CheckpointMarker, PlayerActions,
+    // VideoMeta, WatchPromptCard, CheckpointQuizOverlay (lesson player)
+    stage: {
+      surface: primitives.playerStageSurface,
+      eyebrow: primitives.playerStageEyebrow,
+      ink: primitives.white,
+      overlayButton: primitives.playerOverlayButton,
+    },
+    timeline: {
+      track: primitives.pathTrackSurface,
+      played: primitives.pathFillSurface,
+      watched: primitives.playerBuffered, // furthest point reached (ahead of the playhead after a rewind)
+      time: primitives.slate500,
+    },
+    checkpoint: {
+      upcoming: primitives.white, // ring in the played colour
+      current: primitives.blue600,
+      passed: primitives.stageTeal,
+      locked: primitives.slate300,
+    },
+    actionInk: primitives.slate600,
+    card: { surface: primitives.white, border: primitives.slate200 },
   },
 } as const;
 
