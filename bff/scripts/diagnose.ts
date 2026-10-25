@@ -110,7 +110,8 @@ async function probeMedia(activity: any, courseMeta: any, userToken?: string) {
   const userToken = data?.tokens?.access_token ?? data?.access_token ?? data?.token;
   console.log(`  user id found: ${userId ?? 'NO'}   user token present: ${userToken ? 'yes' : 'no'}`);
   if (!login.ok) return;
-  if (pendingMedia) await probeMedia(pendingMedia.activity, pendingMedia.courseMeta, userToken);
+  const pm = pendingMedia as { activity: any; courseMeta: any } | null; // set inside contentShapes()
+  if (pm) await probeMedia(pm.activity, pm.courseMeta, userToken);
   if (!userId) console.log('  login response keys:', Object.keys(data).join(', '));
 
   await step('2 course meta (org token)', `/courses/${course}/meta?slim=true`, { auth: orgToken });
