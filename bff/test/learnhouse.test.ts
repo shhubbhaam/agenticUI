@@ -77,3 +77,9 @@ test('adapter: rejected Google token (401) -> null, not an error', async () => {
   const { lh } = recorder(401, { detail: 'bad token' });
   assert.equal(await lh.loginWithGoogle!('a@x.org', 'bad'), null);
 });
+
+test('adapter: single activity -> GET /activities/{uuid}, org token', async () => {
+  const { calls, lh } = recorder();
+  await lh.getActivity!('activity_abc');
+  assert.deepEqual(calls[0], { url: 'https://lh.example/api/v1/activities/activity_abc', method: 'GET', auth: 'Bearer lh_test' });
+});

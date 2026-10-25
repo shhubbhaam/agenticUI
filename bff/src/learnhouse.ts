@@ -11,6 +11,12 @@ export interface LhActivity {
   published?: boolean;
   activity_type?: string;
 }
+/** GET /activities/{uuid}: the activity with its content (e.g. a YouTube link in content.uri). */
+export interface LhActivityFull extends LhActivity {
+  activity_sub_type?: string;
+  content?: { uri?: unknown; type?: unknown; filename?: unknown } | null;
+  details?: unknown;
+}
 export interface CourseMeta {
   course_uuid?: string;
   name?: string;
@@ -47,6 +53,8 @@ export interface LearnHouse {
   /** Progress across every course the learner is in (the BFF filters it to allowed courses). */
   getAllTrails?(learnerId: string): Promise<Trail>;
   completeActivity(learnerId: string, activityUuid: string): Promise<unknown>;
+  /** One activity with its content. Org token; the BFF checks course + enrollment first. */
+  getActivity?(activityUuid: string): Promise<LhActivityFull>;
 }
 
 export interface LearnHouseOptions {
@@ -129,6 +137,7 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
         return await finishLogin(await call<LhLoginResponse | null>('POST', '/auth/oauth', { body: { email, provider: 'google', access_token: googleAccessToken }, auth: 'none' }));
       } catch (e) { if (rejected(e)) return null; throw e; }
     },
+    getActivity: (activityUuid) => call<LhActivityFull>('GET', `/activities/${encodeURIComponent(activityUuid)}`),
     getAllTrails: (learnerId) => call<Trail>('GET', `/admin/${orgSlug}/trails/${encodeURIComponent(learnerId)}`),
     getCourseMeta: (courseUuid) => call<CourseMeta>('GET', `/courses/${encodeURIComponent(courseUuid)}/meta?slim=true`),
     getTrail: (learnerId, courseUuid) =>

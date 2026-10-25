@@ -7,6 +7,28 @@ import { createSessionStore, type Session, type SessionStore } from './sessions.
 import { buildSlots, fallbackSlots, authorizeSlots, type Agent, type Decision, type BuildContext } from './agent.ts';
 import type { LearnHouse, LearnerProfile, Trail } from './learnhouse.ts';
 import { causeCode, type HttpError, type Logger } from './util.ts';
+import { LessonVideoResponseSchema, youTubeIdFrom, type LessonVideo } from '../../src/contracts/lessonVideo.ts';
+import type { LhActivityFull } from './learnhouse.ts';
+
+/** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
+function playerWindow(details: unknown): { startSec?: number; endSec?: number } {
+  let d: unknown = details;
+  if (typeof d === 'string') { try { d = JSON.parse(d); } catch { return {}; } }
+  const o = (d ?? {}) as { startTime?: unknown; endTime?: unknown };
+  const sec = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 86400 ? Math.floor(v) : undefined);
+  const startSec = sec(o.startTime), endSec = sec(o.endTime);
+  return { ...(startSec ? { startSec } : {}), ...(endSec && endSec > (startSec ?? 0) ? { endSec } : {}) };
+}
+
+/** Map a LearnHouse activity to what the app may play. Only an 11-character YouTube id leaves the BFF. */
+export function toLessonVideo(a: LhActivityFull): LessonVideo {
+  if (a.activity_type !== 'TYPE_VIDEO') return { kind: 'unsupported', reason: 'not_a_video' };
+  if (a.activity_sub_type === 'SUBTYPE_VIDEO_HOSTED') return { kind: 'hosted', available: false };
+  const type = typeof a.content?.type === 'string' ? a.content.type.toLowerCase() : '';
+  if (type === 'vimeo') return { kind: 'unsupported', reason: 'vimeo' };
+  const videoId = youTubeIdFrom(a.content?.uri);
+  return videoId ? { kind: 'youtube', videoId, ...playerWindow(a.details) } : { kind: 'unsupported', reason: 'unrecognized_url' };
+}
 
 const UUID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_BODY = 8 * 1024;
@@ -272,6 +294,31 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     try { const o = await outcome; res.status(o.http).json(o.body); }
     catch (e) { upstreamError(res, e); }
     finally { inflight.delete(cacheKey); }
+  });
+
+  // The video for one activity, for the lesson player. Same gates as completion: session, allowed
+  // course, enrolled, published activity of THIS course. The response is validated against the shared
+  // contract before it is sent (the app parses it again).
+  app.get('/api/me/courses/:courseUuid/activities/:activityUuid/video', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid, activityUuid } = req.params;
+    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
+    if (!lh.getActivity) return res.status(501).json({ error: 'not_supported' });
+    const learnerId = req.learner.learnerId;
+    try {
+      if (!(await isEnrolled(learnerId, courseUuid))) return res.status(403).json({ error: 'not_enrolled' });
+      const trail = await trailOrNull(learnerId, courseUuid);
+      const inCourse = (await publishedActivities(courseUuid, trail)).find((a) => a.activity_uuid === activityUuid);
+      if (!inCourse) return res.status(403).json({ error: 'activity_forbidden' });
+      const activity = await lh.getActivity(activityUuid);
+      const body = LessonVideoResponseSchema.safeParse({
+        activityUuid,
+        // First non-empty name: the activity's, else the course listing's, else a neutral label.
+        title: [activity?.name, inCourse.name].map((n) => (typeof n === 'string' ? n.trim() : '')).find(Boolean)?.slice(0, 200) ?? 'Video',
+        video: toLessonVideo(activity),
+      });
+      if (!body.success) { logger.warn?.('[video] response failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
+      res.json(body.data);
+    } catch (e) { upstreamError(res, e); }
   });
 
   // Agent layout: built here, authorized here, wrapped in the versioned envelope.

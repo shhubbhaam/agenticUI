@@ -1,5 +1,5 @@
 // In-memory LearnHouse double: two learners, one allowed course, one unpublished activity.
-import type { CourseMeta, LearnHouse, LearnerProfile, Trail } from '../src/learnhouse.ts';
+import type { CourseMeta, LearnHouse, LearnerProfile, LhActivityFull, Trail } from '../src/learnhouse.ts';
 
 const fail = (message: string, status: number) => Object.assign(new Error(message), { status });
 
@@ -10,6 +10,13 @@ export function createFakeLearnHouse() {
     { activity_uuid: 'act_2', name: 'Prompt basics', published: true },
     { activity_uuid: 'act_draft', name: 'Draft', published: false },
   ] }] } satisfies CourseMeta;
+  // Content per activity, as GET /activities/{uuid} returns it (act_2 is a YouTube video in this fake).
+  const contents: Record<string, Partial<LhActivityFull>> = {
+    act_1: { activity_type: 'TYPE_DYNAMIC', activity_sub_type: 'SUBTYPE_DYNAMIC_PAGE', content: {} },
+    act_2: { activity_type: 'TYPE_VIDEO', activity_sub_type: 'SUBTYPE_VIDEO_YOUTUBE',
+      content: { uri: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', type: 'youtube' },
+      details: JSON.stringify({ startTime: 5, endTime: null, autoplay: false, muted: false }) },
+  };
   const completed = new Map<string, Set<string>>(); // learnerId -> Set
   const calls = { complete: 0 };
   let failNextWriteAfterApply = false;
@@ -25,6 +32,11 @@ export function createFakeLearnHouse() {
     async login(email, pw) { const u = users[email]; return u && u.pw === pw ? { learnerId: u.id, displayName: u.name, profile: profileOf(email) } : null; },
     // Google: the fake accepts the token 'google-ok' for any known email.
     async loginWithGoogle(email, token) { const u = users[email]; return u && token === 'google-ok' ? { learnerId: u.id, displayName: u.name, profile: profileOf(email) } : null; },
+    async getActivity(uuid): Promise<LhActivityFull> {
+      const base = meta.chapters[0].activities.find((a) => a.activity_uuid === uuid);
+      if (!base) throw fail('nf', 404);
+      return { ...base, ...(contents[uuid] ?? {}) } as LhActivityFull;
+    },
     async getAllTrails(learnerId): Promise<Trail> {
       if (learnerId === '303') { throw fail('no trail', 404); }
       const one = await lh.getTrail(learnerId, 'course_demo');
@@ -47,5 +59,5 @@ export function createFakeLearnHouse() {
       return { ok: true };
     },
   };
-  return { lh, calls, completed, loseNextWriteResponse: () => { failNextWriteAfterApply = true; }, slowWrites: (ms: number) => { writeDelayMs = ms; } };
+  return { lh, calls, completed, contents, loseNextWriteResponse: () => { failNextWriteAfterApply = true; }, slowWrites: (ms: number) => { writeDelayMs = ms; } };
 }
