@@ -14,6 +14,8 @@ interface PlayerActionsProps {
   captions: CaptionsState;
   onToggleCaptions: () => void;
   onFitToScreen: () => void;
+  /** In full screen the same action exits it. */
+  fullscreen?: boolean;
   onAskCoach: () => void;
   /** Omit for online-only videos (YouTube): no download action is shown. */
   download?: DownloadState;
@@ -46,7 +48,7 @@ const Action: React.FC<{ label: string; onPress?: () => void; disabled?: boolean
   </TouchableOpacity>
 );
 
-export const PlayerActions: React.FC<PlayerActionsProps> = ({ captions, onToggleCaptions, onFitToScreen, onAskCoach, download, onDownload }) => (
+export const PlayerActions: React.FC<PlayerActionsProps> = ({ captions, onToggleCaptions, onFitToScreen, fullscreen = false, onAskCoach, download, onDownload }) => (
   <View style={tw`flex-row items-center justify-between w-full`}>
     <Action
       testID="action-captions"
@@ -55,7 +57,7 @@ export const PlayerActions: React.FC<PlayerActionsProps> = ({ captions, onToggle
       disabled={captions === 'unavailable'}
       selected={captions === 'unavailable' ? undefined : captions === 'on'}
     />
-    <Action testID="action-fit" label="Fit to screen" onPress={onFitToScreen} />
+    <Action testID="action-fit" label={fullscreen ? 'Exit full screen' : 'Fit to screen'} onPress={onFitToScreen} selected={fullscreen} />
     <Action testID="action-coach" label="Ask Coach" onPress={onAskCoach} hint="Ask the learning coach about this video" />
     {download ? (
       <Action

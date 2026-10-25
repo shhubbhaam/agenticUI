@@ -22,6 +22,8 @@ interface VideoStageProps {
   posterHeadline?: string;
   onRetry?: () => void;
   errorMessage?: string;
+  /** card: rounded 16:9 card (default). fullscreen: fills its parent, square corners (landscape mode). */
+  variant?: 'card' | 'fullscreen';
 }
 
 const MESSAGES: Partial<Record<StageStatus, string>> = {
@@ -30,7 +32,7 @@ const MESSAGES: Partial<Record<StageStatus, string>> = {
 };
 
 export const VideoStage: React.FC<VideoStageProps> = ({
-  status, isPlaying, onPlayPause, children, posterEyebrow, posterHeadline, onRetry, errorMessage,
+  status, isPlaying, onPlayPause, children, posterEyebrow, posterHeadline, onRetry, errorMessage, variant = 'card',
 }) => {
   const s = colors.player.stage;
   const blocked = status === 'error' || status === 'offlineUnavailable';
@@ -38,7 +40,13 @@ export const VideoStage: React.FC<VideoStageProps> = ({
   const message = status === 'error' ? errorMessage ?? MESSAGES.error : MESSAGES[status];
 
   return (
-    <View testID="video-stage" style={[tw`w-full rounded-3xl overflow-hidden`, { aspectRatio: 16 / 9, backgroundColor: s.surface }]}>
+    <View
+      testID="video-stage"
+      style={[
+        variant === 'card' ? tw`w-full rounded-3xl overflow-hidden` : tw`flex-1 w-full overflow-hidden`,
+        { backgroundColor: s.surface, ...(variant === 'card' ? { aspectRatio: 16 / 9 } : {}) },
+      ]}
+    >
       {children ? (
         <View style={tw`absolute inset-0`}>{children}</View>
       ) : (

@@ -1,7 +1,7 @@
 // YouTube engine for the lesson player: YouTube's official embedded player (WebView) with its own
 // controls, related videos and annotations OFF, so the app's timeline is the only way to seek and
 // checkpoints stay enforceable. Online only (YouTube does not allow offline storage).
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import YoutubePlayer, { PLAYER_STATES, type YoutubeIframeRef } from 'react-native-youtube-iframe';
 import type { EngineViewProps } from './types';
@@ -36,12 +36,16 @@ export const YouTubeEngine: React.FC<YouTubeEngineProps> = ({
 
   const onReady = useCallback(() => {
     engineRef.current = {
-      getCurrentTime: () => ref.current?.getCurrentTime() ?? Promise.resolve(0),
+      // NaN (ignored by the player hook) rather than 0 while the embed is not there.
+      getCurrentTime: () => ref.current?.getCurrentTime() ?? Promise.resolve(NaN),
       seekTo: (sec: number) => ref.current?.seekTo(sec, true),
     };
     onEvent('ready');
     ref.current?.getDuration().then((d) => { if (Number.isFinite(d) && d > 0) onDuration(endSec && endSec < d ? endSec : d); });
   }, [engineRef, onEvent, onDuration, endSec]);
+
+  // Remounts (captions toggle, entering full screen) must not leave a dead engine behind.
+  useEffect(() => () => { engineRef.current = null; }, [engineRef]);
 
   return (
     <View style={{ flex: 1 }} onLayout={onLayout} testID="youtube-engine">

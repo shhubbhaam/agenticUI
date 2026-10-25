@@ -4,7 +4,7 @@
 //  - opened without params: the demo lesson on a fake clock.
 // Checkpoints are DEMO data for now (labelled "(demo)"); the BFF checkpoint route replaces them.
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import tw from 'twrnc';
@@ -22,6 +22,7 @@ import { getLessonVideo } from '../../core/api/learnhouse/client';
 import type { LessonVideoResponse } from '../../contracts/lessonVideo';
 import { useCheckpointPlayer } from './useCheckpointPlayer';
 import { YouTubeEngine } from './engines/YouTubeEngine';
+import { useFullscreen } from './useFullscreen';
 import { MOCK_LESSON, demoCheckpointsFor } from './mockLesson';
 
 const UNSUPPORTED: Record<string, string> = {
@@ -49,6 +50,10 @@ export default function LessonScreen() {
   const yt = video?.video.kind === 'youtube' ? video.video : null;
   const checkpoints = useMemo(() => (params ? demoCheckpointsFor(yt?.startSec ?? 0) : MOCK_LESSON.checkpoints), [params, yt?.startSec]);
   const p = useCheckpointPlayer({ checkpoints, durationSec: params ? 0 : MOCK_LESSON.durationSec, withEngine: !!params });
+  const fs = useFullscreen();
+  // A checkpoint question needs the portrait layout: leave full screen when one opens.
+  const quizOpen = !!p.quiz;
+  useEffect(() => { if (quizOpen) fs.exit(); }, [quizOpen, fs.exit]);
 
   const blockedMessage =
     loadError ??
@@ -59,50 +64,70 @@ export default function LessonScreen() {
   const chapter = params ? params.chapter : MOCK_LESSON.chapter;
   const format = params ? params.format ?? 'Video' : MOCK_LESSON.format;
 
+  const stage = (
+    <VideoStage
+      variant={fs.fullscreen ? 'fullscreen' : 'card'}
+      status={blockedMessage ? 'error' : params && !video ? 'loading' : p.status}
+      errorMessage={blockedMessage ?? undefined}
+      isPlaying={p.playing}
+      onPlayPause={p.togglePlay}
+      posterEyebrow={params ? undefined : MOCK_LESSON.posterEyebrow}
+      posterHeadline={params ? undefined : MOCK_LESSON.posterHeadline}
+    >
+      {yt && !blockedMessage ? (
+        <YouTubeEngine
+          key={`${captions}-${fs.fullscreen}`} /* remount resumes at the playhead (params apply on mount) */
+          videoId={yt.videoId}
+          startSec={Math.floor(p.position) || yt.startSec}
+          endSec={yt.endSec}
+          captions={captions === 'on'}
+          {...p.engineView}
+        />
+      ) : undefined}
+    </VideoStage>
+  );
+
+  const controls = (
+    <View style={{ gap: 6 }}>
+      <PlayerTimeline
+        positionSec={p.position}
+        durationSec={p.duration}
+        watchedSec={p.watched}
+        checkpoints={p.timeline}
+        seekableUntilSec={p.seekableUntil}
+        onSeekRequest={p.seek}
+      />
+      <PlayerActions
+        captions={captions}
+        onToggleCaptions={() => setCaptions((c) => (c === 'on' ? 'off' : 'on'))}
+        onFitToScreen={fs.toggle}
+        fullscreen={fs.fullscreen}
+        onAskCoach={() => {}}
+        /* YouTube is online-only: no download action. The uploaded video adds it. */
+        download={undefined}
+      />
+    </View>
+  );
+
+  if (fs.fullscreen) {
+    return (
+      <SafeAreaView testID="lesson-fullscreen" style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]} edges={['left', 'right', 'bottom']}>
+        <StatusBar hidden />
+        {stage}
+        <View style={tw`px-6 pt-1`}>{controls}</View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]} edges={['top']}>
       <View style={tw`px-4`}>
         <BackHeader eyebrow={MOCK_LESSON.eyebrow} onBack={() => navigation.goBack()} />
       </View>
       <ScrollView contentContainerStyle={[tw`px-4 pb-10`, { gap: 18 }]} showsVerticalScrollIndicator={false}>
-        <VideoStage
-          status={blockedMessage ? 'error' : params && !video ? 'loading' : p.status}
-          errorMessage={blockedMessage ?? undefined}
-          isPlaying={p.playing}
-          onPlayPause={p.togglePlay}
-          posterEyebrow={params ? undefined : MOCK_LESSON.posterEyebrow}
-          posterHeadline={params ? undefined : MOCK_LESSON.posterHeadline}
-        >
-          {yt && !blockedMessage ? (
-            <YouTubeEngine
-              key={captions}
-              videoId={yt.videoId}
-              startSec={Math.floor(p.position) || yt.startSec}
-              endSec={yt.endSec}
-              captions={captions === 'on'}
-              {...p.engineView}
-            />
-          ) : undefined}
-        </VideoStage>
+        {stage}
         <VideoMeta title={title} chapter={chapter} format={format} durationSec={p.duration || undefined} />
-        <View style={{ gap: 6 }}>
-          <PlayerTimeline
-            positionSec={p.position}
-            durationSec={p.duration}
-            watchedSec={p.watched}
-            checkpoints={p.timeline}
-            seekableUntilSec={p.seekableUntil}
-            onSeekRequest={p.seek}
-          />
-          <PlayerActions
-            captions={captions}
-            onToggleCaptions={() => setCaptions((c) => (c === 'on' ? 'off' : 'on'))}
-            onFitToScreen={() => {}}
-            onAskCoach={() => {}}
-            /* YouTube is online-only: no download action. The uploaded video adds it. */
-            download={undefined}
-          />
-        </View>
+        {controls}
 
         {p.quiz ? (
           <CheckpointQuizOverlay
