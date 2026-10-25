@@ -1,16 +1,8 @@
 // DEMO DATA for the lesson player UI (M4 part 1). Replaced by the BFF lesson route
 // (checkpoints keyed to the LearnHouse activity) in part 2. Not shown as real content.
-import type { QuizOption } from '../../ui/organisms/player/CheckpointQuizOverlay';
+import type { PlayerCheckpoint } from './useCheckpointPlayer';
 
-export interface MockCheckpoint {
-  id: string;
-  atSec: number;
-  prompt: { title: string; body: string };
-  question: string;
-  options: QuizOption[];
-  correctId: string;   // demo only: real grading happens on the BFF
-  explanation: string;
-}
+export type MockCheckpoint = PlayerCheckpoint;
 
 export const MOCK_LESSON = {
   eyebrow: 'WATCH & NOTICE',
@@ -50,3 +42,8 @@ export const MOCK_LESSON = {
     },
   ] satisfies MockCheckpoint[],
 };
+
+/** DEMO checkpoints placed early in any real video (until the BFF serves real ones per activity). */
+export function demoCheckpointsFor(startSec = 0): MockCheckpoint[] {
+  return MOCK_LESSON.checkpoints.map((c, i) => ({ ...c, atSec: startSec + (i === 0 ? 20 : 45), question: `${c.question} (demo)` }));
+}

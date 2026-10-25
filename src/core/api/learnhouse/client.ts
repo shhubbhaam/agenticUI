@@ -143,3 +143,12 @@ export function markActivityComplete(
 export function getHomeLayout(courseUuid: string = LEARNHOUSE.courseUuid, signal?: AbortSignal) {
   return bffFetch<unknown>(`/me/courses/${encodeURIComponent(courseUuid)}/home-layout`, { signal });
 }
+
+// ---------- lesson video ----------
+import { LessonVideoResponseSchema, type LessonVideoResponse } from '../../../contracts/lessonVideo';
+
+/** Which video an activity has (validated against the shared contract; throws on anything else). */
+export async function getLessonVideo(courseUuid: string, activityUuid: string): Promise<LessonVideoResponse> {
+  const raw = await bffFetch<unknown>(`/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/video`);
+  return LessonVideoResponseSchema.parse(raw);
+}

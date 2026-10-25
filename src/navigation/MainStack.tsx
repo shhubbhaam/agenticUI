@@ -29,7 +29,8 @@ export type RootStackParamList = {
   HomeScreen: TabScreenParams;
   PracticeScreen: TabScreenParams;
   YouScreen: TabScreenParams;
-  Lesson: undefined;
+  /** Without params: the demo lesson (fake clock). With params: that activity's real video. */
+  Lesson: { courseUuid: string; activityUuid: string; title?: string; chapter?: string; format?: string } | undefined;
   OnboardingRole: undefined;
   OnboardingExperience: undefined;
   OnboardingGoal: undefined;

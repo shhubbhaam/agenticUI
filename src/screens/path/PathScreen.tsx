@@ -79,7 +79,10 @@ export default function PathScreen() {
                 onReviewCtaPress={() => setExpandedStageId(pathData.defaultExpandedStageId)}
                 onOutcomeCtaPress={() => console.log('Continue current stage')}
                 onOptionalBranchPress={() => console.log('Open flashcards')}
-                onLessonContinuePress={() => navigation.navigate('Lesson')} /* M4 part 1: demo lesson player */
+                onLessonContinuePress={() => {
+                  const a = pathData.currentActivity;
+                  if (a) navigation.navigate('Lesson', { courseUuid: pathData.courseUuid, activityUuid: a.id, title: a.name, chapter: a.chapterName, format: a.format });
+                }}
               />
             </>
           )}
