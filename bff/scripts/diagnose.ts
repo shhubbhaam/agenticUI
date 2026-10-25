@@ -1,10 +1,15 @@
 // bff/scripts/diagnose.ts — step-by-step LearnHouse check. Prints status codes and error
 // messages only; never prints tokens, passwords or full response bodies.
-// Usage (from bff/):  npx tsx --env-file=.env scripts/diagnose.ts you@example.com "YourPassword" [activity_uuid]
-const [, , email, password, activityArg] = process.argv;
+// Usage (from bff/):  npx tsx --env-file=.env scripts/diagnose.ts you@example.com "YourPassword" [activity_uuid | course_uuid]
+//   With a course uuid (with or without the "course_" prefix): inspects that course's first video.
+const [, , email, password, targetArg] = process.argv;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const courseArg = targetArg?.startsWith('course_') ? targetArg : targetArg && UUID.test(targetArg) ? `course_${targetArg}` : undefined;
+const activityArg = courseArg ? undefined : targetArg;
 const { LH_BASE_URL: base, LH_API_TOKEN: orgToken, LH_ORG_SLUG: org, LH_ALLOWED_COURSES } = process.env;
 const courses = (LH_ALLOWED_COURSES ?? '').split(',').map((c) => c.trim()).filter(Boolean);
-let course = courses[0];
+let course = courseArg ?? courses[0];
+if (courseArg && !courses.includes(courseArg)) console.log(`NOTE: ${courseArg} is not in LH_ALLOWED_COURSES yet: add it to bff/.env so the app can use it.`);
 
 const SECRET = /token|password|secret|authorization|cookie/i;
 const redact = (v: unknown): unknown => Array.isArray(v) ? v.slice(0, 3).map(redact)
@@ -51,7 +56,7 @@ async function contentShapes() {
     if (!activityArg || acts.some((a) => a.activity_uuid === activityArg)) break;
   }
   console.log(`  activities: ${acts.length}; by type:`, JSON.stringify(acts.reduce((m: any, a: any) => ({ ...m, [`${a.activity_type}/${a.activity_sub_type}`]: (m[`${a.activity_type}/${a.activity_sub_type}`] ?? 0) + 1 }), {})));
-  const target = acts.find((a) => a.activity_uuid === activityArg) ?? acts.find((a) => a.activity_type === 'TYPE_VIDEO') ?? acts[0];
+  const target = acts.find((a) => a.activity_uuid === activityArg) ?? acts.find((a) => a.activity_type === 'TYPE_VIDEO' && a.activity_sub_type !== 'SUBTYPE_VIDEO_YOUTUBE') ?? acts.find((a) => a.activity_type === 'TYPE_VIDEO') ?? acts[0];
   if (target) {
     console.log('  first video (or given) activity in meta:', JSON.stringify(shape(target)));
     const one = await step('6b single activity (org token)', `/activities/${target.activity_uuid}`, { auth: orgToken });
