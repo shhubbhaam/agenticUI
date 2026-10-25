@@ -3,7 +3,8 @@
 // Usage (from bff/):  npx tsx --env-file=.env scripts/diagnose.ts you@example.com "YourPassword" [activity_uuid]
 const [, , email, password, activityArg] = process.argv;
 const { LH_BASE_URL: base, LH_API_TOKEN: orgToken, LH_ORG_SLUG: org, LH_ALLOWED_COURSES } = process.env;
-const course = (LH_ALLOWED_COURSES ?? '').split(',')[0]?.trim();
+const courses = (LH_ALLOWED_COURSES ?? '').split(',').map((c) => c.trim()).filter(Boolean);
+let course = courses[0];
 
 const SECRET = /token|password|secret|authorization|cookie/i;
 const redact = (v: unknown): unknown => Array.isArray(v) ? v.slice(0, 3).map(redact)
@@ -40,14 +41,49 @@ async function contentShapes() {
     content_type: typeof a.content?.type === 'string' ? a.content.type : undefined,
     details_keys: a.details && typeof a.details === 'object' ? Object.keys(a.details) : typeof a.details,
   });
-  const full = await step('6a course meta WITHOUT slim (org token)', `/courses/${course}/meta`, { auth: orgToken });
-  const acts: any[] = (full.json?.chapters ?? []).flatMap((ch: any) => ch.activities ?? []);
+  // With an activity uuid, look through every allowed course for it (e.g. the uploaded-video test course).
+  let full: { ok: boolean; json?: any } = { ok: false };
+  let acts: any[] = [];
+  for (const c of activityArg ? courses : [course]) {
+    full = await step(`6a course meta WITHOUT slim (org token) ${c}`, `/courses/${c}/meta`, { auth: orgToken });
+    acts = (full.json?.chapters ?? []).flatMap((ch: any) => ch.activities ?? []);
+    course = c;
+    if (!activityArg || acts.some((a) => a.activity_uuid === activityArg)) break;
+  }
   console.log(`  activities: ${acts.length}; by type:`, JSON.stringify(acts.reduce((m: any, a: any) => ({ ...m, [`${a.activity_type}/${a.activity_sub_type}`]: (m[`${a.activity_type}/${a.activity_sub_type}`] ?? 0) + 1 }), {})));
   const target = acts.find((a) => a.activity_uuid === activityArg) ?? acts.find((a) => a.activity_type === 'TYPE_VIDEO') ?? acts[0];
   if (target) {
     console.log('  first video (or given) activity in meta:', JSON.stringify(shape(target)));
     const one = await step('6b single activity (org token)', `/activities/${target.activity_uuid}`, { auth: orgToken });
     if (one.ok) console.log('  GET /activities/{uuid}:', JSON.stringify(shape(one.json)));
+    if (one.ok && one.json?.content?.type !== 'youtube') await probeMedia(one.json, full.json);
+  }
+}
+
+// 6c. An UPLOADED video: where LearnHouse serves the file, whether it needs auth, and whether it
+//     supports Range requests (needed for streaming/seeking and resumable download). Prints only
+//     status codes and selected headers; the file name is printed, file contents never are.
+async function probeMedia(activity: any, courseMeta: any) {
+  const c = activity?.content ?? {};
+  const filename = typeof c.filename === 'string' ? c.filename : typeof c.file_id === 'string' ? c.file_id : null;
+  console.log('\n[6c uploaded media]  content fields:', JSON.stringify(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, typeof v === 'string' && v.length < 120 ? v : typeof v]))));
+  if (!filename) return console.log('  no filename in content: paste the line above');
+  const orgRes = await step('6c org by slug (org token)', `/orgs/slug/${org}`, { auth: orgToken });
+  const orgUuid = orgRes.json?.org_uuid;
+  const courseUuid = courseMeta?.course_uuid ?? course;
+  const rel = `content/orgs/${orgUuid}/courses/${courseUuid}/activities/${activity.activity_uuid}/video/${filename}`;
+  const origin = new URL(base!).origin;
+  const candidates = [`${origin}/${rel}`, `${base}/${rel}`, `${origin}/api/${rel}`];
+  for (const url of candidates) {
+    for (const auth of [undefined, orgToken]) {
+      try {
+        const res = await fetch(url, { headers: { Range: 'bytes=0-1023', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+        await res.body?.cancel();
+        const h = (k: string) => res.headers.get(k) ?? '-';
+        const loc = res.headers.get('location');
+        console.log(`  ${url.replace(origin, '')}  [${auth ? 'org token' : 'no auth'}]\n    status ${res.status}  type ${h('content-type')}  range ${h('content-range')}  accept-ranges ${h('accept-ranges')}  length ${h('content-length')}${loc ? `  redirect-host ${new URL(loc, url).host}` : ''}`);
+      } catch (err) { console.log(`  ${url.replace(origin, '')}  NETWORK ERROR ${(err as Error).message}`); }
+    }
   }
 }
 
