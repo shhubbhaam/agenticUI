@@ -61,32 +61,38 @@ async function contentShapes() {
     console.log('  first video (or given) activity in meta:', JSON.stringify(shape(target)));
     const one = await step('6b single activity (org token)', `/activities/${target.activity_uuid}`, { auth: orgToken });
     if (one.ok) console.log('  GET /activities/{uuid}:', JSON.stringify(shape(one.json)));
-    if (one.ok && one.json?.content?.type !== 'youtube') await probeMedia(one.json, full.json);
+    if (one.ok && one.json?.content?.type !== 'youtube') pendingMedia = { activity: one.json, courseMeta: full.json };
   }
 }
 
 // 6c. An UPLOADED video: where LearnHouse serves the file, whether it needs auth, and whether it
 //     supports Range requests (needed for streaming/seeking and resumable download). Prints only
 //     status codes and selected headers; the file name is printed, file contents never are.
-async function probeMedia(activity: any, courseMeta: any) {
+let pendingMedia: { activity: any; courseMeta: any } | null = null;
+
+async function probeMedia(activity: any, courseMeta: any, userToken?: string) {
   const c = activity?.content ?? {};
   const filename = typeof c.filename === 'string' ? c.filename : typeof c.file_id === 'string' ? c.file_id : null;
   console.log('\n[6c uploaded media]  content fields:', JSON.stringify(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, typeof v === 'string' && v.length < 120 ? v : typeof v]))));
   if (!filename) return console.log('  no filename in content: paste the line above');
-  const orgRes = await step('6c org by slug (org token)', `/orgs/slug/${org}`, { auth: orgToken });
+  // API tokens may not read the org itself: use the learner's token for the org uuid.
+  const orgRes = await step('6c org by slug (user token)', `/orgs/slug/${org}`, { auth: userToken });
   const orgUuid = orgRes.json?.org_uuid;
+  console.log(`  org_uuid: ${orgUuid ?? 'NOT FOUND'}   (goes in bff/.env as LH_ORG_UUID)`);
+  if (!orgUuid) return;
   const courseUuid = courseMeta?.course_uuid ?? course;
   const rel = `content/orgs/${orgUuid}/courses/${courseUuid}/activities/${activity.activity_uuid}/video/${filename}`;
   const origin = new URL(base!).origin;
-  const candidates = [`${origin}/${rel}`, `${base}/${rel}`, `${origin}/api/${rel}`];
+  const candidates = [`${origin}/${rel}`, `${base}/${rel}`];
+  const auths: Array<[string, string | undefined]> = [['no auth', undefined], ['org token', orgToken], ['user token', userToken]];
   for (const url of candidates) {
-    for (const auth of [undefined, orgToken]) {
+    for (const [authLabel, auth] of auths) {
       try {
         const res = await fetch(url, { headers: { Range: 'bytes=0-1023', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
         await res.body?.cancel();
         const h = (k: string) => res.headers.get(k) ?? '-';
         const loc = res.headers.get('location');
-        console.log(`  ${url.replace(origin, '')}  [${auth ? 'org token' : 'no auth'}]\n    status ${res.status}  type ${h('content-type')}  range ${h('content-range')}  accept-ranges ${h('accept-ranges')}  length ${h('content-length')}${loc ? `  redirect-host ${new URL(loc, url).host}` : ''}`);
+        console.log(`  ${url.replace(origin, '')}  [${authLabel}]\n    status ${res.status}  type ${h('content-type')}  range ${h('content-range')}  accept-ranges ${h('accept-ranges')}  length ${h('content-length')}${loc ? `  redirect-host ${new URL(loc, url).host}` : ''}`);
       } catch (err) { console.log(`  ${url.replace(origin, '')}  NETWORK ERROR ${(err as Error).message}`); }
     }
   }
@@ -104,6 +110,7 @@ async function probeMedia(activity: any, courseMeta: any) {
   const userToken = data?.tokens?.access_token ?? data?.access_token ?? data?.token;
   console.log(`  user id found: ${userId ?? 'NO'}   user token present: ${userToken ? 'yes' : 'no'}`);
   if (!login.ok) return;
+  if (pendingMedia) await probeMedia(pendingMedia.activity, pendingMedia.courseMeta, userToken);
   if (!userId) console.log('  login response keys:', Object.keys(data).join(', '));
 
   await step('2 course meta (org token)', `/courses/${course}/meta?slim=true`, { auth: orgToken });
