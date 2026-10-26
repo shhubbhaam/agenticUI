@@ -2,6 +2,7 @@
 // Every /me route derives learner + org from the session. Course access is checked
 // against a server-side allow-list; activity access against the course's published content.
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
+import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { createSessionStore, type Session, type SessionStore } from './sessions.ts';
 import { buildSlots, fallbackSlots, authorizeSlots, type Agent, type Decision, type BuildContext } from './agent.ts';
@@ -20,10 +21,23 @@ function playerWindow(details: unknown): { startSec?: number; endSec?: number } 
   return { ...(startSec ? { startSec } : {}), ...(endSec && endSec > (startSec ?? 0) ? { endSec } : {}) };
 }
 
-/** Map a LearnHouse activity to what the app may play. Only an 11-character YouTube id leaves the BFF. */
-export function toLessonVideo(a: LhActivityFull): LessonVideo {
+const VIDEO_MIME = { mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' } as const;
+/** An uploaded video's file name, only if it is a plain file name with a known video extension (no paths). */
+export function hostedVideoFile(a: LhActivityFull): { filename: string; mimeType: (typeof VIDEO_MIME)[keyof typeof VIDEO_MIME] } | null {
+  const f = (a.content as { filename?: unknown } | undefined)?.filename;
+  if (typeof f !== 'string' || !/^[A-Za-z0-9_-][A-Za-z0-9._-]{0,150}$/.test(f)) return null;
+  const ext = f.split('.').pop()!.toLowerCase() as keyof typeof VIDEO_MIME;
+  return Object.hasOwn(VIDEO_MIME, ext) ? { filename: f, mimeType: VIDEO_MIME[ext] } : null;
+}
+
+/** Map a LearnHouse activity to what the app may play. Only an 11-character YouTube id, or a MIME
+ *  type for an uploaded file, leaves the BFF; never a LearnHouse URL or file name. */
+export function toLessonVideo(a: LhActivityFull, { mediaEnabled = false }: { mediaEnabled?: boolean } = {}): LessonVideo {
   if (a.activity_type !== 'TYPE_VIDEO') return { kind: 'unsupported', reason: 'not_a_video' };
-  if (a.activity_sub_type === 'SUBTYPE_VIDEO_HOSTED') return { kind: 'hosted', available: false };
+  if (a.activity_sub_type === 'SUBTYPE_VIDEO_HOSTED') {
+    const file = mediaEnabled ? hostedVideoFile(a) : null;
+    return file ? { kind: 'hosted', available: true, mimeType: file.mimeType } : { kind: 'hosted', available: false };
+  }
   const type = typeof a.content?.type === 'string' ? a.content.type.toLowerCase() : '';
   if (type === 'vimeo') return { kind: 'unsupported', reason: 'vimeo' };
   const videoId = youTubeIdFrom(a.content?.uri);
@@ -314,11 +328,73 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
         activityUuid,
         // First non-empty name: the activity's, else the course listing's, else a neutral label.
         title: [activity?.name, inCourse.name].map((n) => (typeof n === 'string' ? n.trim() : '')).find(Boolean)?.slice(0, 200) ?? 'Video',
-        video: toLessonVideo(activity),
+        video: toLessonVideo(activity, { mediaEnabled: !!lh.openActivityVideo }),
       });
       if (!body.success) { logger.warn?.('[video] response failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
       res.json(body.data);
     } catch (e) { upstreamError(res, e); }
+  });
+
+  // ---- Uploaded video file: streamed from LearnHouse through the BFF ----
+  // Players and downloads send many Range requests; the access decision (enrolled, published in
+  // THIS course, file name) is cached per learner+activity for a minute so seeking stays fast.
+  const MEDIA_GRANT_TTL_MS = 60_000;
+  const mediaGrants = new Map<string, { filename: string; mimeType: string; exp: number }>();
+  async function mediaGrant(learnerId: string, courseUuid: string, activityUuid: string) {
+    const key = `${learnerId}|${courseUuid}|${activityUuid}`;
+    const hit = mediaGrants.get(key);
+    if (hit && hit.exp > Date.now()) return hit;
+    mediaGrants.delete(key);
+    if (!(await isEnrolled(learnerId, courseUuid))) return { error: 'not_enrolled' as const };
+    const trail = await trailOrNull(learnerId, courseUuid);
+    if (!(await publishedActivities(courseUuid, trail)).some((a) => a.activity_uuid === activityUuid)) return { error: 'activity_forbidden' as const };
+    const activity = await lh.getActivity!(activityUuid);
+    const file = activity?.activity_type === 'TYPE_VIDEO' && activity.activity_sub_type === 'SUBTYPE_VIDEO_HOSTED' ? hostedVideoFile(activity) : null;
+    if (!file) return { error: 'not_a_hosted_video' as const };
+    const grant = { ...file, exp: Date.now() + MEDIA_GRANT_TTL_MS };
+    if (mediaGrants.size > 5000) mediaGrants.clear(); // bounded
+    mediaGrants.set(key, grant);
+    return grant;
+  }
+  const RANGE_RE = /^bytes=(\d{0,15})-(\d{0,15})$/;
+  const PASS_HEADERS = ['content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'];
+
+  app.get('/api/me/courses/:courseUuid/activities/:activityUuid/video/file', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid, activityUuid } = req.params;
+    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
+    if (!lh.openActivityVideo || !lh.getActivity) return res.status(501).json({ error: 'media_not_configured' });
+    const range = req.headers.range;
+    const rm = range === undefined ? null : RANGE_RE.exec(range);
+    if (range !== undefined && (!rm || (rm[1] === '' && rm[2] === ''))) return res.status(416).json({ error: 'invalid_range' });
+    try {
+      const grant = await mediaGrant(req.learner.learnerId, courseUuid, activityUuid);
+      if ('error' in grant) return res.status(grant.error === 'not_a_hosted_video' ? 404 : 403).json({ error: grant.error });
+      const ctrl = new AbortController();
+      res.on('close', () => { if (!res.writableFinished) ctrl.abort(); }); // player seeked away / app closed
+      const up = await lh.openActivityVideo({ courseUuid, activityUuid, filename: grant.filename }, range, ctrl.signal);
+      if (up.status !== 200 && up.status !== 206) {
+        await up.body?.cancel().catch(() => {});
+        logger.warn?.(`[media] LearnHouse answered ${up.status}`);
+        if (up.status === 416) return res.status(416).json({ error: 'range_not_satisfiable' });
+        if (up.status === 404) return res.status(404).json({ error: 'not_found' });
+        return res.status(502).json({ error: up.status === 401 || up.status === 403 ? 'upstream_media_forbidden' : 'upstream_error', upstreamStatus: up.status });
+      }
+      res.statusCode = up.status;
+      for (const h of PASS_HEADERS) { const v = up.header(h); if (v) res.setHeader(h, v); }
+      res.setHeader('Content-Type', grant.mimeType); // our type, not whatever upstream says
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (!up.body) { res.end(); return; }
+      await new Promise<void>((resolve) => {
+        const src = Readable.fromWeb(up.body as import('node:stream/web').ReadableStream<Uint8Array>);
+        src.on('error', () => { res.destroy(); resolve(); });
+        res.on('close', () => { src.destroy(); resolve(); });
+        src.pipe(res);
+      });
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError' && res.destroyed) return;
+      if (!res.headersSent) upstreamError(res, e); else res.destroy();
+    }
   });
 
   // Agent layout: built here, authorized here, wrapped in the versioned envelope.

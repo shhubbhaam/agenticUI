@@ -1,5 +1,5 @@
 // In-memory LearnHouse double: two learners, one allowed course, one unpublished activity.
-import type { CourseMeta, LearnHouse, LearnerProfile, LhActivityFull, Trail } from '../src/learnhouse.ts';
+import type { CourseMeta, LearnHouse, LearnerProfile, LhActivityFull, MediaRef, MediaResponse, Trail } from '../src/learnhouse.ts';
 
 const fail = (message: string, status: number) => Object.assign(new Error(message), { status });
 
@@ -9,6 +9,7 @@ export function createFakeLearnHouse() {
     { activity_uuid: 'act_1', name: 'What is an LLM', published: true },
     { activity_uuid: 'act_2', name: 'Prompt basics', published: true },
     { activity_uuid: 'act_draft', name: 'Draft', published: false },
+    { activity_uuid: 'act_3', name: 'Uploaded demo', published: true },
   ] }] } satisfies CourseMeta;
   // Content per activity, as GET /activities/{uuid} returns it (act_2 is a YouTube video in this fake).
   const contents: Record<string, Partial<LhActivityFull>> = {
@@ -16,7 +17,10 @@ export function createFakeLearnHouse() {
     act_2: { activity_type: 'TYPE_VIDEO', activity_sub_type: 'SUBTYPE_VIDEO_YOUTUBE',
       content: { uri: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', type: 'youtube' },
       details: JSON.stringify({ startTime: 5, endTime: null, autoplay: false, muted: false }) },
+    act_3: { activity_type: 'TYPE_VIDEO', activity_sub_type: 'SUBTYPE_VIDEO_HOSTED', content: { filename: 'abc_video.mp4' } },
   };
+  // The uploaded file's bytes, and what the BFF asked LearnHouse for.
+  const media = { bytes: Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256)), requests: [] as Array<{ ref: MediaRef; range?: string }>, upstreamStatus: 0 };
   const completed = new Map<string, Set<string>>(); // learnerId -> Set
   const calls = { complete: 0 };
   let failNextWriteAfterApply = false;
@@ -36,6 +40,19 @@ export function createFakeLearnHouse() {
       const base = meta.chapters[0].activities.find((a) => a.activity_uuid === uuid);
       if (!base) throw fail('nf', 404);
       return { ...base, ...(contents[uuid] ?? {}) } as LhActivityFull;
+    },
+    async openActivityVideo(ref, range): Promise<MediaResponse> {
+      media.requests.push({ ref, range });
+      const all = media.bytes;
+      const resp = (status: number, body: Buffer | null, headers: Record<string, string>): MediaResponse =>
+        ({ status, header: (n) => headers[n.toLowerCase()] ?? null, body: body ? (new Blob([body]).stream() as ReadableStream<Uint8Array>) : null });
+      if (media.upstreamStatus) return resp(media.upstreamStatus, null, {});
+      if (!range) return resp(200, all, { 'content-length': String(all.length), 'accept-ranges': 'bytes', 'content-type': 'application/octet-stream' });
+      const [, a, b] = /^bytes=(\d*)-(\d*)$/.exec(range)!;
+      const start = a === '' ? all.length - Number(b) : Number(a);
+      const end = a === '' || b === '' ? all.length - 1 : Math.min(Number(b), all.length - 1);
+      if (start >= all.length) return resp(416, null, { 'content-range': `bytes */${all.length}` });
+      return resp(206, all.subarray(start, end + 1), { 'content-length': String(end - start + 1), 'content-range': `bytes ${start}-${end}/${all.length}`, 'accept-ranges': 'bytes' });
     },
     async getAllTrails(learnerId): Promise<Trail> {
       if (learnerId === '303') { throw fail('no trail', 404); }
@@ -59,5 +76,5 @@ export function createFakeLearnHouse() {
       return { ok: true };
     },
   };
-  return { lh, calls, completed, contents, loseNextWriteResponse: () => { failNextWriteAfterApply = true; }, slowWrites: (ms: number) => { writeDelayMs = ms; } };
+  return { lh, calls, completed, contents, media, loseNextWriteResponse: () => { failNextWriteAfterApply = true; }, slowWrites: (ms: number) => { writeDelayMs = ms; } };
 }

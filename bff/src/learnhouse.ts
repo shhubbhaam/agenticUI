@@ -55,6 +55,15 @@ export interface LearnHouse {
   completeActivity(learnerId: string, activityUuid: string): Promise<unknown>;
   /** One activity with its content. Org token; the BFF checks course + enrollment first. */
   getActivity?(activityUuid: string): Promise<LhActivityFull>;
+  /** An uploaded activity video as a stream (Range passed through). The BFF checks access first. */
+  openActivityVideo?(ref: MediaRef, range: string | undefined, signal: AbortSignal): Promise<MediaResponse>;
+}
+
+export interface MediaRef { courseUuid: string; activityUuid: string; filename: string }
+export interface MediaResponse {
+  status: number;
+  header(name: string): string | null;
+  body: ReadableStream<Uint8Array> | null;
 }
 
 export interface LearnHouseOptions {
@@ -63,11 +72,15 @@ export interface LearnHouseOptions {
   orgSlug?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
+  /** LH_ORG_UUID: needed for media paths (LearnHouse does not let API tokens read the org). Without it, no media. */
+  orgUuid?: string;
+  /** Raw fetch for media streams (FetchLike only exposes JSON). */
+  mediaFetch?: typeof fetch;
 }
 
 interface CallOptions { body?: unknown; form?: Record<string, string>; auth?: 'org' | 'none' }
 
-export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000, fetchImpl = fetch }: LearnHouseOptions): LearnHouse {
+export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000, fetchImpl = fetch, orgUuid, mediaFetch = fetch }: LearnHouseOptions): LearnHouse {
   if (!baseUrl || !orgToken || !orgSlug) {
     throw new Error('LH_BASE_URL, LH_API_TOKEN and LH_ORG_SLUG must be set in bff/.env');
   }
@@ -138,6 +151,23 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
       } catch (e) { if (rejected(e)) return null; throw e; }
     },
     getActivity: (activityUuid) => call<LhActivityFull>('GET', `/activities/${encodeURIComponent(activityUuid)}`),
+    // Uploaded files are served at {origin}/content/orgs/{org}/courses/{course}/activities/{activity}/video/{file}
+    // (401 without auth, per scripts/diagnose.ts 6c). The timeout covers the response HEADERS only:
+    // the body can stream for as long as the client keeps reading.
+    ...(orgUuid ? {
+      async openActivityVideo({ courseUuid, activityUuid, filename }: MediaRef, range: string | undefined, signal: AbortSignal): Promise<MediaResponse> {
+        const e = encodeURIComponent;
+        const url = `${new URL(baseUrl).origin}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/video/${e(filename)}`;
+        const ctrl = new AbortController();
+        const stop = () => ctrl.abort();
+        signal.addEventListener('abort', stop, { once: true });
+        const timer = setTimeout(stop, timeoutMs);
+        try {
+          const res = await mediaFetch(url, { headers: { Authorization: `Bearer ${orgToken}`, ...(range ? { Range: range } : {}) }, signal: ctrl.signal });
+          return { status: res.status, header: (n) => res.headers.get(n), body: res.body };
+        } finally { clearTimeout(timer); }
+      },
+    } : {}),
     getAllTrails: (learnerId) => call<Trail>('GET', `/admin/${orgSlug}/trails/${encodeURIComponent(learnerId)}`),
     getCourseMeta: (courseUuid) => call<CourseMeta>('GET', `/courses/${encodeURIComponent(courseUuid)}/meta?slim=true`),
     getTrail: (learnerId, courseUuid) =>

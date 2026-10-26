@@ -27,6 +27,8 @@ interface PlayerTimelineProps {
   onSeekRequest: (sec: number) => void;
   /** Step used by screen-reader increment/decrement. */
   stepSec?: number;
+  /** light: under the video (default). dark: floating over the video in full screen. */
+  tone?: 'light' | 'dark';
 }
 
 /** Where a seek request may land: inside the video and not past the seekable limit. */
@@ -47,9 +49,10 @@ export const PlayerTimeline: React.FC<PlayerTimelineProps> = ({
   seekableUntilSec = durationSec,
   onSeekRequest,
   stepSec = 10,
+  tone = 'light',
 }) => {
   const [width, setWidth] = useState(0);
-  const t = colors.player.timeline;
+  const t = tone === 'dark' ? colors.player.timelineOnDark : colors.player.timeline;
   const frac = (sec: number) => (durationSec > 0 ? Math.min(1, Math.max(0, sec / durationSec)) : 0);
   const seek = (sec: number) => onSeekRequest(clampSeek(sec, durationSec, seekableUntilSec));
 

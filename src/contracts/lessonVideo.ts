@@ -16,11 +16,14 @@ export const LessonVideoSchema = z.discriminatedUnion('kind', [
     startSec: Seconds.optional(),
     endSec: Seconds.optional(),
   }).strict(),
-  // Uploaded to LearnHouse; streamed and downloaded through the BFF (offline). Added with the upload.
+  // Uploaded to LearnHouse. The app streams/downloads it ONLY from the BFF's fixed file route
+  // (/me/courses/:c/activities/:a/video/file); no LearnHouse address or file name is sent.
+  // available:false = the BFF cannot serve it (e.g. media not configured, unsupported file type).
   z.object({
     kind: z.literal('hosted'),
-    available: z.literal(false),
-  }).strict(),
+    available: z.boolean(),
+    mimeType: z.enum(['video/mp4', 'video/webm', 'video/quicktime']).optional(),
+  }).strict().refine((v) => !v.available || !!v.mimeType, { message: 'available hosted video needs a mimeType' }),
   z.object({
     kind: z.literal('unsupported'),
     reason: z.enum(['vimeo', 'unrecognized_url', 'not_a_video']),

@@ -33,6 +33,9 @@ interface Options {
   tickMs?: number;
 }
 
+/** How long after a pause request a "playing" report from the engine is treated as stale. */
+export const PAUSE_GUARD_MS = 800;
+
 export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 0, withEngine, tickMs = 250 }: Options) {
   const engineRef = useRef<PlayerEngine | null>(null);
   const [duration, setDuration] = useState(knownDuration);
@@ -46,6 +49,8 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
   const [selected, setSelected] = useState<string | null>(null);
   const [quiz, setQuiz] = useState<QuizStatus>('answering');
   const [attempt, setAttempt] = useState(1);
+  /** When the learner last asked to pause: a late "playing" report from the engine must not undo it. */
+  const pausedAt = useRef(0);
 
   const ordered = useMemo(() => [...checkpoints].sort((a, b) => a.atSec - b.atSec), [checkpoints]);
   const nextOpen = ordered.find((c) => !passed.has(c.id)) ?? null;
@@ -53,11 +58,14 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
   const atCheckpoint = !!nextOpen && position >= nextOpen.atSec;
   const ended = engineStatus === 'ended' || (duration > 0 && position >= duration);
 
-  // Latest values for the ticking callback.
-  const live = useRef({ position, nextOpen, duration });
-  live.current = { position, nextOpen, duration };
+  // Latest values for the ticking callback and engine events.
+  const live = useRef({ position, nextOpen, duration, quizOpen: false });
+  live.current = { position, nextOpen, duration, quizOpen: openId !== null };
+
+  const pause = useCallback(() => { pausedAt.current = Date.now(); setPlaying(false); }, []);
 
   const reachCheckpoint = useCallback((cp: PlayerCheckpoint) => {
+    pausedAt.current = Date.now();
     setPlaying(false);
     engineRef.current?.seekTo(cp.atSec);
     live.current.position = cp.atSec;
@@ -103,8 +111,8 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
     if (openId || engineStatus === 'loading' || engineStatus === 'error') return;
     if (atCheckpoint && nextOpen) { setOpenId(nextOpen.id); return; }
     if (ended) { seek(0); setEngineStatus('ready'); setPlaying(true); return; }
-    setPlaying((p) => !p);
-  }, [openId, engineStatus, atCheckpoint, nextOpen, ended, seek]);
+    if (playing) pause(); else setPlaying(true);
+  }, [openId, engineStatus, atCheckpoint, nextOpen, ended, seek, playing, pause]);
 
   const open = ordered.find((c) => c.id === openId) ?? null;
 
@@ -118,10 +126,16 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
   const engineView: EngineViewProps = {
     playing,
     engineRef,
+    // The engine's reports are the truth about playback: the play/pause state follows them, so the
+    // button always does what it shows (the one exception is just below).
     onEvent: useCallback((e: EngineEvent) => {
       if (e === 'ready') setEngineStatus('ready');
       else if (e === 'buffering') setEngineStatus('buffering');
-      else if (e === 'playing') setEngineStatus('ready');
+      else if (e === 'playing') {
+        setEngineStatus('ready');
+        const justPaused = Date.now() - pausedAt.current < PAUSE_GUARD_MS; // late report, pause still on its way
+        if (!justPaused && !live.current.quizOpen) setPlaying(true);
+      }
       else if (e === 'ended') { setEngineStatus('ended'); setPlaying(false); }
       else if (e === 'paused') setPlaying(false); // e.g. interrupted by the OS
     }, []),

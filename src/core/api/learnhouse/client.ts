@@ -152,3 +152,16 @@ export async function getLessonVideo(courseUuid: string, activityUuid: string): 
   const raw = await bffFetch<unknown>(`/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/video`);
   return LessonVideoResponseSchema.parse(raw);
 }
+
+/**
+ * Where the player streams an uploaded video from: the BFF's file route, with the learner's BFF
+ * session as a header (the LearnHouse org token never leaves the BFF). Returns null when signed out.
+ */
+export function lessonVideoFileSource(courseUuid: string, activityUuid: string): { uri: string; headers: Record<string, string> } | null {
+  const token = getSessionToken();
+  if (!token) return null;
+  return {
+    uri: `${LEARNHOUSE.baseUrl}/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/video/file`,
+    headers: { Authorization: `Bearer ${token}` },
+  };
+}

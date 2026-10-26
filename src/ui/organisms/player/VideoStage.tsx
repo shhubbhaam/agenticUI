@@ -24,6 +24,10 @@ interface VideoStageProps {
   errorMessage?: string;
   /** card: rounded 16:9 card (default). fullscreen: fills its parent, square corners (landscape mode). */
   variant?: 'card' | 'fullscreen';
+  /** What a tap on the video does. Defaults to play/pause; full screen uses it to show/hide controls. */
+  onTap?: () => void;
+  /** false hides the play button (full screen while controls are hidden). Default true. */
+  controlsVisible?: boolean;
 }
 
 const MESSAGES: Partial<Record<StageStatus, string>> = {
@@ -32,7 +36,7 @@ const MESSAGES: Partial<Record<StageStatus, string>> = {
 };
 
 export const VideoStage: React.FC<VideoStageProps> = ({
-  status, isPlaying, onPlayPause, children, posterEyebrow, posterHeadline, onRetry, errorMessage, variant = 'card',
+  status, isPlaying, onPlayPause, children, posterEyebrow, posterHeadline, onRetry, errorMessage, variant = 'card', onTap, controlsVisible = true,
 }) => {
   const s = colors.player.stage;
   const blocked = status === 'error' || status === 'offlineUnavailable';
@@ -44,7 +48,7 @@ export const VideoStage: React.FC<VideoStageProps> = ({
       testID="video-stage"
       style={[
         variant === 'card' ? tw`w-full rounded-3xl overflow-hidden` : tw`flex-1 w-full overflow-hidden`,
-        { backgroundColor: s.surface, ...(variant === 'card' ? { aspectRatio: 16 / 9 } : {}) },
+        { backgroundColor: variant === 'card' ? s.surface : colors.player.fullscreen.surface, ...(variant === 'card' ? { aspectRatio: 16 / 9 } : {}) },
       ]}
     >
       {children ? (
@@ -69,7 +73,7 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         <Pressable
           testID="stage-tap-layer"
           style={tw`absolute inset-0`}
-          onPress={onPlayPause}
+          onPress={onTap ?? onPlayPause}
           accessible={false}
           importantForAccessibility="no"
         />
@@ -90,11 +94,11 @@ export const VideoStage: React.FC<VideoStageProps> = ({
             </TouchableOpacity>
           ) : null}
         </View>
-      ) : (
-        <View style={{ position: 'absolute', right: 16, bottom: 16 }}>
+      ) : controlsVisible ? (
+        <View style={variant === 'card' ? { position: 'absolute', right: 16, bottom: 16 } : [tw`absolute inset-0 items-center justify-center`, { pointerEvents: 'box-none' }]}>
           <PlayPauseButton state={status === 'ended' ? 'replay' : isPlaying ? 'pause' : 'play'} onPress={onPlayPause} disabled={status === 'loading'} />
         </View>
-      )}
+      ) : null}
     </View>
   );
 };

@@ -122,6 +122,12 @@ const primitives = {
   playerStageEyebrow: '#7F8DAA',
   playerOverlayButton: 'rgba(255,255,255,0.16)',
   playerBuffered: '#C9D2EC',
+  // Full-screen controls float over the video: white on a dark scrim.
+  playerOnDarkTrack: 'rgba(255,255,255,0.28)',
+  playerOnDarkWatched: 'rgba(255,255,255,0.5)',
+  playerOnDarkInk: 'rgba(255,255,255,0.92)',
+  playerScrim: 'rgba(0,0,0,0.72)',
+  black: '#000000',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -269,6 +275,13 @@ export const colors = {
       watched: primitives.playerBuffered, // furthest point reached (ahead of the playhead after a rewind)
       time: primitives.slate500,
     },
+    /** Same timeline over the video in full screen. */
+    timelineOnDark: {
+      track: primitives.playerOnDarkTrack,
+      played: primitives.white,
+      watched: primitives.playerOnDarkWatched,
+      time: primitives.playerOnDarkInk,
+    },
     checkpoint: {
       upcoming: primitives.white, // ring in the played colour
       current: primitives.blue600,
@@ -276,6 +289,9 @@ export const colors = {
       locked: primitives.slate300,
     },
     actionInk: primitives.slate600,
+    actionInkOnDark: primitives.playerOnDarkInk,
+    /** Full screen: letterbox and the gradient behind the floating controls. */
+    fullscreen: { surface: primitives.black, scrim: primitives.playerScrim },
     card: { surface: primitives.white, border: primitives.slate200 },
   },
 } as const;
