@@ -1,6 +1,7 @@
 // Pure derivation of the You tab's progress card. Zero RN / network imports.
 import type { CourseProgress } from '../learning/types';
 import { deriveChapterStatus } from '../learning/deriveProgress';
+import { numberToWord } from './numberWords';
 
 export interface ProgressSummary {
   percent: number;
@@ -12,7 +13,6 @@ export interface ProgressSummary {
   caption: string;
 }
 
-const NUMBER_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'];
 
 export function progressPercent(completed: number, total: number): number {
   if (total <= 0) return 0;
@@ -22,8 +22,7 @@ export function progressPercent(completed: number, total: number): number {
 export function chaptersHeadline(completedChapters: number): string {
   if (completedChapters <= 0) return 'Your first chapter awaits.';
   if (completedChapters === 1) return 'One chapter. A real difference.';
-  const word = NUMBER_WORDS[completedChapters] ?? String(completedChapters);
-  return `${word} chapters. A real difference.`;
+  return `${numberToWord(completedChapters)} chapters. A real difference.`;
 }
 
 export function deriveProgressSummary(course: CourseProgress | null): ProgressSummary {

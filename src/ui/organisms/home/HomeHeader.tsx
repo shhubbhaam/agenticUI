@@ -8,17 +8,14 @@ import { typography } from '../../tokens/typography';
 import {FlameIcon} from '../../atoms/icons';
 
 interface HomeHeaderProps {
+  // Real first name from the session; empty/absent while loading -> neutral greeting.
   username?: string;
   streakCount: number;
   // Opens the Streak screen when provided.
   onPressStreak?: () => void;
 }
 
-export const HomeHeader: React.FC<HomeHeaderProps> = ({
-  username = 'Priya',
-  streakCount = 12,
-  onPressStreak,
-}) => {
+export const HomeHeader: React.FC<HomeHeaderProps> = ({ username, streakCount, onPressStreak }) => {
   const insets = useSafeAreaInsets();
 
   const today = new Date();
@@ -81,7 +78,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           }
         ]}
       >
-        {`${greeting}, ${username}`}
+        {username?.trim() ? `${greeting}, ${username.trim()}` : greeting}
       </Text>
     </View>
   );
