@@ -7,7 +7,7 @@ import { makeActivity, makeChapter, makeCourse, makeUniformCourse } from '../../
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
-let mockSkillId = 'context';
+let mockSkillId = 'skill:applied context';
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
@@ -46,44 +46,55 @@ const texts = (tree: ReactTestRenderer.ReactTestRenderer) => tree.root.findAllBy
 describe('EvidenceScreen', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
-    mockSkillId = 'context';
+    mockSkillId = 'skill:applied context';
     mockGetMyTrail.mockReset();
   });
 
   it('shows the skill hero and the exposure / understanding / application rows', async () => {
     mockGetMyTrail.mockResolvedValue([
       makeCourse([
-        makeChapter(0, [makeActivity('1', 'video', true)]),
-        makeChapter(1, [makeActivity('2', 'video', true)]),
+        makeChapter(0, [makeActivity('1', 'video', true)], { skill: 'Other skill' }),
+        makeChapter(1, [makeActivity('2', 'video', true)], { skill: 'Another' }),
         makeChapter(2, [
           makeActivity('3', 'video', true),
           makeActivity('4', 'video', true),
           makeActivity('5', 'document', true),
           makeActivity('6', 'document', false),
-          makeActivity('7', 'assignment', true),
-        ]),
+          { ...makeActivity('7', 'assignment', true), grade: 90 },
+          { ...makeActivity('8', 'assignment', true), grade: 80 },
+        ], { skill: 'Applied Context' }),
       ]),
     ]);
     const tree = await renderScreen();
     const t = texts(tree);
-    expect(t).toContain('Working with Context');
-    expect(t).toContain('A clearer brief.');
+    expect(t).toContain('Applied Context');
+    expect(t).toContain('Evidence so far.');
+    expect(t).toContain('You’ve completed 5 of 6 activities in Applied Context.');
     expect(t).toContain('2 lessons completed');
     expect(t).toContain('1 of 2 checkpoints completed');
-    expect(t).toContain('1 applied task submitted');
+    expect(t).toContain('2 applied tasks submitted · 2 graded, average 85');
     expect(t).toContain('Strengthen this skill');
   });
 
   it('shows zeroed evidence for a skill with no progress', async () => {
-    mockSkillId = 'agents';
-    mockGetMyTrail.mockResolvedValue([makeUniformCourse(8, 2, 1)]);
+    mockSkillId = 'skill:idle';
+    mockGetMyTrail.mockResolvedValue([makeCourse([makeChapter(0, [makeActivity('1', 'video', false)], { skill: 'Idle' })])]);
     const t = texts(await renderScreen());
-    expect(t).toContain('AI Agents');
+    expect(t).toContain('Idle');
     expect(t).toContain('0 lessons completed');
     expect(t).toContain('Applied task still ahead');
   });
 
+  it('uses the per-course axis when no chapter is tagged', async () => {
+    mockSkillId = 'course:course-1';
+    mockGetMyTrail.mockResolvedValue([makeUniformCourse(3, 1, 1)]);
+    const t = texts(await renderScreen());
+    expect(t).toContain('Applied AI');
+    expect(t).toContain('1 lesson completed');
+  });
+
   it('navigates to the path from the CTA and goes back', async () => {
+    mockSkillId = 'course:course-1';
     mockGetMyTrail.mockResolvedValue([makeUniformCourse(8, 2, 3)]);
     const tree = await renderScreen();
     const cta = tree.root.find((n) => typeof n.props.onPress === 'function' && n.findAllByType(Text).some((x) => x.props.children === 'Strengthen this skill'));

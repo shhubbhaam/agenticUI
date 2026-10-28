@@ -12,7 +12,7 @@ export interface PentagonAxis {
 }
 
 interface PentagonChartProps {
-  // Exactly five axes, clockwise from the top.
+  // 3 to 5 axes, clockwise from the top. Outside that range the chart renders nothing.
   axes: PentagonAxis[];
   accessibilityLabel?: string;
 }
@@ -26,18 +26,23 @@ const CY = 110.5;
 const RADIUS = 76.5;
 const RING_FRACTIONS = [1, 0.6245, 0.3116];
 
-// Centre point of each axis label in the 350x225 canvas.
-const LABEL_CENTERS = [
-  { x: 175, y: 14.5 },
-  { x: 279, y: 84 },
-  { x: 242, y: 202 },
-  { x: 96, y: 202 },
-  { x: 68, y: 84 },
-];
+// Axis labels sit just outside the outline, centred on the axis direction.
+// Pushed out a little further than the outline radius; clamped into the canvas.
+const LABEL_RADIUS = RADIUS + 28;
+function labelCenters(count: number): { x: number; y: number }[] {
+  return polygonVertices(count, LABEL_RADIUS, CX, CY).map((p) => ({
+    x: Math.max(LABEL_WIDTH / 2, Math.min(WIDTH - LABEL_WIDTH / 2, p.x)),
+    y: Math.max(LABEL_HEIGHT / 2, Math.min(HEIGHT - LABEL_HEIGHT / 2, p.y)),
+  }));
+}
 const LABEL_WIDTH = 70;
 const LABEL_HEIGHT = 14;
 
-export const PentagonChart: React.FC<PentagonChartProps> = ({ axes, accessibilityLabel }) => {
+export const PentagonChart: React.FC<PentagonChartProps> = ({ axes: allAxes, accessibilityLabel }) => {
+  // Despite the name this draws a regular N-gon (N = 3..5).
+  const axes = allAxes.slice(0, 5);
+  if (axes.length < 3) return null;
+  const centers = labelCenters(axes.length);
   const dataPoints = valuePolygon(axes.map((a) => a.value), RADIUS, CX, CY);
   return (
     <View
@@ -52,7 +57,7 @@ export const PentagonChart: React.FC<PentagonChartProps> = ({ axes, accessibilit
         {RING_FRACTIONS.map((fraction) => (
           <Polygon
             key={fraction}
-            points={pointsToString(polygonVertices(5, RADIUS * fraction, CX, CY))}
+            points={pointsToString(polygonVertices(axes.length, RADIUS * fraction, CX, CY))}
             fill="none"
             stroke={colors.profile.radar.ring}
             strokeWidth={0.957}
@@ -68,14 +73,15 @@ export const PentagonChart: React.FC<PentagonChartProps> = ({ axes, accessibilit
           strokeLinejoin="round"
         />
       </Svg>
-      {axes.slice(0, 5).map((axis, i) => (
+      {axes.map((axis, i) => (
         <Text
-          key={axis.label}
+          key={`${i}-${axis.label}`}
+          numberOfLines={2}
           style={{
             position: 'absolute',
             width: `${(LABEL_WIDTH / WIDTH) * 100}%`,
-            left: `${((LABEL_CENTERS[i].x - LABEL_WIDTH / 2) / WIDTH) * 100}%`,
-            top: `${((LABEL_CENTERS[i].y - LABEL_HEIGHT / 2) / HEIGHT) * 100}%`,
+            left: `${((centers[i].x - LABEL_WIDTH / 2) / WIDTH) * 100}%`,
+            top: `${((centers[i].y - LABEL_HEIGHT / 2) / HEIGHT) * 100}%`,
             textAlign: 'center',
             fontFamily: typography.fontFamily.jakarta,
             color: colors.profile.radar.label,

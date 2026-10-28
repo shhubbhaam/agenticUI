@@ -100,9 +100,9 @@ describe('YouScreen', () => {
     expect(t).toContain('38%');
     expect(t).toContain('6 of 16 lessons completed');
     expect(t).toContain('Your chapter collection');
-    ['Foundations', 'Prompting', 'Context', 'Workflows', 'Agents', 'Privacy', 'Value', 'Capstone'].forEach((l) => expect(t).toContain(l));
-    expect(tree.root.findByProps({ accessibilityLabel: 'Foundations, completed' })).toBeTruthy();
-    expect(tree.root.findByProps({ accessibilityLabel: 'Workflows, locked' })).toBeTruthy();
+    Array.from({ length: 8 }, (_, i) => `Chapter ${i}`).forEach((l) => expect(t).toContain(l));
+    expect(tree.root.findByProps({ accessibilityLabel: 'Chapter 0, completed' })).toBeTruthy();
+    expect(tree.root.findByProps({ accessibilityLabel: 'Chapter 3, locked' })).toBeTruthy();
     expect(t).toContain('Your skills & evidence');
     expect(t).toContain('Your learning rhythm');
   });
@@ -127,7 +127,8 @@ describe('YouScreen', () => {
     expect(t).toContain('Your first chapter awaits.');
     expect(t).toContain('0%');
     expect(t).toContain('0 of 0 lessons completed');
-    expect(tree.root.findByProps({ accessibilityLabel: 'Foundations, locked' })).toBeTruthy();
+    expect(t).not.toContain('Foundations');
+    expect(tree.root.findAllByProps({ accessibilityLabel: 'Chapter, locked' }).length).toBeGreaterThan(0);
   });
 
   it('renders every crest earned when all chapters are complete', async () => {
@@ -135,7 +136,7 @@ describe('YouScreen', () => {
     const tree = await renderScreen();
     expect(texts(tree)).toContain('Eight chapters. A real difference.');
     expect(texts(tree)).toContain('100%');
-    expect(tree.root.findByProps({ accessibilityLabel: 'Capstone, completed' })).toBeTruthy();
+    expect(tree.root.findByProps({ accessibilityLabel: 'Chapter 7, completed' })).toBeTruthy();
   });
 
   it('shows loading text, then an error with a working retry', async () => {

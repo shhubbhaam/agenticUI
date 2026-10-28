@@ -80,7 +80,7 @@ describe('useYouData', () => {
     await flush();
     const data = result.current!;
     expect(data.status).toBe('ready');
-    expect(data.crests.filter((c) => c.completed).map((c) => c.label)).toEqual(['Foundations', 'Prompting', 'Context']);
+    expect(data.crests.filter((c) => c.completed).map((c) => c.label)).toEqual(['Chapter 0', 'Chapter 1', 'Chapter 2']);
     expect(data.summary.percent).toBe(38);
     expect(data.summary.headline).toBe('Three chapters. A real difference.');
     expect(data.summary.caption).toBe('6 of 16 lessons completed');
@@ -95,7 +95,7 @@ describe('useYouData', () => {
     await flush();
     expect(result.current!.status).toBe('empty');
     expect(result.current!.summary.headline).toBe('Your first chapter awaits.');
-    expect(result.current!.crests.every((c) => !c.completed)).toBe(true);
+    expect(result.current!.crests.every((c) => !c.completed && c.label === null)).toBe(true);
     expect(result.current!.savedWork).toBeNull();
     unmount();
   });

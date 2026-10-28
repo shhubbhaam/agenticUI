@@ -12,6 +12,8 @@ export interface CourseProgressState {
   errorMessage: string | null;
   onRetry: () => void;
   course: CourseProgress | null;
+  // Every course on the trail (the Skills screens aggregate across all of them).
+  courses: CourseProgress[];
 }
 
 // Shared fetch for the You tab and the Skills & evidence screens: the user's
@@ -51,11 +53,12 @@ export function useCourseProgress(): CourseProgressState {
       errorMessage: "We couldn't load your progress. Please try again.",
       onRetry,
       course: null,
+      courses: [],
     };
   }
   if (!identity || courses === null) {
-    return { identity, status: 'loading', errorMessage: null, onRetry, course: null };
+    return { identity, status: 'loading', errorMessage: null, onRetry, course: null, courses: [] };
   }
   const course = selectActiveCourse(courses);
-  return { identity, status: course ? 'ready' : 'empty', errorMessage: null, onRetry, course };
+  return { identity, status: course ? 'ready' : 'empty', errorMessage: null, onRetry, course, courses };
 }

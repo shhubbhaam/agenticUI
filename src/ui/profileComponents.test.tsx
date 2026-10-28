@@ -109,15 +109,28 @@ describe('InfoCard', () => {
 });
 
 describe('PentagonChart', () => {
-  const axes = ['Prompting', 'Context', 'Workflows', 'AI agents', 'Judgement'].map((label, i) => ({ label, value: i / 4 }));
+  const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
+  const axesOf = (n: number) => names.slice(0, n).map((label, i) => ({ label, value: i / 4 }));
 
-  it('draws three guide rings plus the data polygon and the five labels', () => {
-    const tree = render(<PentagonChart axes={axes} />);
+  it.each([3, 4, 5])('draws three guide rings plus the data polygon and %i labels', (n) => {
+    const tree = render(<PentagonChart axes={axesOf(n)} />);
     expect(tree.root.findAllByType(Polygon)).toHaveLength(4);
-    expect(texts(tree)).toEqual(['Prompting', 'Context', 'Workflows', 'AI agents', 'Judgement']);
+    expect(texts(tree)).toEqual(names.slice(0, n));
+    expect(tree.root.findAllByType(Polygon)[0].props.points.split(' ')).toHaveLength(n);
+  });
+
+  it('renders nothing with fewer than three axes', () => {
+    expect(render(<PentagonChart axes={axesOf(2)} />).toJSON()).toBeNull();
+    expect(render(<PentagonChart axes={[]} />).toJSON()).toBeNull();
+  });
+
+  it('caps at five axes', () => {
+    const six = [...axesOf(5), { label: 'Zeta', value: 1 }];
+    expect(texts(render(<PentagonChart axes={six} />))).toEqual(names);
   });
 
   it('changes the data polygon when values change', () => {
+    const axes = axesOf(5);
     const points = (values: number[]) =>
       render(<PentagonChart axes={axes.map((a, i) => ({ ...a, value: values[i] }))} />).root.findAllByType(Polygon)[3].props.points;
     expect(points([1, 1, 1, 1, 1])).not.toEqual(points([0.2, 0.2, 0.2, 0.2, 0.2]));
@@ -151,13 +164,33 @@ describe('PageHeader / ProfileIdentity / ProgressSummaryCard', () => {
 });
 
 describe('ChapterCollection', () => {
+  const crest = (i: number, label: string | null, completed = false) => ({
+    key: `k${i}`,
+    label,
+    icon: 'blocks' as const,
+    tone: 'indigo' as const,
+    completed,
+  });
+
   it('labels each crest as completed or locked', () => {
-    const crests = [
-      { key: 'a', label: 'Foundations', icon: 'blocks' as const, tone: 'indigo' as const, completed: true },
-      { key: 'b', label: 'Prompting', icon: 'brief' as const, tone: 'teal' as const, completed: false },
-    ];
+    const tree = render(<ChapterCollection crests={[crest(0, 'Alpha chapter', true), crest(1, 'Beta chapter')]} />);
+    expect(tree.root.findByProps({ accessibilityLabel: 'Alpha chapter, completed' })).toBeTruthy();
+    expect(tree.root.findByProps({ accessibilityLabel: 'Beta chapter, locked' })).toBeTruthy();
+  });
+
+  it('renders any number of crests in rows of four, truncating names to two lines', () => {
+    const long = 'A very long chapter name that will not fit on one line';
+    const crests = [...Array.from({ length: 6 }, (_, i) => crest(i, i === 0 ? long : `Chapter ${i}`)), crest(6, 'Seventh'), crest(7, 'Eighth'), crest(8, 'Ninth')];
     const tree = render(<ChapterCollection crests={crests} />);
-    expect(tree.root.findByProps({ accessibilityLabel: 'Foundations, completed' })).toBeTruthy();
-    expect(tree.root.findByProps({ accessibilityLabel: 'Prompting, locked' })).toBeTruthy();
+    expect(texts(tree)).toHaveLength(9);
+    expect(tree.root.findByProps({ accessibilityLabel: `${long}, locked` })).toBeTruthy();
+    tree.root.findAllByType(Text).forEach((t) => expect(t.props.numberOfLines).toBe(2));
+    expect(tree.root.findByProps({ accessibilityLabel: 'Ninth, locked' })).toBeTruthy();
+  });
+
+  it('renders unnamed placeholder crests without any label text', () => {
+    const tree = render(<ChapterCollection crests={[crest(0, null), crest(1, null)]} />);
+    expect(texts(tree)).toEqual([]);
+    expect(tree.root.findAllByProps({ accessibilityLabel: 'Chapter, locked' }).length).toBeGreaterThan(0);
   });
 });

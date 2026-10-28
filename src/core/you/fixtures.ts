@@ -1,8 +1,15 @@
 // Test-only builders for CourseProgress values.
 import type { Activity, ActivityType, Chapter, CourseProgress } from '../learning/types';
 
-export function makeActivity(id: string, type: ActivityType, completed: boolean, completedAt: Date | null = null): Activity {
+export function makeActivity(
+  id: string,
+  type: ActivityType,
+  completed: boolean,
+  completedAt: Date | null = null,
+  grade: number | null = null,
+): Activity {
   return {
+    grade,
     id,
     name: `Activity ${id}`,
     type,
@@ -12,7 +19,7 @@ export function makeActivity(id: string, type: ActivityType, completed: boolean,
   };
 }
 
-export function makeChapter(order: number, activities: Activity[]): Chapter {
+export function makeChapter(order: number, activities: Activity[], extra: Partial<Chapter> = {}): Chapter {
   return {
     id: `chapter-${order}`,
     name: `Chapter ${order}`,
@@ -20,10 +27,11 @@ export function makeChapter(order: number, activities: Activity[]): Chapter {
     totalActivities: activities.length,
     completedActivities: activities.filter((a) => a.completed).length,
     activities,
+    ...extra,
   };
 }
 
-export function makeCourse(chapters: Chapter[]): CourseProgress {
+export function makeCourse(chapters: Chapter[], extra: Partial<CourseProgress> = {}): CourseProgress {
   const all = chapters.flatMap((c) => c.activities);
   const completed = all.filter((a) => a.completed).length;
   return {
@@ -35,6 +43,7 @@ export function makeCourse(chapters: Chapter[]): CourseProgress {
     completedActivities: completed,
     completionPercentage: all.length ? Math.round((completed / all.length) * 100) : 0,
     chapters,
+    ...extra,
   };
 }
 
