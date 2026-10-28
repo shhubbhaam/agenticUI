@@ -10,9 +10,17 @@ interface InfoCardProps {
   tone?: 'plain' | 'tinted';
   // Optional slot above the title (e.g. a StageCrest).
   leading?: React.ReactNode;
+  // Multiplies title/body type (Accessibility "Larger text" preview). Default 1.
+  textScale?: number;
 }
 
-export const InfoCard: React.FC<InfoCardProps> = ({ body, title, tone = 'plain', leading }) => (
+const scaled = (style: { fontSize: number; lineHeight: number; letterSpacing: number }, scale: number) => ({
+  ...style,
+  fontSize: style.fontSize * scale,
+  lineHeight: style.lineHeight * scale,
+});
+
+export const InfoCard: React.FC<InfoCardProps> = ({ body, title, tone = 'plain', leading, textScale = 1 }) => (
   <View
     style={{
       width: '100%',
@@ -30,7 +38,7 @@ export const InfoCard: React.FC<InfoCardProps> = ({ body, title, tone = 'plain',
           fontFamily: typography.fontFamily['jakarta-bold'],
           color: colors.text.primary,
           marginBottom: 9,
-          ...typography.fontSize['type-17-base'],
+          ...scaled(typography.fontSize['type-17-base'], textScale),
         }}
       >
         {title}
@@ -40,7 +48,7 @@ export const InfoCard: React.FC<InfoCardProps> = ({ body, title, tone = 'plain',
       style={{
         fontFamily: typography.fontFamily.jakarta,
         color: colors.text.body,
-        ...typography.fontSize['type-14-padded'],
+        ...scaled(typography.fontSize['type-14-padded'], textScale),
       }}
     >
       {body}

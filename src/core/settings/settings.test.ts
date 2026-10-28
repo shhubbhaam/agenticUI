@@ -1,5 +1,7 @@
 import {
   DEFAULT_SETTINGS,
+  budgetSubtitle,
+  formatsSubtitle,
   LARGER_TEXT_SCALE,
   formatReminderTime,
   isValidReminderTime,
@@ -58,6 +60,21 @@ describe('reminder time', () => {
     expect(formatReminderTime('12:00')).toBe('12:00 PM');
     expect(formatReminderTime('garbage')).toBe('7:30 PM');
     expect(reminderSubtitle('19:30')).toBe('7:30 PM · A gentle nudge');
+  });
+});
+
+describe('onboarding-derived subtitles', () => {
+  it('formats the daily budget, defaulting to 15 minutes', () => {
+    expect(budgetSubtitle(15)).toBe('15 minutes · Change anytime');
+    expect(budgetSubtitle(30)).toBe('30 minutes · Change anytime');
+    expect(budgetSubtitle(null)).toBe('15 minutes · Change anytime');
+  });
+
+  it('joins formats naturally, defaulting to the Figma copy', () => {
+    expect(formatsSubtitle(['reading', 'listening', 'doing'])).toBe('Reading, listening and doing');
+    expect(formatsSubtitle(['doing', 'watching'])).toBe('Doing and watching');
+    expect(formatsSubtitle(['listening'])).toBe('Listening');
+    expect(formatsSubtitle([])).toBe('Reading, listening and doing');
   });
 });
 

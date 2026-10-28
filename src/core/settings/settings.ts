@@ -76,3 +76,24 @@ export function textScaleFor(settings: Pick<AppSettings, 'largerText'>): number 
 export function scaleFontSize(size: number, scale: number): number {
   return Math.round(size * scale * 100) / 100;
 }
+
+// Settings row subtitles that mirror onboarding answers (owned by the
+// onboarding store, not duplicated in AppSettings).
+export const DEFAULT_BUDGET_MINUTES = 15;
+const FORMAT_WORDS: Record<string, string> = { reading: 'Reading', listening: 'Listening', watching: 'Watching', doing: 'Doing' };
+const DEFAULT_FORMATS = ['reading', 'listening', 'doing'];
+
+export function budgetSubtitle(minutes: number | null | undefined): string {
+  return `${minutes ?? DEFAULT_BUDGET_MINUTES} minutes · Change anytime`;
+}
+
+// ['reading','listening','doing'] -> "Reading, listening and doing"
+export function formatsSubtitle(formats: readonly string[] | null | undefined): string {
+  const ids = formats && formats.length > 0 ? formats : DEFAULT_FORMATS;
+  const words = ids.map((id, i) => {
+    const word = FORMAT_WORDS[id] ?? id;
+    return i === 0 ? word : word.toLowerCase();
+  });
+  if (words.length === 1) return words[0];
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+}
