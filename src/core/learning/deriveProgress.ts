@@ -62,6 +62,11 @@ export function allCompletionDates(course: CourseProgress): Date[] {
     .filter((date): date is Date => date !== null);
 }
 
+// Activity in ANY enrolled course keeps the streak, not just the active one.
+export function allCoursesCompletionDates(courses: CourseProgress[]): Date[] {
+  return courses.flatMap(allCompletionDates);
+}
+
 export function computeStreak(completions: Date[], now: Date = new Date()): number {
   if (completions.length === 0) return 0;
   const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
