@@ -51,7 +51,7 @@ export const StageCrest: React.FC<StageCrestProps> = ({ tone, icon, size = 'sm',
         },
       ]}
     >
-      <Icon name={icon} size={dims.icon} color={locked ? colors.path.stage.locked.shadow : '#ffffff'} />
+      <Icon name={icon} size={dims.icon} color={locked ? colors.path.stage.locked.shadow : colors.surface.white} />
       <View
         pointerEvents="none"
         style={{
