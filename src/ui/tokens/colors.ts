@@ -116,6 +116,11 @@ const primitives = {
   rhythmCardSurface: '#F0EAF8',
   rhythmCardBorder: '#E4D8F0',
   miniIconSurface: '#E9EEF9',
+  // Practice screens (Figma PR-01 / PR-02 frames, 37:6268..37:7103) — only the values
+  // no other flow shares; card / badge / alert / divider reuse the onboarding + profile tokens.
+  btnPlumShadow: '#573888',
+  summaryTealSurface: '#E9F4F1',
+  summaryTealBorder: '#D8EAE4',
   // You tab + Skills & evidence (AI Launchpad — Mobile Design System, nodes 37-3842..37-5726)
   avatarSurface: '#DBE5F8',
   avatarInk: '#3752A2',
@@ -135,11 +140,6 @@ const primitives = {
   skillWorkflows: '#B87459',
   skillAgents: '#8393C5',
   skillJudgement: '#518E86',
-  // Practice screens (Figma PR-01 / PR-02 frames, 37:6268..37:7103) — only the values
-  // no other flow shares; card / badge / alert / divider reuse the onboarding + profile tokens.
-  btnPlumShadow: '#573888',
-  summaryTealSurface: '#E9F4F1',
-  summaryTealBorder: '#D8EAE4',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.

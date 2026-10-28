@@ -63,7 +63,6 @@ export default function MainStack() {
         <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
         <Stack.Screen name="PracticeScreen" component={PracticeScreen} options={tabScreenOptions} />
         <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
-        <Stack.Screen name="QuickPracticeScreen" component={QuickPracticeScreen} />
         <Stack.Screen name="Skills" component={SkillsScreen} />
         <Stack.Screen name="Evidence" component={EvidenceScreen} />
         <Stack.Screen name="Streak">{() => <ComingSoonScreen title="Streak" />}</Stack.Screen>
@@ -74,6 +73,7 @@ export default function MainStack() {
         <Stack.Screen name="OnboardingBudget" component={BudgetScreen} />
         <Stack.Screen name="OnboardingFormats" component={FormatsScreen} />
         <Stack.Screen name="OnboardingDiagnostic" component={DiagnosticScreen} getId={diagnosticGetId} />
+        <Stack.Screen name="QuickPracticeScreen" component={QuickPracticeScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
