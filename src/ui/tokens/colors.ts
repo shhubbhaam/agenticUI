@@ -135,6 +135,22 @@ const primitives = {
   skillWorkflows: '#B87459',
   skillAgents: '#8393C5',
   skillJudgement: '#518E86',
+  // Message pills + Streak screen (nodes 29:1462/29:1470, 37-4230..37-5342)
+  alertSuccessSurface: '#E9F5EF',
+  alertSuccessBorder: '#D5EADE',
+  alertSuccessInk: '#35694F',
+  alertWarningSurface: '#FFF5E5',
+  alertWarningBorder: '#F3E2BC',
+  alertWarningInk: '#835B27',
+  streakDoneSurface: '#E69B43',
+  streakCurrentSurface: '#FFF4E4',
+  streakCurrentBorder: '#D4A570',
+  streakCurrentInk: '#B57230',
+  streakDayIdleSurface: '#EDF0F6',
+  streakDayIdleInk: '#94A0B3',
+  streakWeekdayInk: '#8B98AD',
+  streakFrozenSurface: '#E8F4FA',
+  streakFrozenInk: '#48739E',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -163,8 +179,15 @@ export const colors = {
     ink: primitives.slateBlue600, // used in: HomeHeader
   },
   streak: {
-    ink: primitives.rust600, // used in: HomeHeader
-    surface: primitives.cream100, // used in: HomeHeader
+    ink: primitives.rust600, // used in: HomeHeader, StreakBadge
+    surface: primitives.cream100, // used in: HomeHeader, StreakBadge
+    frozen: { surface: primitives.streakFrozenSurface, ink: primitives.streakFrozenInk }, // used in: StreakBadge
+    calendar: {
+      weekdayInk: primitives.streakWeekdayInk,
+      idle: { surface: primitives.streakDayIdleSurface, ink: primitives.streakDayIdleInk },
+      done: { surface: primitives.streakDoneSurface, ink: primitives.white },
+      current: { surface: primitives.streakCurrentSurface, border: primitives.streakCurrentBorder, ink: primitives.streakCurrentInk },
+    }, // used in: StreakCalendar
   },
   hero: {
     surface: primitives.lavender100, // used in: HomeCard
@@ -238,6 +261,16 @@ export const colors = {
       surface: primitives.alertErrorSurface, // used in: Alert (login error state)
       border: primitives.alertErrorSurface2,
       ink: primitives.alertErrorInk,
+    },
+    success: {
+      surface: primitives.alertSuccessSurface, // used in: MessagePill (settings saved)
+      border: primitives.alertSuccessBorder,
+      ink: primitives.alertSuccessInk,
+    },
+    warning: {
+      surface: primitives.alertWarningSurface, // used in: MessagePill (streak at risk)
+      border: primitives.alertWarningBorder,
+      ink: primitives.alertWarningInk,
     },
   },
   onboarding: {
