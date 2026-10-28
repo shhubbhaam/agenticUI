@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
-import { Presentation, ChevronRight } from 'lucide-react-native'; 
+import { ChevronRight } from 'lucide-react-native';
 import {PresentationIcon} from '../../atoms/icons';
 
 interface NextStepCardProps {

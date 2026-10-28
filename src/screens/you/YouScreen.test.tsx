@@ -165,6 +165,8 @@ describe('YouScreen', () => {
     expect(mockNavigate).toHaveBeenLastCalledWith('Skills');
     pressable(tree, (p) => typeof p.accessibilityLabel === 'string' && p.accessibilityLabel.startsWith('Your learning rhythm'));
     expect(mockNavigate).toHaveBeenLastCalledWith('Streak');
+    pressable(tree, (p) => typeof p.accessibilityLabel === 'string' && p.accessibilityLabel.startsWith('Three chapters'));
+    expect(mockNavigate).toHaveBeenLastCalledWith('Streak');
     pressable(tree, (p) => p.accessibilityLabel === 'Open');
     expect(mockNavigate).toHaveBeenLastCalledWith('Skills');
   });

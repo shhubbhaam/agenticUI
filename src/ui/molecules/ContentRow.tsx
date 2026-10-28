@@ -11,6 +11,7 @@ interface ContentRowProps {
   title: string;
   subtitle: string;
   onPress?: () => void;
+  testID?: string;
   // 'divided': list row with a bottom hairline; 'plain': same without it (last
   // row of a list); 'card': the white bordered card used for saved work.
   variant?: 'divided' | 'plain' | 'card';
@@ -26,6 +27,7 @@ export const ContentRow: React.FC<ContentRowProps> = ({
   title,
   subtitle,
   onPress,
+  testID,
   variant = 'divided',
   trailing,
   accessibilityRole = 'button',
@@ -34,6 +36,7 @@ export const ContentRow: React.FC<ContentRowProps> = ({
   const isCard = variant === 'card';
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole={accessibilityRole}

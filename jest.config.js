@@ -11,5 +11,5 @@ module.exports = {
   // the current project — otherwise, running jest from inside a worktree
   // whose own path contains ".worktrees" would match every test file here
   // too and silently exclude the entire suite.
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/'],
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/', '<rootDir>/.claude/'],
 };
