@@ -7,7 +7,7 @@ import tw from 'twrnc';
 import { colors } from '../../ui/tokens/colors';
 import { downloadsSummary, itemSubtitle, type DownloadKind } from '../../core/downloads/downloads';
 import { ActiveButton } from '../../ui/atoms/ActiveButton';
-import { BackHeader } from '../../ui/atoms/onboarding/BackHeader';
+import { BackHeader } from '../../ui/molecules/BackHeader';
 import { Badge } from '../../ui/atoms/roadmap/Badge';
 import type { IconType } from '../../ui/atoms/Icon';
 import { ContentRow } from '../../ui/molecules/ContentRow';

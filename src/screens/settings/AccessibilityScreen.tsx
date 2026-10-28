@@ -8,7 +8,7 @@ import { colors } from '../../ui/tokens/colors';
 import { LARGER_TEXT_SCALE, type BooleanSettingKey } from '../../core/settings/settings';
 import { useSettingsStore } from '../../state/useSettingsStore';
 import { ActiveButton } from '../../ui/atoms/ActiveButton';
-import { BackHeader } from '../../ui/atoms/onboarding/BackHeader';
+import { BackHeader } from '../../ui/molecules/BackHeader';
 import { ToggleSwitch } from '../../ui/atoms/ToggleSwitch';
 import { ContentRow } from '../../ui/molecules/ContentRow';
 import { InfoCard } from '../../ui/molecules/InfoCard';

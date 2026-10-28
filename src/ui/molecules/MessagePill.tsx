@@ -16,6 +16,7 @@ export interface MessagePillProps {
   accessibilityRole?: 'alert' | 'text';
   // Defaults: 'assertive' for errors, 'polite' otherwise.
   accessibilityLiveRegion?: 'none' | 'polite' | 'assertive';
+  testID?: string;
 }
 
 interface Palette {
@@ -39,11 +40,13 @@ export const MessagePill: React.FC<MessagePillProps> = ({
   icon,
   accessibilityRole,
   accessibilityLiveRegion,
+  testID,
 }) => {
   const palette = MESSAGE_PILL_TONES[tone];
   const isError = tone === 'error';
   return (
     <View
+      testID={testID}
       accessibilityRole={accessibilityRole ?? (isError ? 'alert' : 'text')}
       accessibilityLiveRegion={accessibilityLiveRegion ?? (isError ? 'assertive' : 'polite')}
       style={[

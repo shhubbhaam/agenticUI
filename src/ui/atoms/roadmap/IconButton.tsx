@@ -28,8 +28,8 @@ export const IconButton: React.FC<IconButtonProps> = ({
     accessibilityRole="button"
     accessibilityLabel={accessibilityLabel}
     style={[
-      tw`items-center justify-center rounded-2xl border`,
-      { width: 48, height: 48, backgroundColor: colors.surface.white, borderColor: colors.path.iconBtnBorder, borderWidth: 0.8 },
+      tw`items-center justify-center border`,
+      { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.surface.white, borderColor: colors.path.iconBtnBorder, borderWidth: 0.8 },
     ]}
   >
     <Icon name={icon} color={iconColor} size={22} />

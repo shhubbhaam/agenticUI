@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { colors } from '../../ui/tokens/colors';
-import { BackHeader } from '../../ui/atoms/onboarding/BackHeader';
+import { BackHeader } from '../../ui/molecules/BackHeader';
 import { ToggleSwitch } from '../../ui/atoms/ToggleSwitch';
 import { ContentRow } from '../../ui/molecules/ContentRow';
 import { MessagePill } from '../../ui/molecules/MessagePill';
