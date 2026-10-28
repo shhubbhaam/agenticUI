@@ -31,6 +31,8 @@ export const BackHeader: React.FC<BackHeaderProps> = ({
           accessibilityLabel="Go back"
           onPress={onBack}
           activeOpacity={0.7}
+          // 40 x 44 drawn; hit area grows to the 48dp minimum without moving layout.
+          hitSlop={{ top: 2, bottom: 2, left: 4, right: 4 }}
           style={{ width: 40, height: 44, justifyContent: 'center' }}
         >
           <Icon name="back" color={iconColor} size={22} />
