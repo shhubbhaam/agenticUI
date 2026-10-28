@@ -1,48 +1,45 @@
 // Pure derivation of the You tab's "Your chapter collection" crest grid.
 // Zero React Native / network imports.
+//
+// One crest per chapter of the active course (sorted by `order`). The label is
+// the chapter's real API name; completed = the chapter is fully complete
+// (deriveChapterStatus), otherwise it renders locked. Icon/tone are decorative
+// only (see crestDecor.ts).
+//
+// EMPTY STATE: with no course / no chapters we never invent chapter names. We
+// return PLACEHOLDER_CREST_COUNT locked crests with `label: null` (the Figma
+// empty look: locked crests, no names).
 import type { CourseProgress } from '../learning/types';
 import { deriveChapterStatus } from '../learning/deriveProgress';
+import { crestDecor, type CrestIconKey, type CrestTone } from './crestDecor';
 
-export type CrestTone = 'indigo' | 'teal' | 'plum';
+export type { CrestIconKey, CrestTone };
 
-// Names of glyphs in src/ui/atoms/Icon.tsx (kept as plain strings so core/
-// never imports from ui/).
-export type CrestIconKey = 'blocks' | 'brief' | 'layers' | 'workflow' | 'agents' | 'shield' | 'chart' | 'capstone';
+export const PLACEHOLDER_CREST_COUNT = 8;
 
-interface CrestSlot {
+export interface ChapterCrest {
   key: string;
-  label: string;
+  // null = placeholder crest with no name.
+  label: string | null;
   icon: CrestIconKey;
-}
-
-// The 8 collectible crests from the Figma profile frames, in order. Slot i
-// represents the course's i-th chapter (sorted by `order`).
-export const CHAPTER_CREST_SLOTS: readonly CrestSlot[] = [
-  { key: 'foundations', label: 'Foundations', icon: 'blocks' },
-  { key: 'prompting', label: 'Prompting', icon: 'brief' },
-  { key: 'context', label: 'Context', icon: 'layers' },
-  { key: 'workflows', label: 'Workflows', icon: 'workflow' },
-  { key: 'agents', label: 'Agents', icon: 'agents' },
-  { key: 'privacy', label: 'Privacy', icon: 'shield' },
-  { key: 'value', label: 'Value', icon: 'chart' },
-  { key: 'capstone', label: 'Capstone', icon: 'capstone' },
-];
-
-const TONES: readonly CrestTone[] = ['indigo', 'teal', 'plum'];
-
-export interface ChapterCrest extends CrestSlot {
   tone: CrestTone;
   completed: boolean;
 }
 
 export function deriveChapterCrests(course: CourseProgress | null): ChapterCrest[] {
   const chapters = course ? [...course.chapters].sort((a, b) => a.order - b.order) : [];
-  return CHAPTER_CREST_SLOTS.map((slot, index) => {
-    const chapter = chapters[index];
-    return {
-      ...slot,
-      tone: TONES[index % TONES.length],
-      completed: chapter !== undefined && deriveChapterStatus(chapter, chapters) === 'completed',
-    };
-  });
+  if (chapters.length === 0) {
+    return Array.from({ length: PLACEHOLDER_CREST_COUNT }, (_, index) => ({
+      key: `placeholder-${index}`,
+      label: null,
+      ...crestDecor(index),
+      completed: false,
+    }));
+  }
+  return chapters.map((chapter, index) => ({
+    key: chapter.id,
+    label: chapter.name,
+    ...crestDecor(index),
+    completed: deriveChapterStatus(chapter, chapters) === 'completed',
+  }));
 }

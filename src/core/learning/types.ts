@@ -11,6 +11,10 @@ export interface Activity {
   order: number;
   completed: boolean;
   completedAt: Date | null;
+  // Optional API fields (unconfirmed against a live trail): numeric grade
+  // (scale unknown) and LearnHouse activity_sub_type.
+  grade?: number | null;
+  subType?: string | null;
 }
 
 export interface Chapter {
@@ -20,6 +24,9 @@ export interface Chapter {
   totalActivities: number;
   completedActivities: number;
   activities: Activity[];
+  // Skill tag from the chapter's `extra_metadata.skill` (trimmed), if the
+  // content author set one. Drives the Skills radar axes.
+  skill?: string | null;
 }
 
 export interface CourseProgress {

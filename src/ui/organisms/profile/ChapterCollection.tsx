@@ -8,7 +8,8 @@ import type { IconType } from '../../atoms/Icon';
 
 export interface ChapterCrestItem {
   key: string;
-  label: string;
+  // null = unnamed placeholder crest (shown when there is no course yet).
+  label: string | null;
   icon: IconType;
   tone: StageTone;
   completed: boolean;
@@ -18,26 +19,52 @@ interface ChapterCollectionProps {
   crests: ChapterCrestItem[];
 }
 
-// Four crests per row, each in an 80px column (Figma PracticeShelf).
+const COLUMNS = 4;
+const COLUMN_WIDTH = 80;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size));
+  return rows;
+}
+
+// Any number of crests: rows of four 80px columns (Figma PracticeShelf). The
+// last row is padded with empty columns so crests stay aligned to the grid.
+// Names wrap to at most two lines and truncate; the full name is always in the
+// accessibility label.
 export const ChapterCollection: React.FC<ChapterCollectionProps> = ({ crests }) => (
-  <View style={[tw`flex-row flex-wrap justify-between w-full`, { rowGap: 20 }]}>
-    {crests.map((crest) => (
-      <View
-        key={crest.key}
-        accessible
-        accessibilityLabel={`${crest.label}, ${crest.completed ? 'completed' : 'locked'}`}
-        style={[tw`items-center`, { width: 80, gap: 10 }]}
-      >
-        <StageCrest tone={crest.tone} icon={crest.icon} size="lg" locked={!crest.completed} />
-        <Text
-          style={{
-            fontFamily: typography.fontFamily.jakarta,
-            color: colors.eyebrow.ink,
-            ...typography.fontSize['type-10'],
-          }}
-        >
-          {crest.label}
-        </Text>
+  <View style={[tw`w-full`, { rowGap: 20 }]}>
+    {chunk(crests, COLUMNS).map((row, rowIndex) => (
+      <View key={rowIndex} style={tw`flex-row justify-between w-full`}>
+        {Array.from({ length: COLUMNS }, (_, col) => {
+          const crest = row[col];
+          if (!crest) return <View key={`pad-${col}`} style={{ width: COLUMN_WIDTH }} />;
+          const state = crest.completed ? 'completed' : 'locked';
+          return (
+            <View
+              key={crest.key}
+              accessible
+              accessibilityLabel={crest.label ? `${crest.label}, ${state}` : `Chapter, ${state}`}
+              style={[tw`items-center`, { width: COLUMN_WIDTH, gap: 10 }]}
+            >
+              <StageCrest tone={crest.tone} icon={crest.icon} size="lg" locked={!crest.completed} />
+              {crest.label ? (
+                <Text
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  style={{
+                    textAlign: 'center',
+                    fontFamily: typography.fontFamily.jakarta,
+                    color: colors.eyebrow.ink,
+                    ...typography.fontSize['type-10'],
+                  }}
+                >
+                  {crest.label}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })}
       </View>
     ))}
   </View>

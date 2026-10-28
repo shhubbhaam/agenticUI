@@ -33,3 +33,16 @@ describe('pointsToString', () => {
     expect(pointsToString([{ x: 1, y: 2 }, { x: 3.456, y: 4 }])).toBe('1.00,2.00 3.46,4.00');
   });
 });
+
+describe('generic N-gons', () => {
+  it.each([3, 4, 5])('builds %i evenly spaced vertices', (n) => {
+    const v = polygonVertices(n, 10, 0, 0);
+    expect(v).toHaveLength(n);
+    const side = Math.hypot(v[1].x - v[0].x, v[1].y - v[0].y);
+    v.forEach((p, i) => {
+      const next = v[(i + 1) % n];
+      expect(Math.hypot(next.x - p.x, next.y - p.y)).toBeCloseTo(side);
+    });
+    expect(valuePolygon(new Array(n).fill(1), 10, 0, 0)).toHaveLength(n);
+  });
+});
