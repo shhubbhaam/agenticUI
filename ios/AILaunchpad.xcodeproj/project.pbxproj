@@ -7,57 +7,51 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0A0984AD4397481697B580AE /* PlusJakartaSans-MediumItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5952D9A9037B4BAE8173AE09 /* PlusJakartaSans-MediumItalic.ttf */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1ECE782655D7405191EC342C /* PlusJakartaSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B8ED9318B3704A719818C2AD /* PlusJakartaSans-Medium.ttf */; };
-		20C120EB06BC441296BB2244 /* PlusJakartaSans-LightItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8DAC0954F30E4023B8679A74 /* PlusJakartaSans-LightItalic.ttf */; };
-		2624FF6D94024391BF38CF94 /* PlusJakartaSans-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 2DD4F2E3B1D9441887470136 /* PlusJakartaSans-Italic.ttf */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		43745D49B979EED4BE88C109 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2F0539620C1EEE69356DF1 /* ExpoModulesProvider.swift */; };
-		44021D28BEC6763622A574AD /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2FB1C56A50FC68648458E7FD /* PrivacyInfo.xcprivacy */; };
-		6B65E628CA4B42AEA54E5945 /* PlusJakartaSans-SemiBoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB12E30400BD4436A22D92C5 /* PlusJakartaSans-SemiBoldItalic.ttf */; };
-		6E0C39107F40B7216261496C /* libPods-AILaunchpad.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DEEFB3943611AFB406D5FD77 /* libPods-AILaunchpad.a */; };
-		6FA856DE2438483F9D5E0377 /* PlusJakartaSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 18AC34D0734F411B84D2B472 /* PlusJakartaSans-Bold.ttf */; };
-		7B86BDC6F7BA47448524A310 /* PlusJakartaSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 929E1CA7488F486D9FD2BA16 /* PlusJakartaSans-SemiBold.ttf */; };
-		A6DB68223BB9497AB0722ECF /* PlusJakartaSans-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 554FD61C8BEE4F2B8069CC76 /* PlusJakartaSans-Light.ttf */; };
-		AC550E6FC5194F9C87373ED7 /* PlusJakartaSans-ExtraBoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 633A42534AAD455EAE847E14 /* PlusJakartaSans-ExtraBoldItalic.ttf */; };
-		B1749DC5B0BA45E28521CFB3 /* PlusJakartaSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 916B29F41229414691657C65 /* PlusJakartaSans-ExtraBold.ttf */; };
-		B4FC385F101F4DDCB8B038C2 /* PlusJakartaSans-ExtraLightItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5F66611A45904CF486D1E839 /* PlusJakartaSans-ExtraLightItalic.ttf */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		BCDECB7B1BB347B6B30FD463 /* PlusJakartaSans-ExtraLight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1666D2F060DB4285B7EB4DED /* PlusJakartaSans-ExtraLight.ttf */; };
-		D255A16D1F144C7CA13914FB /* PlusJakartaSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1BF1F0DEC45B47E5B35534B6 /* PlusJakartaSans-Regular.ttf */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		FB8F1759B9BF48AE8B3A1F6A /* PlusJakartaSans-BoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BFA9A1ABC2064904A71E34D3 /* PlusJakartaSans-BoldItalic.ttf */; };
+		F11748442D0307B40044C1D9 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748432D0307B40044C1D9 /* SceneDelegate.swift */; };
+		01C2F63A8F194CA3BABF92A8 /* PlusJakartaSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 609C2EDECF7646CDA197DABC /* PlusJakartaSans-Regular.ttf */; };
+		DC195A67DCED425D95352CCE /* PlusJakartaSans-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 81B93083496C45F5A1C0D160 /* PlusJakartaSans-Italic.ttf */; };
+		C70E1046A22147518BAE6CE6 /* PlusJakartaSans-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 074167F3886540BB8E82A009 /* PlusJakartaSans-Light.ttf */; };
+		D30B417E1F6144C6B65E14FB /* PlusJakartaSans-LightItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 31C6EEC0350D4EB6806962C2 /* PlusJakartaSans-LightItalic.ttf */; };
+		024EE0E554B84137AC20165D /* PlusJakartaSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B537B2170D324916849B1658 /* PlusJakartaSans-Medium.ttf */; };
+		CDABC579F97642BC9C862A78 /* PlusJakartaSans-MediumItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8B4A2FEF96B64BDF8C900297 /* PlusJakartaSans-MediumItalic.ttf */; };
+		3EEE725DF35D429D8CDC2F6F /* PlusJakartaSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D385B5DB52AD4B52B76BE199 /* PlusJakartaSans-SemiBold.ttf */; };
+		2C665E7EF5BA481880C0B633 /* PlusJakartaSans-SemiBoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E47EE297A2ED44A28B604F49 /* PlusJakartaSans-SemiBoldItalic.ttf */; };
+		90F15FA25E1C4AE798A0D980 /* PlusJakartaSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FE32E28719C2439D8859CAAB /* PlusJakartaSans-Bold.ttf */; };
+		B52220AFF31D4F66A52B74EC /* PlusJakartaSans-BoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 690013F6FB1545159E1DD2E1 /* PlusJakartaSans-BoldItalic.ttf */; };
+		8A1F1984C8E74C08AEFA64EF /* PlusJakartaSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C749D56EDD4D42FB9B633DDB /* PlusJakartaSans-ExtraBold.ttf */; };
+		1D6AE9ED3FB24F3BA7849C39 /* PlusJakartaSans-ExtraBoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 468886F1586C47DD88C0EDE5 /* PlusJakartaSans-ExtraBoldItalic.ttf */; };
+		CA61147E245645FEBF0F5AC1 /* PlusJakartaSans-ExtraLight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 724B81CC18514CF9813BCB41 /* PlusJakartaSans-ExtraLight.ttf */; };
+		6DBDFFF4F9414A68ABA77785 /* PlusJakartaSans-ExtraLightItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B8C8D99E2F80476CB0936FB0 /* PlusJakartaSans-ExtraLightItalic.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		1392C7443484B3DF11A07958 /* Pods-AILaunchpad.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AILaunchpad.debug.xcconfig"; path = "Target Support Files/Pods-AILaunchpad/Pods-AILaunchpad.debug.xcconfig"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* AILaunchpad.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AILaunchpad.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = AILaunchpad/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = AILaunchpad/Info.plist; sourceTree = "<group>"; };
-		1666D2F060DB4285B7EB4DED /* PlusJakartaSans-ExtraLight.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-ExtraLight.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraLight.ttf"; sourceTree = "<group>"; };
-		18AC34D0734F411B84D2B472 /* PlusJakartaSans-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Bold.ttf"; path = "../assets/fonts/PlusJakartaSans-Bold.ttf"; sourceTree = "<group>"; };
-		1BF1F0DEC45B47E5B35534B6 /* PlusJakartaSans-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Regular.ttf"; path = "../assets/fonts/PlusJakartaSans-Regular.ttf"; sourceTree = "<group>"; };
-		2B2F0539620C1EEE69356DF1 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-AILaunchpad/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		2DD4F2E3B1D9441887470136 /* PlusJakartaSans-Italic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Italic.ttf"; path = "../assets/fonts/PlusJakartaSans-Italic.ttf"; sourceTree = "<group>"; };
-		2FB1C56A50FC68648458E7FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = AILaunchpad/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		554FD61C8BEE4F2B8069CC76 /* PlusJakartaSans-Light.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Light.ttf"; path = "../assets/fonts/PlusJakartaSans-Light.ttf"; sourceTree = "<group>"; };
-		5952D9A9037B4BAE8173AE09 /* PlusJakartaSans-MediumItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-MediumItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-MediumItalic.ttf"; sourceTree = "<group>"; };
-		5F66611A45904CF486D1E839 /* PlusJakartaSans-ExtraLightItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-ExtraLightItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraLightItalic.ttf"; sourceTree = "<group>"; };
-		633A42534AAD455EAE847E14 /* PlusJakartaSans-ExtraBoldItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-ExtraBoldItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraBoldItalic.ttf"; sourceTree = "<group>"; };
-		8DAC0954F30E4023B8679A74 /* PlusJakartaSans-LightItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-LightItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-LightItalic.ttf"; sourceTree = "<group>"; };
-		916B29F41229414691657C65 /* PlusJakartaSans-ExtraBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-ExtraBold.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraBold.ttf"; sourceTree = "<group>"; };
-		929E1CA7488F486D9FD2BA16 /* PlusJakartaSans-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-SemiBold.ttf"; path = "../assets/fonts/PlusJakartaSans-SemiBold.ttf"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = AILaunchpad/SplashScreen.storyboard; sourceTree = "<group>"; };
-		B8ED9318B3704A719818C2AD /* PlusJakartaSans-Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Medium.ttf"; path = "../assets/fonts/PlusJakartaSans-Medium.ttf"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		BFA9A1ABC2064904A71E34D3 /* PlusJakartaSans-BoldItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-BoldItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-BoldItalic.ttf"; sourceTree = "<group>"; };
-		CA622E1C65611DFE1E8E2F37 /* Pods-AILaunchpad.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AILaunchpad.release.xcconfig"; path = "Target Support Files/Pods-AILaunchpad/Pods-AILaunchpad.release.xcconfig"; sourceTree = "<group>"; };
-		CB12E30400BD4436A22D92C5 /* PlusJakartaSans-SemiBoldItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-SemiBoldItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-SemiBoldItalic.ttf"; sourceTree = "<group>"; };
-		DEEFB3943611AFB406D5FD77 /* libPods-AILaunchpad.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-AILaunchpad.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = AILaunchpad/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748432D0307B40044C1D9 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = AILaunchpad/SceneDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* AILaunchpad-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "AILaunchpad-Bridging-Header.h"; path = "AILaunchpad/AILaunchpad-Bridging-Header.h"; sourceTree = "<group>"; };
+		609C2EDECF7646CDA197DABC /* PlusJakartaSans-Regular.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-Regular.ttf"; path = "../assets/fonts/PlusJakartaSans-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		81B93083496C45F5A1C0D160 /* PlusJakartaSans-Italic.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-Italic.ttf"; path = "../assets/fonts/PlusJakartaSans-Italic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		074167F3886540BB8E82A009 /* PlusJakartaSans-Light.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-Light.ttf"; path = "../assets/fonts/PlusJakartaSans-Light.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		31C6EEC0350D4EB6806962C2 /* PlusJakartaSans-LightItalic.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-LightItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-LightItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		B537B2170D324916849B1658 /* PlusJakartaSans-Medium.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-Medium.ttf"; path = "../assets/fonts/PlusJakartaSans-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		8B4A2FEF96B64BDF8C900297 /* PlusJakartaSans-MediumItalic.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-MediumItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-MediumItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		D385B5DB52AD4B52B76BE199 /* PlusJakartaSans-SemiBold.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-SemiBold.ttf"; path = "../assets/fonts/PlusJakartaSans-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		E47EE297A2ED44A28B604F49 /* PlusJakartaSans-SemiBoldItalic.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-SemiBoldItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-SemiBoldItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		FE32E28719C2439D8859CAAB /* PlusJakartaSans-Bold.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-Bold.ttf"; path = "../assets/fonts/PlusJakartaSans-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		690013F6FB1545159E1DD2E1 /* PlusJakartaSans-BoldItalic.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-BoldItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-BoldItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		C749D56EDD4D42FB9B633DDB /* PlusJakartaSans-ExtraBold.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-ExtraBold.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		468886F1586C47DD88C0EDE5 /* PlusJakartaSans-ExtraBoldItalic.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-ExtraBoldItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraBoldItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		724B81CC18514CF9813BCB41 /* PlusJakartaSans-ExtraLight.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-ExtraLight.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraLight.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		B8C8D99E2F80476CB0936FB0 /* PlusJakartaSans-ExtraLightItalic.ttf */ = {isa = PBXFileReference; name = "PlusJakartaSans-ExtraLightItalic.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraLightItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,7 +59,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6E0C39107F40B7216261496C /* libPods-AILaunchpad.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,12 +69,12 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				F11748432D0307B40044C1D9 /* SceneDelegate.swift */,
 				F11748442D0722820044C1D9 /* AILaunchpad-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				2FB1C56A50FC68648458E7FD /* PrivacyInfo.xcprivacy */,
 			);
 			name = AILaunchpad;
 			sourceTree = "<group>";
@@ -90,7 +83,6 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				DEEFB3943611AFB406D5FD77 /* libPods-AILaunchpad.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -109,9 +101,7 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				C360734233094E9B9DF11722 /* Resources */,
-				B5704A8ADCFF4657B5D35701 /* Pods */,
-				B4E43FA0B0FA1FDEBF09F85E /* ExpoModulesProviders */,
+				55A3E14AC4EF4361AD1B6D26 /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -126,24 +116,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		B4E43FA0B0FA1FDEBF09F85E /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				C3FED8F53097827CB56E31FE /* AILaunchpad */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
-		B5704A8ADCFF4657B5D35701 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				1392C7443484B3DF11A07958 /* Pods-AILaunchpad.debug.xcconfig */,
-				CA622E1C65611DFE1E8E2F37 /* Pods-AILaunchpad.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -153,35 +125,27 @@
 			path = AILaunchpad/Supporting;
 			sourceTree = "<group>";
 		};
-		C360734233094E9B9DF11722 /* Resources */ = {
-			isa = PBXGroup;
+		55A3E14AC4EF4361AD1B6D26 /* Resources */ = {
+			isa = "PBXGroup";
 			children = (
-				1BF1F0DEC45B47E5B35534B6 /* PlusJakartaSans-Regular.ttf */,
-				2DD4F2E3B1D9441887470136 /* PlusJakartaSans-Italic.ttf */,
-				554FD61C8BEE4F2B8069CC76 /* PlusJakartaSans-Light.ttf */,
-				8DAC0954F30E4023B8679A74 /* PlusJakartaSans-LightItalic.ttf */,
-				B8ED9318B3704A719818C2AD /* PlusJakartaSans-Medium.ttf */,
-				5952D9A9037B4BAE8173AE09 /* PlusJakartaSans-MediumItalic.ttf */,
-				929E1CA7488F486D9FD2BA16 /* PlusJakartaSans-SemiBold.ttf */,
-				CB12E30400BD4436A22D92C5 /* PlusJakartaSans-SemiBoldItalic.ttf */,
-				18AC34D0734F411B84D2B472 /* PlusJakartaSans-Bold.ttf */,
-				BFA9A1ABC2064904A71E34D3 /* PlusJakartaSans-BoldItalic.ttf */,
-				916B29F41229414691657C65 /* PlusJakartaSans-ExtraBold.ttf */,
-				633A42534AAD455EAE847E14 /* PlusJakartaSans-ExtraBoldItalic.ttf */,
-				1666D2F060DB4285B7EB4DED /* PlusJakartaSans-ExtraLight.ttf */,
-				5F66611A45904CF486D1E839 /* PlusJakartaSans-ExtraLightItalic.ttf */,
+				609C2EDECF7646CDA197DABC /* PlusJakartaSans-Regular.ttf */,
+				81B93083496C45F5A1C0D160 /* PlusJakartaSans-Italic.ttf */,
+				074167F3886540BB8E82A009 /* PlusJakartaSans-Light.ttf */,
+				31C6EEC0350D4EB6806962C2 /* PlusJakartaSans-LightItalic.ttf */,
+				B537B2170D324916849B1658 /* PlusJakartaSans-Medium.ttf */,
+				8B4A2FEF96B64BDF8C900297 /* PlusJakartaSans-MediumItalic.ttf */,
+				D385B5DB52AD4B52B76BE199 /* PlusJakartaSans-SemiBold.ttf */,
+				E47EE297A2ED44A28B604F49 /* PlusJakartaSans-SemiBoldItalic.ttf */,
+				FE32E28719C2439D8859CAAB /* PlusJakartaSans-Bold.ttf */,
+				690013F6FB1545159E1DD2E1 /* PlusJakartaSans-BoldItalic.ttf */,
+				C749D56EDD4D42FB9B633DDB /* PlusJakartaSans-ExtraBold.ttf */,
+				468886F1586C47DD88C0EDE5 /* PlusJakartaSans-ExtraBoldItalic.ttf */,
+				724B81CC18514CF9813BCB41 /* PlusJakartaSans-ExtraLight.ttf */,
+				B8C8D99E2F80476CB0936FB0 /* PlusJakartaSans-ExtraLightItalic.ttf */,
 			);
 			name = Resources;
+			sourceTree = "<group>";
 			path = "";
-			sourceTree = "<group>";
-		};
-		C3FED8F53097827CB56E31FE /* AILaunchpad */ = {
-			isa = PBXGroup;
-			children = (
-				2B2F0539620C1EEE69356DF1 /* ExpoModulesProvider.swift */,
-			);
-			name = AILaunchpad;
-			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
@@ -191,13 +155,11 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "AILaunchpad" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				970C5903FE34DEE19033115A /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				30EF01B57AB45BE65738C5C5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -247,21 +209,20 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				D255A16D1F144C7CA13914FB /* PlusJakartaSans-Regular.ttf in Resources */,
-				2624FF6D94024391BF38CF94 /* PlusJakartaSans-Italic.ttf in Resources */,
-				A6DB68223BB9497AB0722ECF /* PlusJakartaSans-Light.ttf in Resources */,
-				20C120EB06BC441296BB2244 /* PlusJakartaSans-LightItalic.ttf in Resources */,
-				1ECE782655D7405191EC342C /* PlusJakartaSans-Medium.ttf in Resources */,
-				0A0984AD4397481697B580AE /* PlusJakartaSans-MediumItalic.ttf in Resources */,
-				7B86BDC6F7BA47448524A310 /* PlusJakartaSans-SemiBold.ttf in Resources */,
-				6B65E628CA4B42AEA54E5945 /* PlusJakartaSans-SemiBoldItalic.ttf in Resources */,
-				6FA856DE2438483F9D5E0377 /* PlusJakartaSans-Bold.ttf in Resources */,
-				FB8F1759B9BF48AE8B3A1F6A /* PlusJakartaSans-BoldItalic.ttf in Resources */,
-				B1749DC5B0BA45E28521CFB3 /* PlusJakartaSans-ExtraBold.ttf in Resources */,
-				AC550E6FC5194F9C87373ED7 /* PlusJakartaSans-ExtraBoldItalic.ttf in Resources */,
-				BCDECB7B1BB347B6B30FD463 /* PlusJakartaSans-ExtraLight.ttf in Resources */,
-				B4FC385F101F4DDCB8B038C2 /* PlusJakartaSans-ExtraLightItalic.ttf in Resources */,
-				44021D28BEC6763622A574AD /* PrivacyInfo.xcprivacy in Resources */,
+				01C2F63A8F194CA3BABF92A8 /* PlusJakartaSans-Regular.ttf in Resources */,
+				DC195A67DCED425D95352CCE /* PlusJakartaSans-Italic.ttf in Resources */,
+				C70E1046A22147518BAE6CE6 /* PlusJakartaSans-Light.ttf in Resources */,
+				D30B417E1F6144C6B65E14FB /* PlusJakartaSans-LightItalic.ttf in Resources */,
+				024EE0E554B84137AC20165D /* PlusJakartaSans-Medium.ttf in Resources */,
+				CDABC579F97642BC9C862A78 /* PlusJakartaSans-MediumItalic.ttf in Resources */,
+				3EEE725DF35D429D8CDC2F6F /* PlusJakartaSans-SemiBold.ttf in Resources */,
+				2C665E7EF5BA481880C0B633 /* PlusJakartaSans-SemiBoldItalic.ttf in Resources */,
+				90F15FA25E1C4AE798A0D980 /* PlusJakartaSans-Bold.ttf in Resources */,
+				B52220AFF31D4F66A52B74EC /* PlusJakartaSans-BoldItalic.ttf in Resources */,
+				8A1F1984C8E74C08AEFA64EF /* PlusJakartaSans-ExtraBold.ttf in Resources */,
+				1D6AE9ED3FB24F3BA7849C39 /* PlusJakartaSans-ExtraBoldItalic.ttf in Resources */,
+				CA61147E245645FEBF0F5AC1 /* PlusJakartaSans-ExtraLight.ttf in Resources */,
+				6DBDFFF4F9414A68ABA77785 /* PlusJakartaSans-ExtraLightItalic.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,7 +244,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
+			shellScript = "if [[ -f \"$SRCROOT/.xcode.env\" ]]; then\n  source \"$SRCROOT/.xcode.env\"\nfi\nif [[ -f \"$SRCROOT/.xcode.env.local\" ]]; then\n  source \"$SRCROOT/.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$SRCROOT/.xcode.env.updates\" ]]; then\n  source \"$SRCROOT/.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$SRCROOT/.xcode.env.local\" ]]; then\n  source \"$SRCROOT/.xcode.env.local\"\nfi\n\n\"`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\"\n\n";
 		};
 		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -307,38 +268,6 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		30EF01B57AB45BE65738C5C5 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-AILaunchpad/Pods-AILaunchpad-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem.framework/ExpoFileSystem",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoFont/ExpoFont.framework/ExpoFont",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoModulesCore/ExpoModulesCore.framework/ExpoModulesCore",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoModulesJSI/ExpoModulesJSI.framework/ExpoModulesJSI",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoModulesWorklets/ExpoModulesWorklets.framework/ExpoModulesWorklets",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ExpoFileSystem.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ExpoFont.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ExpoModulesCore.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ExpoModulesJSI.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ExpoModulesWorklets.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-AILaunchpad/Pods-AILaunchpad-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -347,51 +276,19 @@
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-AILaunchpad/Pods-AILaunchpad-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-timing/React-timing_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXUpdates/EXUpdates.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/RCTI18nStrings.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-timing_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXUpdates.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCTI18nStrings.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-AILaunchpad/Pods-AILaunchpad-resources.sh\"\n";
 			showEnvVarsInLog = 0;
-		};
-		970C5903FE34DEE19033115A /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/AILaunchpad/AILaunchpad.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-AILaunchpad/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-AILaunchpad/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-AILaunchpad/expo-configure-project.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -401,7 +298,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				43745D49B979EED4BE88C109 /* ExpoModulesProvider.swift in Sources */,
+				F11748442D0307B40044C1D9 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -410,11 +307,9 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1392C7443484B3DF11A07958 /* Pods-AILaunchpad.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = AILaunchpad/AILaunchpad.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -434,24 +329,22 @@
 					"-ObjC",
 					"-lc++",
 				);
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.ailaunchpad;
-				PRODUCT_NAME = AILaunchpad;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ailaunchpad";
+				PRODUCT_NAME = "AILaunchpad";
 				SWIFT_OBJC_BRIDGING_HEADER = "AILaunchpad/AILaunchpad-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
+				TARGETED_DEVICE_FAMILY = "1";
+				CODE_SIGN_ENTITLEMENTS = AILaunchpad/AILaunchpad.entitlements;
 			};
 			name = Debug;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = CA622E1C65611DFE1E8E2F37 /* Pods-AILaunchpad.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = AILaunchpad/AILaunchpad.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = AILaunchpad/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -466,13 +359,13 @@
 					"-ObjC",
 					"-lc++",
 				);
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.ailaunchpad;
-				PRODUCT_NAME = AILaunchpad;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ailaunchpad";
+				PRODUCT_NAME = "AILaunchpad";
 				SWIFT_OBJC_BRIDGING_HEADER = "AILaunchpad/AILaunchpad-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
+				TARGETED_DEVICE_FAMILY = "1";
+				CODE_SIGN_ENTITLEMENTS = AILaunchpad/AILaunchpad.entitlements;
 			};
 			name = Release;
 		};
@@ -528,23 +421,10 @@
 					/usr/lib/swift,
 					"$(inherited)",
 				);
-				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
+				LIBRARY_SEARCH_PATHS = "\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-DRCT_REMOVE_LEGACY_ARCH=1",
-				);
-				OTHER_CPLUSPLUSFLAGS = (
-					"$(inherited)",
-					"-DRCT_REMOVE_LEGACY_ARCH=1",
-				);
-				PODFILE_DIR = "$(SRCROOT)";
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
-				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
-				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -593,21 +473,9 @@
 					/usr/lib/swift,
 					"$(inherited)",
 				);
-				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
+				LIBRARY_SEARCH_PATHS = "\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-DRCT_REMOVE_LEGACY_ARCH=1",
-				);
-				OTHER_CPLUSPLUSFLAGS = (
-					"$(inherited)",
-					"-DRCT_REMOVE_LEGACY_ARCH=1",
-				);
-				PODFILE_DIR = "$(SRCROOT)";
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
-				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
