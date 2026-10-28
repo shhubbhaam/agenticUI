@@ -32,10 +32,6 @@ export function latestSavedWork(course: CourseProgress | null, now: Date = new D
   return { title: latest.name, subtitle: `Application · ${savedLabel(latest.at, now)}` };
 }
 
-export function completedToday(dates: Date[], now: Date = new Date()): boolean {
-  return dates.some((d) => sameDay(d, now));
-}
-
 export function streakCaption(streak: number, keptToday: boolean): string {
   if (streak <= 0) return 'Start your streak today';
   const days = `${streak} ${streak === 1 ? 'day' : 'days'}`;
