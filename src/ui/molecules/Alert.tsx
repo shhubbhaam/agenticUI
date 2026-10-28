@@ -8,6 +8,7 @@ import { Icon } from '../atoms/Icon';
 interface AlertProps {
   tone: 'warning' | 'info';
   message: string;
+  testID?: string;
 }
 
 const TONE_COLORS = {
@@ -15,10 +16,12 @@ const TONE_COLORS = {
   info: { surface: colors.onboarding.alertInfo.surface, border: colors.onboarding.alertInfo.border, ink: colors.onboarding.alertInfo.ink },
 } as const;
 
-export const Alert: React.FC<AlertProps> = ({ tone, message }) => {
+export const Alert: React.FC<AlertProps> = ({ tone, message, testID }) => {
   const toneColors = TONE_COLORS[tone];
   return (
     <View
+      testID={testID}
+      accessibilityRole="alert"
       style={[
         tw`flex-row items-center rounded-xl w-full gap-2`,
         {

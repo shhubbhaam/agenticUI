@@ -13,10 +13,10 @@ interface PageHeaderProps {
   trailing?: React.ReactNode;
 }
 
-// Figma Navigation/PageHeader: tracked eyebrow, 27px title, optional trailing slot.
+// Figma Navigation/PageHeader (18px gap to the 48px icon button): tracked eyebrow, 27px title, optional trailing slot.
 export const PageHeader: React.FC<PageHeaderProps> = ({ eyebrow, title, description, trailing }) => (
   <View style={tw`w-full`}>
-    <View style={[tw`flex-row items-center`, { gap: 10 }]}>
+    <View style={[tw`flex-row items-center`, { gap: 18 }]}>
       <View style={[tw`flex-1`, { gap: 5 }]}>
         <Text
           accessibilityRole="header"
