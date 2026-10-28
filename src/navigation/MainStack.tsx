@@ -39,7 +39,6 @@ export type RootStackParamList = {
   YouScreen: TabScreenParams;
   Skills: undefined;
   Evidence: { skillId: SkillId };
-  // Registered with a placeholder; the streak branch swaps in the real screen.
   Streak: undefined;
   Settings: undefined;
   Accessibility: undefined;
