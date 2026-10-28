@@ -12,7 +12,6 @@ import { Alert } from '../../ui/molecules/Alert';
 import { ContentRow } from '../../ui/molecules/ContentRow';
 import { InfoCard } from '../../ui/molecules/InfoCard';
 import { SectionTitle } from '../../ui/molecules/home/SectionTitle';
-import { GhostCta } from '../../ui/molecules/onboarding/GhostCta';
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { PageHeader } from '../../ui/organisms/PageHeader';
 import { ChapterCollection } from '../../ui/organisms/profile/ChapterCollection';
@@ -131,8 +130,6 @@ export default function YouScreen() {
               />
             </>
           )}
-
-          <GhostCta label="Log out" onPress={actions.logOut} />
         </ScrollView>
       </SafeAreaView>
       <BottomTabs
