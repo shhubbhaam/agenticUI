@@ -86,6 +86,7 @@ export default function MainStack() {
         <Stack.Screen name="Skills" component={SkillsScreen} />
         <Stack.Screen name="Evidence" component={EvidenceScreen} />
         <Stack.Screen name="Streak">{() => <ComingSoonScreen title="Streak" />}</Stack.Screen>
+        {/* Settings and its sub-screens */}
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Accessibility" component={AccessibilityScreen} />
         <Stack.Screen name="ManageDownloads" component={ManageDownloadsScreen} />
