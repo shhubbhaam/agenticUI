@@ -25,9 +25,12 @@ export const SkillIndicator: React.FC<SkillIndicatorProps> = ({
   caption,
 }) => (
   <View style={tw`w-full`}>
-    <View style={[tw`flex-row items-center justify-between`, { height: 40 }]}>
+    <View style={[tw`flex-row items-center justify-between`, { minHeight: 40, gap: 12 }]}>
       <Text
+        numberOfLines={2}
         style={{
+          flex: 1,
+          flexShrink: 1,
           fontFamily: typography.fontFamily['jakarta-bold'],
           color: colors.text.primary,
           ...typography.fontSize['type-13'],
@@ -40,9 +43,10 @@ export const SkillIndicator: React.FC<SkillIndicatorProps> = ({
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={`${actionLabel}, ${name}`}
-        style={[tw`justify-center`, { height: 40 }]}
+        style={[tw`justify-center`, { minHeight: 40, flexShrink: 0 }]}
       >
         <Text
+          maxFontSizeMultiplier={1.3}
           style={{
             fontFamily: typography.fontFamily['jakarta-bold'],
             color: colors.path.linkInk,
