@@ -29,12 +29,14 @@ export default function SkillsScreen() {
   const actions = useSkillsActions();
   // Local UI state: Figma shows the radar summary and the readable list as two views of the same data.
   const [view, setView] = useState<'list' | 'radar'>('list');
-  const showRadar = view === 'radar';
+  // The radar needs 3..5 axes; with fewer we hide it (and its toggle) rather than invent axes.
+  const canShowRadar = data.radarSkills.length > 0;
+  const showRadar = canShowRadar && view === 'radar';
   const toggleLabel = showRadar ? 'View as a readable list' : 'View the radar summary';
   const toggleView = () => setView(showRadar ? 'list' : 'radar');
   const radar = (
     <View style={tw`mt-3`}>
-      <PentagonChart axes={data.skills.map((s) => ({ label: s.axisLabel, value: s.score }))} />
+      <PentagonChart axes={data.radarSkills.map((s) => ({ label: s.axisLabel, value: s.score }))} />
     </View>
   );
 
@@ -76,9 +78,11 @@ export default function SkillsScreen() {
               <View style={tw`mt-4`}>
                 <PrimaryCta label="Start your first lesson" showArrow={false} onPress={actions.startLesson} />
               </View>
-              <View style={tw`mt-3.5`}>
-                <ActiveButton variant="secondary" label={toggleLabel} onPress={toggleView} />
-              </View>
+              {canShowRadar && (
+                <View style={tw`mt-3.5`}>
+                  <ActiveButton variant="secondary" label={toggleLabel} onPress={toggleView} />
+                </View>
+              )}
             </>
           )}
 
@@ -93,14 +97,16 @@ export default function SkillsScreen() {
                     actionLabel={skill.actionKind === 'evidence' ? 'View evidence' : 'Explore'}
                     onActionPress={() => actions.openEvidence(skill.id)}
                     progress={skill.score}
-                    color={skillColor(skill.id)}
+                    color={skillColor(skill.paletteIndex)}
                     caption={skill.caption}
                   />
                 ))}
               </View>
-              <View style={tw`mt-4`}>
-                <ActiveButton variant="secondary" label={toggleLabel} onPress={toggleView} />
-              </View>
+              {canShowRadar && (
+                <View style={tw`mt-4`}>
+                  <ActiveButton variant="secondary" label={toggleLabel} onPress={toggleView} />
+                </View>
+              )}
             </>
           )}
         </ScrollView>

@@ -4,7 +4,17 @@ import { Text } from 'react-native';
 import { Polygon } from 'react-native-svg';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SkillsScreen from './SkillsScreen';
-import { makeUniformCourse } from '../../core/you/fixtures';
+import { makeActivity, makeChapter, makeCourse, makeUniformCourse } from '../../core/you/fixtures';
+
+// Chapters tagged with skills; `done` of each chapter's two activities completed.
+function taggedCourse(skills: string[], done = 1) {
+  return makeCourse(
+    skills.map((skill, i) =>
+      makeChapter(i, [makeActivity(`${i}1`, 'video', done > 0), makeActivity(`${i}2`, 'video', done > 1)], { skill }),
+    ),
+  );
+}
+const FIVE = ['Writing', 'Analysis', 'Delivery', 'Review', 'Planning'];
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -54,18 +64,47 @@ describe('SkillsScreen', () => {
     mockGetMyTrail.mockReset();
   });
 
-  it('shows the five skill bars with evidence/explore actions when there is progress', async () => {
-    mockGetMyTrail.mockResolvedValue([makeUniformCourse(8, 2, 3)]);
+  it('shows one bar per tagged skill with evidence/explore actions when there is progress', async () => {
+    mockGetMyTrail.mockResolvedValue([taggedCourse(FIVE)]);
     const tree = await renderScreen();
     const t = texts(tree);
     expect(t).toContain('Your skills, with evidence.');
-    ['Prompting at Work', 'Working with Context', 'Workflow Automation', 'AI Agents', 'AI Judgement'].forEach((n) => expect(t).toContain(n));
+    FIVE.forEach((n) => expect(t).toContain(n));
     expect(t).toContain('View the radar summary');
     expect(tree.root.findAllByType(Polygon)).toHaveLength(0);
   });
 
+  it('lists every skill beyond the fifth but only plots five on the radar', async () => {
+    mockGetMyTrail.mockResolvedValue([taggedCourse([...FIVE, 'Sixth skill'])]);
+    const tree = await renderScreen();
+    expect(texts(tree)).toContain('Sixth skill');
+    press(tree, 'View the radar summary');
+    expect(tree.root.findAllByType(Polygon)[0].props.points.split(' ')).toHaveLength(5);
+    expect(tree.root.findAllByProps({ accessibilityRole: 'image' })[0].props.accessibilityLabel).not.toContain('Sixth skill');
+  });
+
+  it('falls back to one axis per course when no chapter is tagged', async () => {
+    mockGetMyTrail.mockResolvedValue([
+      makeUniformCourse(2, 1, 1),
+      { ...makeUniformCourse(2, 1, 0), courseUuid: 'c2', courseName: 'Second course' },
+      { ...makeUniformCourse(2, 1, 2), courseUuid: 'c3', courseName: 'Third course' },
+    ]);
+    const tree = await renderScreen();
+    ['Applied AI', 'Second course', 'Third course'].forEach((n) => expect(texts(tree)).toContain(n));
+    press(tree, 'View the radar summary');
+    expect(tree.root.findAllByType(Polygon)[0].props.points.split(' ')).toHaveLength(3);
+  });
+
+  it('hides the radar and its toggle with fewer than three axes', async () => {
+    mockGetMyTrail.mockResolvedValue([taggedCourse(['Writing', 'Analysis'])]);
+    const tree = await renderScreen();
+    expect(texts(tree)).toContain('Writing');
+    expect(texts(tree)).not.toContain('View the radar summary');
+    expect(tree.root.findAllByType(Polygon)).toHaveLength(0);
+  });
+
   it('toggles the radar summary, whose fill reflects the scores', async () => {
-    mockGetMyTrail.mockResolvedValue([makeUniformCourse(8, 2, 3)]);
+    mockGetMyTrail.mockResolvedValue([taggedCourse(FIVE)]);
     const tree = await renderScreen();
     press(tree, 'View the radar summary');
     expect(texts(tree)).toContain('View as a readable list');
@@ -77,16 +116,16 @@ describe('SkillsScreen', () => {
   });
 
   it('opens the evidence screen for a skill and goes back', async () => {
-    mockGetMyTrail.mockResolvedValue([makeUniformCourse(8, 2, 3)]);
+    mockGetMyTrail.mockResolvedValue([taggedCourse(FIVE)]);
     const tree = await renderScreen();
-    press(tree, 'Explore, Workflow Automation');
-    expect(mockNavigate).toHaveBeenLastCalledWith('Evidence', { skillId: 'workflows' });
+    press(tree, 'Explore, Delivery');
+    expect(mockNavigate).toHaveBeenLastCalledWith('Evidence', { skillId: 'skill:delivery' });
     press(tree, 'Go back');
     expect(mockGoBack).toHaveBeenCalled();
   });
 
   it('renders the empty state when nothing is completed, with a start CTA', async () => {
-    mockGetMyTrail.mockResolvedValue([makeUniformCourse(8, 2, 0)]);
+    mockGetMyTrail.mockResolvedValue([taggedCourse(FIVE, 0)]);
     const tree = await renderScreen();
     expect(texts(tree)).toContain('Your evidence starts here.');
     press(tree, 'Start your first lesson');
@@ -104,7 +143,7 @@ describe('SkillsScreen', () => {
     mockGetMyTrail.mockReturnValue(new Promise(() => {}));
     expect(texts(await renderScreen())).toContain('Loading your skills…');
 
-    mockGetMyTrail.mockReset().mockRejectedValueOnce(new Error('x')).mockResolvedValue([makeUniformCourse(8, 2, 3)]);
+    mockGetMyTrail.mockReset().mockRejectedValueOnce(new Error('x')).mockResolvedValue([taggedCourse(FIVE)]);
     const tree = await renderScreen();
     expect(texts(tree)).toContain("We couldn't load your progress. Please try again.");
     await act(async () => {
@@ -112,6 +151,6 @@ describe('SkillsScreen', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(texts(tree)).toContain('Prompting at Work');
+    expect(texts(tree)).toContain('Writing');
   });
 });

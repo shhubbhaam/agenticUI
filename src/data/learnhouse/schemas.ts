@@ -48,8 +48,14 @@ export type AuthResponse = z.infer<typeof authResponseSchema>;
 // Trail/progress response (GET /api/v1/admin/{org_slug}/trails/{user_id}) —
 // only the fields progressApi.ts's mapper actually consumes are required;
 // everything else the real API returns (published, teacher_verified,
-// grade, chapter_id, activity_id, activity_sub_type, ...) is simply not
-// declared here and ignored by .parse(), not rejected.
+// chapter_id, activity_id, ...) is simply not declared here and ignored by
+// .parse(), not rejected.
+//
+// OPTIONAL fields below (`grade`, `activity_sub_type`, chapter
+// `extra_metadata`) are consumed when present and tolerated when absent or
+// oddly typed — parsing must never fail because of them. They have NOT been
+// confirmed against a live trail response; see progressApi.ts for how each
+// feeds the app.
 export const trailActivitySchema = z.object({
   activity_uuid: z.string(),
   name: z.string(),
@@ -57,6 +63,9 @@ export const trailActivitySchema = z.object({
   order: z.number(),
   completed: z.boolean(),
   completed_at: z.string().nullable(),
+  // Assignment grade, if the trail returns one. Scale unknown — number or numeric string tolerated.
+  grade: z.union([z.number(), z.string()]).nullable().optional(),
+  activity_sub_type: z.string().nullable().optional(),
 });
 
 export const trailChapterSchema = z.object({
@@ -66,6 +75,9 @@ export const trailChapterSchema = z.object({
   total_activities: z.number(),
   completed_activities: z.number(),
   activities: z.array(trailActivitySchema),
+  // LearnHouse ChapterRead.extra_metadata: free-form (object, or a JSON string).
+  // The app reads the `skill` key only (see progressApi.ts).
+  extra_metadata: z.unknown().optional(),
 });
 
 export const trailCourseSchema = z.object({
