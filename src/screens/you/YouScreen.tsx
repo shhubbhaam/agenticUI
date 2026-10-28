@@ -79,6 +79,7 @@ export default function YouScreen() {
                   title={data.summary.headline}
                   percent={data.summary.percent}
                   caption={data.summary.caption}
+                  onPress={actions.openStreak}
                 />
               </View>
 

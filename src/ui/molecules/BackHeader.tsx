@@ -1,25 +1,39 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
-import { colors } from '../../tokens/colors';
-import { typography } from '../../tokens/typography';
-import { Icon } from '../Icon';
+import { colors } from '../tokens/colors';
+import { typography } from '../tokens/typography';
+import { Icon } from '../atoms/Icon';
 
 interface BackHeaderProps {
   eyebrow: string;
   onBack?: () => void;
+  // Defaults to the onboarding / You ghost-link blue; Practice uses the primary ink.
+  iconColor?: string;
+  backTestID?: string;
 }
 
-export const BackHeader: React.FC<BackHeaderProps> = ({ eyebrow, onBack }) => (
+// Figma "Navigation/BackHeader" (350 × 44): 40px back slot, small centred
+// eyebrow, 40px spacer balancing the right side. Shared by onboarding, the
+// You-tab sub-screens and the Practice session.
+export const BackHeader: React.FC<BackHeaderProps> = ({
+  eyebrow,
+  onBack,
+  iconColor = colors.action.ghost,
+  backTestID,
+}) => (
   <View style={[tw`flex-row items-center w-full`, { height: 44 }]}>
     <View style={{ width: 40 }}>
       {onBack ? (
         <TouchableOpacity
+          testID={backTestID}
+          accessibilityRole="button"
           accessibilityLabel="Go back"
           onPress={onBack}
+          activeOpacity={0.7}
           style={{ width: 40, height: 44, justifyContent: 'center' }}
         >
-          <Icon name="back" color={colors.action.ghost} size={22} />
+          <Icon name="back" color={iconColor} size={22} />
         </TouchableOpacity>
       ) : null}
     </View>

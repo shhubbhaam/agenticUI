@@ -11,15 +11,17 @@ interface ContentRowProps {
   title: string;
   subtitle: string;
   onPress?: () => void;
+  testID?: string;
   // 'divided': list row with a bottom hairline; 'plain': same without it (last
   // row of a list); 'card': the white bordered card used for saved work.
   variant?: 'divided' | 'plain' | 'card';
 }
 
-export const ContentRow: React.FC<ContentRowProps> = ({ icon, title, subtitle, onPress, variant = 'divided' }) => {
+export const ContentRow: React.FC<ContentRowProps> = ({ icon, title, subtitle, onPress, testID, variant = 'divided' }) => {
   const isCard = variant === 'card';
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
