@@ -21,7 +21,7 @@ export const SectionTitle: React.FC<SectionTitleProps> = ({
 }) => {
   const compact = variant === 'compact';
   return (
-    <View style={tw`w-full flex-row justify-between items-center px-1 mb-2 mt-1`}>
+    <View style={compact ? tw`w-full flex-row justify-between items-center` : tw`w-full flex-row justify-between items-center px-1 mb-2 mt-1`}>
       <Text
         style={[
           {
@@ -37,9 +37,12 @@ export const SectionTitle: React.FC<SectionTitleProps> = ({
       <TouchableOpacity
         onPress={onPressAction}
         activeOpacity={0.7}
+        // 48dp touch target rule; the compact link is drawn 25px tall, so it
+        // grows its hit area instead of its layout.
+        hitSlop={compact ? { top: 12, bottom: 12, left: 8, right: 8 } : undefined}
         style={[
           tw`justify-center px-1`,
-          { minHeight: 48 } // Satisfies mobile accessibility touch target height rule
+          { minHeight: compact ? 25 : 48 }
         ]}
         accessible={true}
         accessibilityRole="button"

@@ -7,6 +7,9 @@ import PathScreen from '../screens/path/PathScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import PracticeScreen from '../screens/practice/PracticeScreen';
 import YouScreen from '../screens/you/YouScreen';
+import SkillsScreen from '../screens/skills/SkillsScreen';
+import EvidenceScreen from '../screens/skills/EvidenceScreen';
+import ComingSoonScreen from '../screens/placeholder/ComingSoonScreen';
 import RoleScreen from '../screens/onboarding/RoleScreen';
 import ExperienceScreen from '../screens/onboarding/ExperienceScreen';
 import GoalScreen from '../screens/onboarding/GoalScreen';
@@ -15,6 +18,7 @@ import FormatsScreen from '../screens/onboarding/FormatsScreen';
 import DiagnosticScreen from '../screens/onboarding/DiagnosticScreen';
 import { diagnosticGetId } from '../screens/onboarding/useDiagnosticFlow';
 import type { DiagnosticQuestionNumber } from '../core/onboarding/types';
+import type { SkillId } from '../core/you/skills';
 
 // Bottom-bar tab screens carry an optional `direction`, set by
 // useTabNavigation from the tapped tab's position relative to the current
@@ -28,6 +32,11 @@ export type RootStackParamList = {
   HomeScreen: TabScreenParams;
   PracticeScreen: TabScreenParams;
   YouScreen: TabScreenParams;
+  Skills: undefined;
+  Evidence: { skillId: SkillId };
+  // Registered with a placeholder; the streak / settings branches swap in the real screens.
+  Streak: undefined;
+  Settings: undefined;
   OnboardingRole: undefined;
   OnboardingExperience: undefined;
   OnboardingGoal: undefined;
@@ -52,6 +61,10 @@ export default function MainStack() {
         <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
         <Stack.Screen name="PracticeScreen" component={PracticeScreen} options={tabScreenOptions} />
         <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
+        <Stack.Screen name="Skills" component={SkillsScreen} />
+        <Stack.Screen name="Evidence" component={EvidenceScreen} />
+        <Stack.Screen name="Streak">{() => <ComingSoonScreen title="Streak" />}</Stack.Screen>
+        <Stack.Screen name="Settings">{() => <ComingSoonScreen title="Settings" />}</Stack.Screen>
         <Stack.Screen name="OnboardingRole" component={RoleScreen} />
         <Stack.Screen name="OnboardingExperience" component={ExperienceScreen} />
         <Stack.Screen name="OnboardingGoal" component={GoalScreen} />
