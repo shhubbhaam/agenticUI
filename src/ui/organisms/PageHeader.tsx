@@ -29,6 +29,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ eyebrow, title, descript
           {eyebrow}
         </Text>
         <Text
+          maxFontSizeMultiplier={1.3}
           style={{
             fontFamily: typography.fontFamily['jakarta-extrabold'],
             color: colors.text.primary,
