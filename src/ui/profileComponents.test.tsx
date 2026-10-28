@@ -148,6 +148,15 @@ describe('SkillIndicator', () => {
     act(() => tree.root.findByProps({ accessibilityLabel: 'View evidence, Prompting at Work' }).props.onPress());
     expect(onActionPress).toHaveBeenCalled();
   });
+
+  it('lets a long, API-supplied name shrink and wrap so the action link stays on screen', () => {
+    const longName = 'Responsible AI Use, Privacy and Judgement in Everyday Marketing Work';
+    const tree = render(
+      <SkillIndicator name={longName} actionLabel="View evidence" onActionPress={jest.fn()} progress={0.5} color={colors.profile.skill.prompting} caption="Exposure" />,
+    );
+    const name = tree.root.findAll((n) => n.props.children === longName && n.props.numberOfLines === 2)[0];
+    expect(name.props.style).toEqual(expect.objectContaining({ flex: 1, flexShrink: 1 }));
+  });
 });
 
 describe('PageHeader / ProfileIdentity / ProgressSummaryCard', () => {

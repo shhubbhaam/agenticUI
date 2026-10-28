@@ -77,6 +77,8 @@ export const PentagonChart: React.FC<PentagonChartProps> = ({ axes: allAxes, acc
         <Text
           key={`${i}-${axis.label}`}
           numberOfLines={2}
+          // Labels sit in fixed boxes around the chart; cap OS font scaling so they can't spill out.
+          maxFontSizeMultiplier={1.2}
           style={{
             position: 'absolute',
             width: `${(LABEL_WIDTH / WIDTH) * 100}%`,
