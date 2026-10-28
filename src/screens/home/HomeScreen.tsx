@@ -16,6 +16,7 @@ import { Alert } from '../../ui/molecules/Alert';
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
 import { useHomeData } from './useHomeData';
+import { useHomeActions } from './useHomeActions';
 
 const bodyTextStyle = {
   fontFamily: typography.fontFamily.jakarta,
@@ -26,11 +27,12 @@ const bodyTextStyle = {
 export default function HomeScreen() {
   const { tabs, onTabPress } = useTabNavigation('home');
   const homeData = useHomeData();
+  const actions = useHomeActions();
 
   return (
     <HomeTemplate
       background={<View style={tw`bg-slate-50`} />}
-      homeHeader={<HomeHeader username={homeData.username} streakCount={homeData.streakCount} />}
+      homeHeader={<HomeHeader username={homeData.username} streakCount={homeData.streakCount} onPressStreak={actions.openStreak} />}
       progressBar={
         homeData.status === 'ready' ? (
           <ProgressBar

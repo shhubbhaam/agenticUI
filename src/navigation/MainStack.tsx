@@ -9,6 +9,7 @@ import PracticeScreen from '../screens/practice/PracticeScreen';
 import YouScreen from '../screens/you/YouScreen';
 import SkillsScreen from '../screens/skills/SkillsScreen';
 import EvidenceScreen from '../screens/skills/EvidenceScreen';
+import StreakScreen from '../screens/streak/StreakScreen';
 import ComingSoonScreen from '../screens/placeholder/ComingSoonScreen';
 import RoleScreen from '../screens/onboarding/RoleScreen';
 import ExperienceScreen from '../screens/onboarding/ExperienceScreen';
@@ -34,7 +35,7 @@ export type RootStackParamList = {
   YouScreen: TabScreenParams;
   Skills: undefined;
   Evidence: { skillId: SkillId };
-  // Registered with a placeholder; the streak / settings branches swap in the real screens.
+  // Settings is still a placeholder; its branch swaps in the real screen.
   Streak: undefined;
   Settings: undefined;
   OnboardingRole: undefined;
@@ -63,7 +64,7 @@ export default function MainStack() {
         <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
         <Stack.Screen name="Skills" component={SkillsScreen} />
         <Stack.Screen name="Evidence" component={EvidenceScreen} />
-        <Stack.Screen name="Streak">{() => <ComingSoonScreen title="Streak" />}</Stack.Screen>
+        <Stack.Screen name="Streak" component={StreakScreen} />
         <Stack.Screen name="Settings">{() => <ComingSoonScreen title="Settings" />}</Stack.Screen>
         <Stack.Screen name="OnboardingRole" component={RoleScreen} />
         <Stack.Screen name="OnboardingExperience" component={ExperienceScreen} />
