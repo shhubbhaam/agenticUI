@@ -35,7 +35,6 @@ export type RootStackParamList = {
   YouScreen: TabScreenParams;
   Skills: undefined;
   Evidence: { skillId: SkillId };
-  // Settings is still a placeholder; its branch swaps in the real screen.
   Streak: undefined;
   Settings: undefined;
   OnboardingRole: undefined;
