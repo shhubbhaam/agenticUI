@@ -130,7 +130,7 @@ describe('deriveStreak calendar', () => {
     const sunday = new Date(2026, 10, 1, 9, 0, 0);
     const { calendar } = deriveStreak([], sunday);
     expect(calendar[27].isToday).toBe(true);
-    expect(calendar[0].isoDate).toBe('2026-10-12');
+    expect(calendar[0].isoDate).toBe('2026-10-05');
   });
 });
 
