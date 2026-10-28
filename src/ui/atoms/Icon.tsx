@@ -1,11 +1,16 @@
 import React from 'react';
-import { Dumbbell, Play, LockKeyhole } from 'lucide-react-native';
+import { Dumbbell, Play, LockKeyhole, RefreshCw, Zap, Eye, ChevronLeft, Sun } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 
 export type IconType =
   | 'dumbbell'
   | 'play'
   | 'lock'
+  | 'refresh'
+  | 'bolt'
+  | 'eye'
+  | 'back'
+  | 'sun'
   // Path screen redesign glyphs — hand-converted from the exact Figma-exported
   // SVGs (source: AI Launchpad — Mobile Design System, node 18:407/18:107/18:604).
   // No svg-transformer is configured in metro.config.js, so raw .svg files can't
@@ -62,6 +67,16 @@ export const Icon: React.FC<IconProps> = ({ name, color, size = 24 }) => {
       return <Play size={size} color={color} fill={color} strokeWidth={2} />;
     case 'lock':
       return <LockKeyhole size={size} color={color} strokeWidth={2.4} />;
+    case 'refresh':
+      return <RefreshCw size={size} color={color} strokeWidth={1.8} />;
+    case 'bolt':
+      return <Zap size={size} color={color} fill={color} strokeWidth={1.8} />;
+    case 'eye':
+      return <Eye size={size} color={color} strokeWidth={1.8} />;
+    case 'back':
+      return <ChevronLeft size={size} color={color} strokeWidth={1.8} />;
+    case 'sun':
+      return <Sun size={size} color={color} strokeWidth={1.8} />;
     default: {
       const spec = FIGMA_PATHS[name];
       if (!spec) return null;

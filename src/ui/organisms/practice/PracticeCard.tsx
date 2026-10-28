@@ -1,11 +1,10 @@
-// src/components/molecules/PracticeCard.tsx
+// src/ui/organisms/practice/PracticeCard.tsx
 import React from 'react';
 import { View, Text } from 'react-native';
-import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 import { ActiveButton } from '../../atoms/ActiveButton';
-import { Zap } from 'lucide-react-native';
+import { Icon } from '../../atoms/Icon';
 
 interface PracticeCardProps {
   eyebrow?: string;
@@ -16,6 +15,7 @@ interface PracticeCardProps {
   buttonIcon?: React.ReactNode;
 }
 
+// Figma "card tint" (350 × 259.4): radius 18, 0.8 border, 17.8 padding.
 export const PracticeCard: React.FC<PracticeCardProps> = ({
   eyebrow = 'Bring an idea back',
   title,
@@ -26,63 +26,55 @@ export const PracticeCard: React.FC<PracticeCardProps> = ({
 }) => {
   return (
     <View
-      style={[
-        tw`w-full rounded-3xl p-5 mb-4 overflow-hidden `,
-        {
-          backgroundColor: colors.hero.surface, // lavender100 (#F1ECF8)
-          borderColor: colors.path.optionalBranch.border,
-        },
-      ]}
+      style={{
+        width: '100%',
+        padding: 17.8,
+        borderRadius: 18,
+        borderWidth: 0.8,
+        backgroundColor: colors.practice.card.surface,
+        borderColor: colors.practice.card.border,
+      }}
     >
       <Text
-        style={[
-          tw`uppercase mb-3`,
-          {
-            color: colors.text.ink, // purple600 (#816696)
-            fontFamily: typography.fontFamily['jakarta-bold'],
-            ...typography.fontSize['type-11-tracked'],
-          },
-        ]}
+        style={{
+          textTransform: 'uppercase',
+          marginBottom: 12,
+          color: colors.eyebrow.ink,
+          fontFamily: typography.fontFamily['jakarta-bold'],
+          ...typography.fontSize['type-11-tracked'],
+        }}
       >
         {eyebrow}
       </Text>
 
       <Text
-        style={[
-          tw`mb-2.5`,
-          {
-            color: colors.text.primary,
-            fontFamily: typography.fontFamily['jakarta-bold'],
-            ...typography.fontSize['type-26'],
-            lineHeight: 32,
-          },
-        ]}
+        style={{
+          marginBottom: 12,
+          color: colors.text.primary,
+          fontFamily: typography.fontFamily['jakarta-bold'],
+          ...typography.fontSize['type-25-tight'],
+        }}
       >
         {title}
       </Text>
 
       <Text
-        style={[
-          tw`mb-6`,
-          {
-            color: colors.text.body,
-            fontFamily: typography.fontFamily.jakarta,
-            ...typography.fontSize['type-14'],
-          },
-        ]}
+        style={{
+          marginBottom: 17,
+          color: colors.text.body,
+          fontFamily: typography.fontFamily.jakarta,
+          ...typography.fontSize['type-14-padded'],
+        }}
       >
         {subtitle}
       </Text>
 
       <ActiveButton
+        testID="practice-start-button"
         label={buttonLabel}
         onPress={onPressButton}
-        variant="primary"
-        icon={
-          buttonIcon || (
-            <Zap size={14} color={colors.surface.white} fill={colors.surface.white} />
-          )
-        }
+        variant="plum"
+        icon={buttonIcon ?? <Icon name="bolt" size={18} color={colors.surface.white} />}
       />
     </View>
   );

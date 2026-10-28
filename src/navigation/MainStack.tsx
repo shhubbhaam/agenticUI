@@ -5,6 +5,7 @@ import LoginScreen from '../screens/login/LoginScreen';
 import PathScreen from '../screens/path/PathScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import PracticeScreen from '../screens/practice/PracticeScreen';
+import QuickPracticeScreen from '../screens/practice/QuickPracticeScreen';
 import YouScreen from '../screens/you/YouScreen';
 
 // Bottom-bar tab screens carry an optional `direction`, set by
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   HomeScreen: TabScreenParams;
   PracticeScreen: TabScreenParams;
   YouScreen: TabScreenParams;
+  QuickPracticeScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -35,6 +37,7 @@ export default function MainStack() {
         <Stack.Screen name="HomeScreen" component={HomeScreen} options={tabScreenOptions} />
         <Stack.Screen name="PracticeScreen" component={PracticeScreen} options={tabScreenOptions} />
         <Stack.Screen name="YouScreen" component={YouScreen} options={tabScreenOptions} />
+        <Stack.Screen name="QuickPracticeScreen" component={QuickPracticeScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -84,6 +84,22 @@ const primitives = {
   outcomeSurface: '#F8F4FC',
   outcomeBorder: '#E1D5ED',
   miniIconPlumSurface: '#EEE6F7',
+  // Practice screens (Figma "AI Launchpad" PR-01 / PR-02 frames, 37:6268..37:7103)
+  practiceCardSurface: '#F0EAF8',
+  practiceCardBorder: '#E4D8F0',
+  btnPlumShadow: '#573888',
+  btnBlueShadow: '#2442A9',
+  badgeNeutralSurface: '#F0F3F8',
+  badgeNeutralInk: '#596982',
+  miniIconSurface: '#E9EEF9',
+  rowDivider: '#E9EDF3',
+  nextCardBorder: '#E7EAF0',
+  alertSurface: '#EDF3FF',
+  alertBorder: '#D7E3FA',
+  alertInk: '#4F6388',
+  backHeaderInk: '#8290A4',
+  summaryTealSurface: '#E9F4F1',
+  summaryTealBorder: '#D8EAE4',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -175,6 +191,19 @@ export const colors = {
     },
     outcome: { surface: primitives.outcomeSurface, border: primitives.outcomeBorder },
     miniIconPlum: primitives.miniIconPlumSurface,
+  },
+  // used in: PracticeCard, RevisitSection, PracticeNextCard, PracticeNotification,
+  // BackHeader, FlashCard, EmptyState (Practice tab + quick-practice session)
+  practice: {
+    card: { surface: primitives.practiceCardSurface, border: primitives.practiceCardBorder },
+    btnShadow: { plum: primitives.btnPlumShadow, blue: primitives.btnBlueShadow },
+    badge: { surface: primitives.badgeNeutralSurface, ink: primitives.badgeNeutralInk },
+    miniIconSurface: primitives.miniIconSurface,
+    rowDivider: primitives.rowDivider,
+    nextCardBorder: primitives.nextCardBorder,
+    alert: { surface: primitives.alertSurface, border: primitives.alertBorder, ink: primitives.alertInk },
+    backHeaderInk: primitives.backHeaderInk,
+    summary: { surface: primitives.summaryTealSurface, border: primitives.summaryTealBorder },
   },
 } as const;
 

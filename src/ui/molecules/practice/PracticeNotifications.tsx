@@ -1,36 +1,38 @@
-// src/components/atoms/PracticeNotification.tsx
+// src/ui/molecules/practice/PracticeNotifications.tsx
 import React from 'react';
 import { View, Text } from 'react-native';
-import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 
 interface PracticeNotificationProps {
   message: string;
+  testID?: string;
 }
 
-export const PracticeNotification: React.FC<PracticeNotificationProps> = ({ message }) => {
-  return (
-    <View
-      style={[
-        tw`w-full rounded-2xl py-3 px-4 mb-7 `,
-        {
-          backgroundColor: '#EBF3FE', // Mapped to a clean cool tone, or use existing tokens if available
-          borderColor: colors.path.optionalBranch.border,
-        },
-      ]}
+// Figma "Alert" (350 × 46): info tone, radius 12, 0.8 border, 12/20.4 copy.
+export const PracticeNotification: React.FC<PracticeNotificationProps> = ({ message, testID }) => (
+  <View
+    testID={testID}
+    accessibilityRole="alert"
+    style={{
+      minHeight: 46,
+      justifyContent: 'center',
+      paddingHorizontal: 14.8,
+      paddingVertical: 12.8,
+      borderRadius: 12,
+      borderWidth: 0.8,
+      backgroundColor: colors.practice.alert.surface,
+      borderColor: colors.practice.alert.border,
+    }}
+  >
+    <Text
+      style={{
+        color: colors.practice.alert.ink,
+        fontFamily: typography.fontFamily.jakarta,
+        ...typography.fontSize['type-12-body'],
+      }}
     >
-      <Text
-        style={[
-          {
-            color: colors.text.muted,
-            fontFamily: typography.fontFamily['jakarta-medium'],
-            ...typography.fontSize['type-14'],
-          },
-        ]}
-      >
-        {message}
-      </Text>
-    </View>
-  );
-};
+      {message}
+    </Text>
+  </View>
+);
