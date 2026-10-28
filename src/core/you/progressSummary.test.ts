@@ -15,7 +15,8 @@ describe('chaptersHeadline', () => {
     expect(chaptersHeadline(1)).toBe('One chapter. A real difference.');
     expect(chaptersHeadline(3)).toBe('Three chapters. A real difference.');
     expect(chaptersHeadline(12)).toBe('Twelve chapters. A real difference.');
-    expect(chaptersHeadline(13)).toBe('13 chapters. A real difference.');
+    expect(chaptersHeadline(13)).toBe('Thirteen chapters. A real difference.');
+    expect(chaptersHeadline(120)).toBe('120 chapters. A real difference.');
   });
 });
 
