@@ -14,15 +14,30 @@ interface ContentRowProps {
   // 'divided': list row with a bottom hairline; 'plain': same without it (last
   // row of a list); 'card': the white bordered card used for saved work.
   variant?: 'divided' | 'plain' | 'card';
+  // Replaces the chevron (e.g. a ToggleSwitch on settings rows).
+  trailing?: React.ReactNode;
+  // Rows holding a switch announce as one: role 'switch' + checked state.
+  accessibilityRole?: 'button' | 'switch';
+  accessibilityState?: { checked?: boolean };
 }
 
-export const ContentRow: React.FC<ContentRowProps> = ({ icon, title, subtitle, onPress, variant = 'divided' }) => {
+export const ContentRow: React.FC<ContentRowProps> = ({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  variant = 'divided',
+  trailing,
+  accessibilityRole = 'button',
+  accessibilityState,
+}) => {
   const isCard = variant === 'card';
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      accessibilityRole="button"
+      accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
       accessibilityLabel={`${title}. ${subtitle}`}
       style={[
         tw`flex-row items-center w-full`,
@@ -64,7 +79,9 @@ export const ContentRow: React.FC<ContentRowProps> = ({ icon, title, subtitle, o
           {subtitle}
         </Text>
       </View>
-      <Icon name="chevron" size={isCard ? 22 : 15} color={isCard ? colors.text.primary : colors.profile.rowChevronInk} />
+      {trailing ?? (
+        <Icon name="chevron" size={isCard ? 22 : 15} color={isCard ? colors.text.primary : colors.profile.rowChevronInk} />
+      )}
     </TouchableOpacity>
   );
 };
