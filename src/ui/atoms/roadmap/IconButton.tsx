@@ -11,6 +11,7 @@ interface IconButtonProps {
   icon?: IconType;
   iconColor?: string;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 export const IconButton: React.FC<IconButtonProps> = ({
@@ -18,8 +19,10 @@ export const IconButton: React.FC<IconButtonProps> = ({
   icon = 'blocks',
   iconColor = colors.text.primary,
   accessibilityLabel,
+  testID,
 }) => (
   <TouchableOpacity
+    testID={testID}
     onPress={onPress}
     activeOpacity={0.7}
     accessibilityRole="button"

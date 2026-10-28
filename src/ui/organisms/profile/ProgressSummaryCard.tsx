@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
@@ -10,10 +10,17 @@ interface ProgressSummaryCardProps {
   title: string;
   percent: number;
   caption: string;
+  // When set the whole card is a button (the You tab opens the Streak screen).
+  onPress?: () => void;
 }
 
-export const ProgressSummaryCard: React.FC<ProgressSummaryCardProps> = ({ title, percent, caption }) => (
-  <View
+export const ProgressSummaryCard: React.FC<ProgressSummaryCardProps> = ({ title, percent, caption, onPress }) => (
+  <TouchableOpacity
+    disabled={!onPress}
+    onPress={onPress}
+    activeOpacity={0.7}
+    accessibilityRole={onPress ? 'button' : undefined}
+    accessibilityLabel={onPress ? `${title}. ${caption}` : undefined}
     style={{
       width: '100%',
       padding: 18,
@@ -52,5 +59,5 @@ export const ProgressSummaryCard: React.FC<ProgressSummaryCardProps> = ({ title,
     >
       {caption}
     </Text>
-  </View>
+  </TouchableOpacity>
 );
