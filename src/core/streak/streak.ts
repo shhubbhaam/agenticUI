@@ -10,7 +10,12 @@
 //    active days only; covered dates are not counted.
 //  - Today is still open: not having done anything yet today never breaks a streak.
 
-export const STREAK_FREEZE_ALLOWANCE = 3;
+import { numberWordCapitalised } from '../text/numberWords';
+
+// PRODUCT RULE (no API source): how many missed dates one run may absorb. The
+// single source of truth - streak derivation (buildRuns / deriveStreak) and
+// the freeze copy below both read it; change it here only.
+export const STREAK_FREEZE_ALLOWANCE: number = 3;
 export const CALENDAR_WEEKS = 4;
 
 export type StreakState =
@@ -137,23 +142,8 @@ export function deriveStreak(completions: Date[], now: Date = new Date()): Strea
 }
 
 // --- copy -----------------------------------------------------------------
-
-const ONES = [
-  'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
-  'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen',
-];
-const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-
-export function numberWord(n: number): string {
-  if (!Number.isInteger(n) || n < 0 || n >= 100) return String(n);
-  if (n < 20) return ONES[n];
-  const unit = n % 10;
-  return unit === 0 ? TENS[n / 10] : `${TENS[Math.floor(n / 10)]}-${ONES[unit]}`;
-}
-
-function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+// Every number/word in the copy comes from the computed summary (or the
+// allowance constant); only the surrounding phrases are fixed UI copy.
 
 export type MessageTone = 'warning' | 'info';
 
@@ -166,7 +156,7 @@ export interface StreakCopy {
 export function streakCopy(summary: Pick<StreakSummary, 'state' | 'current' | 'coveredCount'>): StreakCopy {
   switch (summary.state) {
     case 'kept':
-      return { title: `${capitalise(numberWord(summary.current))} days of showing up.`, message: null };
+      return { title: `${numberWordCapitalised(summary.current)} days of showing up.`, message: null };
     case 'atRisk':
       return {
         title: 'There’s still time today.',
@@ -174,7 +164,7 @@ export function streakCopy(summary: Pick<StreakSummary, 'state' | 'current' | 'c
       };
     case 'frozen': {
       const n = summary.coveredCount;
-      const lead = n === 1 ? 'One missed date was' : `${capitalise(numberWord(n))} missed dates were`;
+      const lead = n === 1 ? 'One missed date was' : `${numberWordCapitalised(n)} missed dates were`;
       return {
         title: 'A little room for life.',
         message: { tone: 'info', text: `${lead} covered by your freeze allowance. Completed work is unchanged.` },
@@ -194,4 +184,4 @@ export function longestStreakSubtitle(longest: number): string {
   return `${longest} ${longest === 1 ? 'day' : 'days'} · A rhythm you can come back to`;
 }
 
-export const FREEZE_SUBTITLE = `${STREAK_FREEZE_ALLOWANCE} days per allowance · Coverage is shown by date`;
+export const FREEZE_SUBTITLE = `${STREAK_FREEZE_ALLOWANCE} ${STREAK_FREEZE_ALLOWANCE === 1 ? 'day' : 'days'} per allowance · Coverage is shown by date`;

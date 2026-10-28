@@ -1,10 +1,11 @@
+import { numberWordCapitalised } from '../text/numberWords';
 import {
   deriveStreak,
   localDayIndex,
   longestStreakSubtitle,
-  numberWord,
   streakCopy,
   STREAK_FREEZE_ALLOWANCE,
+  FREEZE_SUBTITLE,
 } from './streak';
 
 // Wednesday 2026-10-28, midday local time.
@@ -134,16 +135,6 @@ describe('deriveStreak calendar', () => {
   });
 });
 
-describe('numberWord', () => {
-  it('spells small numbers and falls back to digits', () => {
-    expect(numberWord(12)).toBe('twelve');
-    expect(numberWord(21)).toBe('twenty-one');
-    expect(numberWord(40)).toBe('forty');
-    expect(numberWord(100)).toBe('100');
-    expect(numberWord(-1)).toBe('-1');
-  });
-});
-
 describe('streakCopy', () => {
   it('matches the Figma strings', () => {
     expect(streakCopy({ state: 'kept', current: 12, coveredCount: 0 })).toEqual({ title: 'Twelve days of showing up.', message: null });
@@ -162,6 +153,33 @@ describe('streakCopy', () => {
     expect(streakCopy({ state: 'frozen', current: 5, coveredCount: 1 }).message?.text).toMatch(/^One missed date was covered/);
     expect(streakCopy({ state: 'none', current: 0, coveredCount: 0 }).title).toBe('Your rhythm starts here.');
     expect(streakCopy({ state: 'broken', current: 0, coveredCount: 0 }).message).toBeNull();
+  });
+});
+
+describe('copy numbers come from the data', () => {
+  it.each([[2, 'Two'], [7, 'Seven'], [12, 'Twelve'], [25, 'Twenty-five'], [150, '150']])(
+    'kept streak of %i reads "%s days of showing up."',
+    (current, word) => {
+      expect(streakCopy({ state: 'kept', current, coveredCount: 0 }).title).toBe(`${word} days of showing up.`);
+    },
+  );
+
+  it('words the covered count from the actual covered dates', () => {
+    expect(streakCopy({ state: 'frozen', current: 5, coveredCount: 2 }).message?.text).toMatch(/^Two missed dates were covered/);
+  });
+
+  it('derives the covered count within the allowance and reflects it in the copy', () => {
+    // Last activity 3 days ago -> the 2 dates since then are covered by the allowance.
+    const summary = deriveStreak([day(-5), day(-4), day(-3)], NOW);
+    expect(summary.state).toBe('frozen');
+    expect(summary.coveredCount).toBe(2);
+    expect(summary.coveredCount).toBeLessThanOrEqual(STREAK_FREEZE_ALLOWANCE);
+    const text = streakCopy(summary).message?.text ?? '';
+    expect(text.startsWith(`${numberWordCapitalised(summary.coveredCount)} missed date`)).toBe(true);
+  });
+
+  it('builds the allowance subtitle from the constant', () => {
+    expect(FREEZE_SUBTITLE).toBe(`${STREAK_FREEZE_ALLOWANCE} days per allowance · Coverage is shown by date`);
   });
 });
 
