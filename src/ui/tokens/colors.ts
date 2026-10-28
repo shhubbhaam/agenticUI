@@ -116,6 +116,25 @@ const primitives = {
   rhythmCardSurface: '#F0EAF8',
   rhythmCardBorder: '#E4D8F0',
   miniIconSurface: '#E9EEF9',
+  // You tab + Skills & evidence (AI Launchpad — Mobile Design System, nodes 37-3842..37-5726)
+  avatarSurface: '#DBE5F8',
+  avatarInk: '#3752A2',
+  profileCardBorder: '#E4E9F1',
+  savedCardBorder: '#E7EAF0',
+  rowDivider: '#E9EDF3',
+  profileProgressFill: '#5774CC',
+  featureIconInk: '#5975B3',
+  iconBtnInk: '#506079',
+  rowChevronInk: '#8995AA',
+  radarRing: '#DCE3F0',
+  radarStroke: '#6B80C5',
+  radarFill: '#677EC4',
+  radarLabel: '#8190A7',
+  skillPrompting: '#5270CC',
+  skillContext: '#8563AE',
+  skillWorkflows: '#B87459',
+  skillAgents: '#8393C5',
+  skillJudgement: '#518E86',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -243,6 +262,31 @@ export const colors = {
     },
     rhythmCard: { surface: primitives.rhythmCardSurface, border: primitives.rhythmCardBorder },
     miniIconSurface: primitives.miniIconSurface,
+  },
+  profile: {
+    // used in: Avatar, FeatureIcon, ContentRow, ProgressSummaryCard, InfoCard, IconButton,
+    // PentagonChart, SkillIndicator (You tab + Skills & evidence screens)
+    avatar: { surface: primitives.avatarSurface, ink: primitives.avatarInk },
+    cardBorder: primitives.profileCardBorder,
+    savedCardBorder: primitives.savedCardBorder,
+    rowDivider: primitives.rowDivider,
+    progressFill: primitives.profileProgressFill,
+    featureIconInk: primitives.featureIconInk,
+    iconBtnInk: primitives.iconBtnInk,
+    rowChevronInk: primitives.rowChevronInk,
+    radar: {
+      ring: primitives.radarRing,
+      stroke: primitives.radarStroke,
+      fill: primitives.radarFill,
+      label: primitives.radarLabel,
+    },
+    skill: {
+      prompting: primitives.skillPrompting,
+      context: primitives.skillContext,
+      workflows: primitives.skillWorkflows,
+      agents: primitives.skillAgents,
+      judgement: primitives.skillJudgement,
+    },
   },
   input: {
     border: primitives.inputBorder, // used in: TextField (login)

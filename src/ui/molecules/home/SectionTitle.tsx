@@ -9,13 +9,17 @@ interface SectionTitleProps {
   title?: string;
   actionLabel?: string;
   onPressAction?: () => void;
+  // 'default' is the Home 16px heading; 'compact' is the You tab's 14px heading + 12px link.
+  variant?: 'default' | 'compact';
 }
 
 export const SectionTitle: React.FC<SectionTitleProps> = ({
   title = 'Then, a small next step',
   actionLabel = 'View plan',
   onPressAction,
+  variant = 'default',
 }) => {
+  const compact = variant === 'compact';
   return (
     <View style={tw`w-full flex-row justify-between items-center px-1 mb-2 mt-1`}>
       <Text
@@ -24,7 +28,7 @@ export const SectionTitle: React.FC<SectionTitleProps> = ({
             fontFamily: typography.fontFamily['jakarta-bold'],
             color: colors.text.primary,
           },
-          typography.fontSize['type-16'],
+          compact ? typography.fontSize['type-14-tight'] : typography.fontSize['type-16'],
         ]}
       >
         {title}
@@ -39,15 +43,15 @@ export const SectionTitle: React.FC<SectionTitleProps> = ({
         ]}
         accessible={true}
         accessibilityRole="button"
-        accessibilityLabel={`${actionLabel}, view full roadmap plan`}
+        accessibilityLabel={compact ? actionLabel : `${actionLabel}, view full roadmap plan`}
       >
         <Text
           style={[
             {
-              fontFamily: typography.fontFamily['jakarta-semibold'],
-              color: colors.action.primary,
+              fontFamily: compact ? typography.fontFamily['jakarta-bold'] : typography.fontFamily['jakarta-semibold'],
+              color: compact ? colors.path.linkInk : colors.action.primary,
             },
-            typography.fontSize['type-14'],
+            compact ? typography.fontSize['type-12'] : typography.fontSize['type-14'],
           ]}
         >
           {actionLabel}
