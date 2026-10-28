@@ -4,7 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PracticeView } from '../src/screens/practice/PracticeView';
 import { QuickPracticeView } from '../src/screens/practice/QuickPracticeView';
 import { useQuickPractice } from '../src/screens/practice/useQuickPractice';
-import { MOCK_DECK, MOCK_PRACTICE_DATA, PracticeData } from '../src/screens/practice/practiceMock';
+import { MOCK_DECK, MOCK_PRACTICE_DATA } from '../src/data/mock/MockPracticeRepository';
+import type { PracticeData } from '../src/core/practice/types';
 
 const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },

@@ -4,13 +4,15 @@ import { View, Text } from 'react-native';
 import { colors } from '../../ui/tokens/colors';
 import { typography } from '../../ui/tokens/typography';
 import { PracticeTemplate } from './PracticeTemplate';
-import { PracticeHeader } from '../../ui/organisms/practice/PracticeHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PageHeader } from '../../ui/organisms/PageHeader';
+import { IconButton } from '../../ui/atoms/roadmap/IconButton';
 import { PracticeCard } from '../../ui/organisms/practice/PracticeCard';
 import { RevisitSection } from '../../ui/organisms/practice/RevisitSection';
-import { PracticeNotification } from '../../ui/molecules/practice/PracticeNotifications';
-import { PracticeNextCard } from '../../ui/molecules/practice/PracticeNextCard';
+import { Alert } from '../../ui/molecules/Alert';
+import { ContentRow } from '../../ui/molecules/ContentRow';
 import { EmptyState } from '../../ui/organisms/EmptyState';
-import type { PracticeData } from './practiceMock';
+import type { PracticeData } from '../../core/practice/types';
 
 interface PracticeViewProps {
   data: PracticeData;
@@ -35,7 +37,24 @@ export const PracticeView: React.FC<PracticeViewProps> = ({
   onSettingsPress,
   bottombar,
 }) => {
-  const header = <PracticeHeader onSettingsPress={onSettingsPress} />;
+  const insets = useSafeAreaInsets();
+  // Figma "Navigation/PageHeader" (350 × 90): 20px gutters, two-line title.
+  const header = (
+    <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 10, paddingBottom: 20, width: '100%' }}>
+      <PageHeader
+        eyebrow="PRACTICE"
+        title={'A little practice.\nA stronger connection.'}
+        trailing={
+          <IconButton
+            testID="practice-settings-button"
+            icon="sun"
+            accessibilityLabel="Settings"
+            onPress={onSettingsPress}
+          />
+        }
+      />
+    </View>
+  );
 
   if (data.dueItems.length === 0) {
     const caughtUp = data.hasStartedLearning;
@@ -76,7 +95,8 @@ export const PracticeView: React.FC<PracticeViewProps> = ({
       }
       practiceNotification={
         downloadedCount > 0 ? (
-          <PracticeNotification
+          <Alert
+            tone="info"
             testID="downloaded-notice"
             message={`${downloadedCount} practice ${downloadedCount === 1 ? 'set is' : 'sets are'} downloaded and ready.`}
           />
@@ -95,7 +115,10 @@ export const PracticeView: React.FC<PracticeViewProps> = ({
           >
             One idea to strengthen
           </Text>
-          <PracticeNextCard
+          <ContentRow
+            testID="practice-next-card"
+            variant="card"
+            icon="layers"
             title={data.strengthen.title}
             subtitle={data.strengthen.subtitle}
             onPress={onStrengthenPress}

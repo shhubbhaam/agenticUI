@@ -1,10 +1,11 @@
 // src/ui/organisms/practice/RevisitSection.tsx
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
-import { Icon, IconType } from '../../atoms/Icon';
-import { FeatureIcon } from '../../molecules/FeatureIcon';
+import type { IconType } from '../../atoms/Icon';
+import { Badge } from '../../atoms/roadmap/Badge';
+import { ContentRow } from '../../molecules/ContentRow';
 
 export interface RevisitItemData {
   id: string;
@@ -49,72 +50,21 @@ export const RevisitSection: React.FC<RevisitSectionProps> = ({
           {title}
         </Text>
 
-        <View
-          testID="revisit-due-badge"
-          style={{
-            height: 23.6,
-            paddingHorizontal: 8,
-            borderRadius: 7,
-            justifyContent: 'center',
-            backgroundColor: colors.practice.badge.surface,
-          }}
-        >
-          <Text
-            style={{
-              color: colors.practice.badge.ink,
-              fontFamily: typography.fontFamily['jakarta-bold'],
-              ...typography.fontSize['type-11-tight'],
-            }}
-          >
-            {items.length} due
-          </Text>
+        <View testID="revisit-due-badge">
+          <Badge tone="neutral" icon={null} label={`${items.length} due`} />
         </View>
       </View>
 
       {items.map((item) => (
-        <TouchableOpacity
+        <ContentRow
           key={item.id}
           testID={`revisit-item-${item.id}`}
+          variant="divided"
+          icon={item.icon}
+          title={item.title}
+          subtitle={item.subtitle}
           onPress={() => onItemPress(item.id)}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel={`${item.title}, ${item.subtitle}`}
-          style={{
-            height: 74.8,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            borderBottomWidth: 0.8,
-            borderBottomColor: colors.practice.rowDivider,
-          }}
-        >
-          <FeatureIcon>
-            <Icon name={item.icon} size={22} color={colors.icon.ink2} />
-          </FeatureIcon>
-
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text
-              style={{
-                color: colors.text.primary,
-                fontFamily: typography.fontFamily['jakarta-bold'],
-                ...typography.fontSize['type-14-tight'],
-              }}
-            >
-              {item.title}
-            </Text>
-            <Text
-              style={{
-                color: colors.eyebrow.ink,
-                fontFamily: typography.fontFamily.jakarta,
-                ...typography.fontSize['type-12-alt'],
-              }}
-            >
-              {item.subtitle}
-            </Text>
-          </View>
-
-          <Icon name="chevron" size={15} color={colors.iconchev.ink} />
-        </TouchableOpacity>
+        />
       ))}
     </View>
   );

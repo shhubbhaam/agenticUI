@@ -16,11 +16,16 @@ interface ActiveButtonProps {
   // under-shadow) — plum for hero CTAs, blue for in-session / empty-state CTAs.
   variant?: 'primary' | 'secondary' | 'plum' | 'blue';
   testID?: string;
+  disabled?: boolean;
+  // Optional background color override for the 'primary' variant only.
+  // Leaves the shared purple fill (colors.action.lesson) untouched when
+  // omitted, so other primary-variant call sites are unaffected.
+  fillColor?: string;
 }
 
 const RAISED = {
-  plum: { surface: colors.action.lesson, shadow: colors.practice.btnShadow.plum },
-  blue: { surface: colors.action.primary, shadow: colors.practice.btnShadow.blue },
+  plum: { surface: colors.action.lesson, shadow: colors.action.plumShadow },
+  blue: { surface: colors.action.primary, shadow: colors.action.primaryShadow },
 } as const;
 
 export const ActiveButton: React.FC<ActiveButtonProps> = ({
@@ -29,6 +34,8 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
   icon,
   variant = 'primary',
   testID,
+  disabled = false,
+  fillColor,
 }) => {
   if (variant === 'plum' || variant === 'blue') {
     const tone = RAISED[variant];
@@ -70,8 +77,9 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
     return (
       <TouchableOpacity
         testID={testID}
-        onPress={onPress}
+        onPress={disabled ? undefined : onPress}
         activeOpacity={0.75}
+        disabled={disabled}
         style={[
           tw`flex-row items-center justify-center rounded-2xl border w-full`,
           {
@@ -80,6 +88,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
             backgroundColor: colors.path.btnSecondary.surface,
             borderColor: colors.path.btnSecondary.border,
             borderWidth: 0.8,
+            opacity: disabled ? 0.6 : 1,
           },
         ]}
       >
@@ -100,10 +109,11 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
 return (
     <TouchableOpacity
       testID={testID}
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
       style={[
         tw`flex-row items-center justify-center py-4 px-6 rounded-2xl w-full`,
-        { backgroundColor: colors.action.lesson }
+        { backgroundColor: fillColor ?? colors.action.lesson, opacity: disabled ? 0.6 : 1 }
       ]}
     >
       {icon ? <View style={tw`mr-2 justify-center items-center`}>{icon}</View> : null}

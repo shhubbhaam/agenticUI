@@ -7,17 +7,20 @@ import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
 import type { RootStackParamList } from '../../navigation/MainStack';
 import { PracticeView } from './PracticeView';
-import { MOCK_PRACTICE_DATA } from './practiceMock';
+import { usePracticeData } from './usePracticeData';
 
 export default function PracticeScreen() {
   const { tabs, onTabPress } = useTabNavigation('practice');
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { data } = usePracticeData();
 
   const startPractice = () => navigation.navigate('QuickPracticeScreen');
 
+  if (!data) return null;
+
   return (
     <PracticeView
-      data={MOCK_PRACTICE_DATA}
+      data={data}
       onStartPractice={startPractice}
       // Due rows and the "one idea to strengthen" card both open a practice
       // session — there is no per-item lesson route yet.

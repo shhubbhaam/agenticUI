@@ -1,108 +1,131 @@
-// src/screens/path/usePathData.ts
-// Fetches meta + trail in parallel and maps them for PathScreen.
-// Meta is the same for every learner, so it's cached in memory for 10 min.
-
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSessionStore } from '../../state/useSessionStore';
+import { getMyTrailCached, clearTrailCache } from '../../data/learnhouse/trailCache';
 import {
-  getCourseMeta,
-  getUserCourseTrail,
-  LHCourseMeta,
-} from '../../core/api/learnhouse/client';
-import { mapPathData, PathViewModel } from './mapPathData';
+  selectActiveCourse,
+  deriveChapterStatus,
+  deriveActivityStatus,
+  findNextActivities,
+} from '../../core/learning/deriveProgress';
+import { activityTypeLabel, activityIcon } from '../../ui/atoms/activityDisplay';
+import type { PathStageData } from '../../ui/molecules/roadmap/types';
+import type { StageTone } from '../../ui/atoms/roadmap/StageCrest';
+import type { CourseProgress } from '../../core/learning/types';
 
-const META_TTL_MS = 10 * 60 * 1000;
-let metaCache: { data: LHCourseMeta; at: number } | null = null;
+export type PathDataStatus = 'loading' | 'error' | 'empty' | 'ready';
 
-async function getMetaCached(force: boolean) {
-  if (!force && metaCache && Date.now() - metaCache.at < META_TTL_MS) return metaCache.data;
-  const data = await getCourseMeta();
-  metaCache = { data, at: Date.now() };
-  return data;
+export interface PathData {
+  status: PathDataStatus;
+  errorMessage: string | null;
+  onRetry: () => void;
+  courseName: string;
+  totalActivities: number;
+  completedActivities: number;
+  percent: number;
+  stages: PathStageData[];
+  defaultExpandedStageId: string | null;
 }
 
-// Like Promise.allSettled, but works on any JS engine and also catches errors
-// thrown synchronously while *starting* the call.
-type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
-async function settle<T>(fn: () => Promise<T>): Promise<Settled<T>> {
-  try {
-    return { ok: true, value: await fn() };
-  } catch (error) {
-    return { ok: false, error };
-  }
-}
+const TONES: StageTone[] = ['indigo', 'teal', 'plum'];
 
-function errorMessage(e: any) {
-  return String(e?.message ?? e);
-}
+const EMPTY_FIELDS = {
+  courseName: '',
+  totalActivities: 0,
+  completedActivities: 0,
+  percent: 0,
+  stages: [] as PathStageData[],
+  defaultExpandedStageId: null,
+};
 
-type State =
-  | { status: 'loading'; data: null; error: null }
-  | { status: 'ready'; data: PathViewModel; error: null; metaWarning?: string }
-  | { status: 'error'; data: PathViewModel | null; error: string };
-
-export function usePathData() {
-  const [state, setState] = useState<State>({ status: 'loading', data: null, error: null });
-  const [refreshing, setRefreshing] = useState(false);
-  const mounted = useRef(true);
-
-  const load = useCallback(async (force = false) => {
-    // Everything is inside try/catch so no error escapes as an unhandled
-    // promise rejection — those show up as a bare "ERROR [TypeError: ...]"
-    // with no stack, which is impossible to debug.
-    try {
-      if (__DEV__) console.log('[LearnHouse] loading…', { force });
-
-      // Trail is required (progress); meta is optional (descriptions, extra_metadata).
-      const [trailRes, metaRes] = await Promise.all([
-        settle(() => getUserCourseTrail()),
-        settle(() => getMetaCached(force)),
-      ]);
-
-      if (!mounted.current) return;
-
-  
-      if (!trailRes.ok) {
-        const message = errorMessage(trailRes.error);
-        setState((prev) => ({
-          status: 'error',
-          data: prev.data, // keep showing the last good data on refresh failure
-          error: message,
-        }));
-        return;
-      }
-
-      const meta = metaRes.ok ? metaRes.value : null;
-      const data = mapPathData(trailRes.value, meta);
-      setState({
-        status: 'ready',
-        data,
-        error: null,
-        metaWarning: metaRes.ok ? undefined : errorMessage(metaRes.error),
-      });
-    } catch (e: any) {
-      if (__DEV__) console.error('[LearnHouse] load failed', e?.stack ?? e);
-      if (mounted.current) setState({ status: 'error', data: null, error: errorMessage(e) });
-    }
-  }, []);
+export function usePathData(): PathData {
+  const identity = useSessionStore((s) => s.identity);
+  const [courses, setCourses] = useState<CourseProgress[] | null>(null);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    mounted.current = true;
-    load();
+    if (!identity) return;
+    let cancelled = false;
+    getMyTrailCached(identity.orgSlug, identity.userId)
+      .then((result) => {
+        if (!cancelled) setCourses(result);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
     return () => {
-      mounted.current = false;
+      cancelled = true;
     };
-  }, [load]);
+  }, [identity, retryCount]);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    await load(true);
-    if (mounted.current) setRefreshing(false);
-  }, [load]);
+  const onRetry = () => {
+    clearTrailCache();
+    setError(false);
+    setCourses(null);
+    setRetryCount((c) => c + 1);
+  };
 
-  const retry = useCallback(() => {
-    setState({ status: 'loading', data: null, error: null });
-    load(true);
-  }, [load]);
+  if (!identity || (courses === null && !error)) {
+    return { status: 'loading', errorMessage: null, onRetry, ...EMPTY_FIELDS };
+  }
+  if (error) {
+    return {
+      status: 'error',
+      errorMessage: "We couldn't load your progress. Please try again.",
+      onRetry,
+      ...EMPTY_FIELDS,
+    };
+  }
 
-  return { ...state, refreshing, refresh, retry };
+  const course = selectActiveCourse(courses!);
+  if (!course) {
+    return { status: 'empty', errorMessage: null, onRetry, ...EMPTY_FIELDS };
+  }
+
+  const [nextActivity] = findNextActivities(course, 1);
+  const nextActivityId = nextActivity?.activity.id ?? null;
+  const sortedChapters = [...course.chapters].sort((a, b) => a.order - b.order);
+
+  const stages: PathStageData[] = sortedChapters.map((chapter) => {
+    const status = deriveChapterStatus(chapter, course.chapters);
+    const completeText = `${chapter.completedActivities} of ${chapter.totalActivities} complete`;
+    return {
+      id: chapter.id,
+      stageNumber:
+        status === 'current'
+          ? `STAGE ${chapter.order + 1} · ${completeText.toUpperCase()}`
+          : `STAGE ${chapter.order + 1}`,
+      title: chapter.name,
+      subtitleCollapsed: completeText,
+      tone: TONES[chapter.order % TONES.length],
+      icon: 'layers',
+      status,
+      badgeLabel: completeText,
+      lessons: [...chapter.activities]
+        .sort((a, b) => a.order - b.order)
+        .map((activity) => ({
+          id: activity.id,
+          title: activity.name,
+          meta: activityTypeLabel(activity.type),
+          status: deriveActivityStatus(activity, nextActivityId),
+          icon: activityIcon(activity),
+          size: activity.id === nextActivityId ? ('large' as const) : ('default' as const),
+        })),
+    };
+  });
+
+  return {
+    status: 'ready',
+    errorMessage: null,
+    onRetry,
+    courseName: course.courseName,
+    totalActivities: course.totalActivities,
+    completedActivities: course.completedActivities,
+    percent:
+      course.totalActivities > 0
+        ? Math.round((course.completedActivities / course.totalActivities) * 100)
+        : 0,
+    stages,
+    defaultExpandedStageId: stages.find((s) => s.status === 'current')?.id ?? null,
+  };
 }

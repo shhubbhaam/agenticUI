@@ -1,6 +1,6 @@
 // src/screens/practice/useQuickPractice.ts
 import { useCallback, useState } from 'react';
-import type { PracticeDeck } from './practiceMock';
+import type { PracticeDeck } from '../../core/practice/types';
 
 export type QuickPracticePhase = 'question' | 'answer' | 'complete';
 

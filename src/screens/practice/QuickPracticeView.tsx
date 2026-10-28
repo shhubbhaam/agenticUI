@@ -10,8 +10,8 @@ import { ActiveButton } from '../../ui/atoms/ActiveButton';
 import { Icon } from '../../ui/atoms/Icon';
 import { EmptyState } from '../../ui/organisms/EmptyState';
 import { FlashCard } from '../../ui/organisms/practice/FlashCard';
-import { PracticeNotification } from '../../ui/molecules/practice/PracticeNotifications';
-import type { PracticeDeck } from './practiceMock';
+import { Alert } from '../../ui/molecules/Alert';
+import type { PracticeDeck } from '../../core/practice/types';
 import type { useQuickPractice } from './useQuickPractice';
 
 type Session = ReturnType<typeof useQuickPractice>;
@@ -36,8 +36,10 @@ export const QuickPracticeView: React.FC<QuickPracticeViewProps> = ({ deck, sess
         showsVerticalScrollIndicator={false}
       >
         <BackHeader
-          title={phase === 'complete' ? 'Practice complete' : 'Quick practice'}
-          onBackPress={onClose}
+          eyebrow={(phase === 'complete' ? 'Practice complete' : 'Quick practice').toUpperCase()}
+          onBack={onClose}
+          backTestID="back-header-back"
+          iconColor={colors.text.primary}
         />
 
         {phase === 'complete' ? (
@@ -87,7 +89,7 @@ export const QuickPracticeView: React.FC<QuickPracticeViewProps> = ({ deck, sess
 
             {restartNotice ? (
               <View style={{ marginTop: 12 }}>
-                <PracticeNotification testID="restart-notice" message="You’re back at card 1. Nothing was lost." />
+                <Alert tone="info" testID="restart-notice" message="You’re back at card 1. Nothing was lost." />
               </View>
             ) : null}
 

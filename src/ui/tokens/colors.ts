@@ -84,20 +84,60 @@ const primitives = {
   outcomeSurface: '#F8F4FC',
   outcomeBorder: '#E1D5ED',
   miniIconPlumSurface: '#EEE6F7',
-  // Practice screens (Figma "AI Launchpad" PR-01 / PR-02 frames, 37:6268..37:7103)
-  practiceCardSurface: '#F0EAF8',
-  practiceCardBorder: '#E4D8F0',
-  btnPlumShadow: '#573888',
-  btnBlueShadow: '#2442A9',
+  // Auth flow (AI Launchpad — Mobile Design System, node 33-4794/4847/4899/4953)
+  alertErrorSurface: '#FCEEEE',
+  alertErrorSurface2: '#EFD7D7',
+  alertErrorInk: '#954B4F',
+  inputBorder: '#DCE3EE',
+  inputInk: '#33425E',
+  btnGhostInk: '#4A608B',
+  actionPrimaryShadow: '#2442A9',
+  brandMarkSurface: '#4262E5',
+  brandMarkShadow: '#2943A9',
+  // Onboarding questionnaire (AI Launchpad — Mobile Design System, nodes 33-5062..36-915)
+  choiceBorder: '#DDE4EF',
+  choiceInk: '#44516B',
+  choiceSelectedSurface: '#F0F3FD',
+  choiceSelectedBorder: '#758BDA',
+  choiceSelectedInk: '#314FA9',
+  radioBorder: '#C7D0DF',
+  radioSelected: '#5270D2',
+  spanInk: '#8290A4',
   badgeNeutralSurface: '#F0F3F8',
   badgeNeutralInk: '#596982',
+  alertInfoSurface: '#EDF3FF',
+  alertInfoBorder: '#D7E3FA',
+  alertInfoInk: '#4F6388',
+  budgetBorder: '#E0E5EF',
+  budgetInk: '#77859D',
+  budgetSelectedSurface: '#EDF1FE',
+  budgetSelectedBorder: '#879BDD',
+  budgetSelectedInk: '#3656B0',
+  rhythmCardSurface: '#F0EAF8',
+  rhythmCardBorder: '#E4D8F0',
   miniIconSurface: '#E9EEF9',
+  // You tab + Skills & evidence (AI Launchpad — Mobile Design System, nodes 37-3842..37-5726)
+  avatarSurface: '#DBE5F8',
+  avatarInk: '#3752A2',
+  profileCardBorder: '#E4E9F1',
+  savedCardBorder: '#E7EAF0',
   rowDivider: '#E9EDF3',
-  nextCardBorder: '#E7EAF0',
-  alertSurface: '#EDF3FF',
-  alertBorder: '#D7E3FA',
-  alertInk: '#4F6388',
-  backHeaderInk: '#8290A4',
+  profileProgressFill: '#5774CC',
+  featureIconInk: '#5975B3',
+  iconBtnInk: '#506079',
+  rowChevronInk: '#8995AA',
+  radarRing: '#DCE3F0',
+  radarStroke: '#6B80C5',
+  radarFill: '#677EC4',
+  radarLabel: '#8190A7',
+  skillPrompting: '#5270CC',
+  skillContext: '#8563AE',
+  skillWorkflows: '#B87459',
+  skillAgents: '#8393C5',
+  skillJudgement: '#518E86',
+  // Practice screens (Figma PR-01 / PR-02 frames, 37:6268..37:7103) — only the values
+  // no other flow shares; card / badge / alert / divider reuse the onboarding + profile tokens.
+  btnPlumShadow: '#573888',
   summaryTealSurface: '#E9F4F1',
   summaryTealBorder: '#D8EAE4',
 } as const;
@@ -117,6 +157,9 @@ export const colors = {
   action: {
     primary: primitives.blue600, // used in: HomeScreen, BottomTabs, PathScreen
     lesson: primitives.purple500, // used in: ActiveButton
+    ghost: primitives.btnGhostInk, // used in: LoginScreen ghost links
+    primaryShadow: primitives.actionPrimaryShadow, // used in: LoginScreen primary CTA, ActiveButton blue
+    plumShadow: primitives.btnPlumShadow, // used in: ActiveButton plum
   },
   surface: {
     white: primitives.white, // used in: HomeCard
@@ -131,6 +174,10 @@ export const colors = {
   },
   hero: {
     surface: primitives.lavender100, // used in: HomeCard
+    brandMark: {
+      surface: primitives.brandMarkSurface, // used in: LaunchpadScreen, LoginScreen
+      shadow: primitives.brandMarkShadow,
+    },
   },
   dot: {
     surface: primitives.slate200, // used in: ProgressBar
@@ -192,18 +239,68 @@ export const colors = {
     outcome: { surface: primitives.outcomeSurface, border: primitives.outcomeBorder },
     miniIconPlum: primitives.miniIconPlumSurface,
   },
-  // used in: PracticeCard, RevisitSection, PracticeNextCard, PracticeNotification,
-  // BackHeader, FlashCard, EmptyState (Practice tab + quick-practice session)
-  practice: {
-    card: { surface: primitives.practiceCardSurface, border: primitives.practiceCardBorder },
-    btnShadow: { plum: primitives.btnPlumShadow, blue: primitives.btnBlueShadow },
+  alert: {
+    error: {
+      surface: primitives.alertErrorSurface, // used in: Alert (login error state)
+      border: primitives.alertErrorSurface2,
+      ink: primitives.alertErrorInk,
+    },
+  },
+  onboarding: {
+    // used in: ChoiceCard, Radio, BackHeader, Badge (neutral), Alert (info), BudgetPicker, BudgetScreen
+    choice: {
+      border: primitives.choiceBorder,
+      ink: primitives.choiceInk,
+      selectedSurface: primitives.choiceSelectedSurface,
+      selectedBorder: primitives.choiceSelectedBorder,
+      selectedInk: primitives.choiceSelectedInk,
+    },
+    radio: { border: primitives.radioBorder, selected: primitives.radioSelected },
+    spanInk: primitives.spanInk,
     badge: { surface: primitives.badgeNeutralSurface, ink: primitives.badgeNeutralInk },
+    alertInfo: { surface: primitives.alertInfoSurface, border: primitives.alertInfoBorder, ink: primitives.alertInfoInk },
+    budget: {
+      border: primitives.budgetBorder,
+      ink: primitives.budgetInk,
+      selectedSurface: primitives.budgetSelectedSurface,
+      selectedBorder: primitives.budgetSelectedBorder,
+      selectedInk: primitives.budgetSelectedInk,
+    },
+    rhythmCard: { surface: primitives.rhythmCardSurface, border: primitives.rhythmCardBorder },
     miniIconSurface: primitives.miniIconSurface,
+  },
+  profile: {
+    // used in: Avatar, FeatureIcon, ContentRow, ProgressSummaryCard, InfoCard, IconButton,
+    // PentagonChart, SkillIndicator (You tab + Skills & evidence screens)
+    avatar: { surface: primitives.avatarSurface, ink: primitives.avatarInk },
+    cardBorder: primitives.profileCardBorder,
+    savedCardBorder: primitives.savedCardBorder,
     rowDivider: primitives.rowDivider,
-    nextCardBorder: primitives.nextCardBorder,
-    alert: { surface: primitives.alertSurface, border: primitives.alertBorder, ink: primitives.alertInk },
-    backHeaderInk: primitives.backHeaderInk,
+    progressFill: primitives.profileProgressFill,
+    featureIconInk: primitives.featureIconInk,
+    iconBtnInk: primitives.iconBtnInk,
+    rowChevronInk: primitives.rowChevronInk,
+    radar: {
+      ring: primitives.radarRing,
+      stroke: primitives.radarStroke,
+      fill: primitives.radarFill,
+      label: primitives.radarLabel,
+    },
+    skill: {
+      prompting: primitives.skillPrompting,
+      context: primitives.skillContext,
+      workflows: primitives.skillWorkflows,
+      agents: primitives.skillAgents,
+      judgement: primitives.skillJudgement,
+    },
+  },
+  practice: {
+    // used in: EmptyState (summary panel)
     summary: { surface: primitives.summaryTealSurface, border: primitives.summaryTealBorder },
+  },
+  input: {
+    border: primitives.inputBorder, // used in: TextField (login)
+    ink: primitives.inputInk,
   },
 } as const;
 

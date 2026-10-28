@@ -31,7 +31,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   summary,
 }) => (
   <View style={{ paddingHorizontal: 8, paddingTop: 28.25, alignItems: 'center' }}>
-    <StageCrest tone="teal" icon="brief" size="xl" />
+    <StageCrest tone="teal" icon="brief" size="hero" />
 
     <Text
       style={{

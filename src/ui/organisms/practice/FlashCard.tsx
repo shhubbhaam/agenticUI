@@ -23,8 +23,8 @@ export const FlashCard: React.FC<FlashCardProps> = ({ eyebrow, title, body }) =>
       paddingHorizontal: 25,
       borderRadius: 18,
       borderWidth: 0.8,
-      backgroundColor: colors.practice.card.surface,
-      borderColor: colors.practice.card.border,
+      backgroundColor: colors.onboarding.rhythmCard.surface,
+      borderColor: colors.onboarding.rhythmCard.border,
     }}
   >
     <Text

@@ -9,11 +9,11 @@ raise it for discussion, don't quietly work around it.
 
 | Solo-scale default | Graduate to | Trigger | Status |
 |---|---|---|---|
-| Plain folders, no workspace packages | Real pnpm workspace packages (`core`, `data`, `ui`, ...) | A second app (web) needs the same code, OR `features/` passes ~15 slices | Not yet |
+| Plain folders, no workspace packages | Real pnpm workspace packages (`core`, `data`, `ui`, ...) | A second app (web) needs the same code, OR a `ui/` tier passes ~15 domain subfolders | Not yet |
 | Manual code review, no CI gates | Automated lint/typecheck/test gates on every PR | A second contributor joins | **Active — see 0.1** |
-| No ESLint import-boundary enforcement beyond the one `core/` rule (Section 11) | Full dependency-boundary lint config | `features/` passes ~10 slices | Not yet |
+| No ESLint import-boundary enforcement beyond the one `core/` rule (Section 11) | Full dependency-boundary lint config | Domain subfolders under `ui/` pass ~10 total | Not yet |
 | No ADRs | One ADR per non-obvious decision | A second contributor joins, or a decision gets re-litigated | **Active — see 0.2** |
-| Flat `features/` directory | Grouped subdirectories | `features/` passes ~10-12 slices | Not yet |
+| Flat domain subfolders inside each `ui/` tier | Grouped/nested subdirectories | Domain subfolders pass ~10-12 total | Not yet |
 
 These triggers govern tooling catching up, not the product's ambition.
 
@@ -35,15 +35,16 @@ merge on failure:
    verification happens by running the app against
    `MockLearningRepository`, not a separate demo harness).
 5. **A non-blocking "scale check" step** that runs a one-line script
-   counting `features/*` directories and posts the count as a PR
-   comment, e.g. `echo "features/: $(ls -d src/features/*/ | wc -l)
-   slices"` — makes the count visible on every PR instead of relying on
-   someone happening to notice when a threshold is crossed.
+   counting domain subfolders under each `ui/` tier and posts the count
+   as a PR comment, e.g. `echo "ui/organisms domains: $(ls -d
+   src/ui/organisms/*/ | wc -l)"` — makes the count visible on every PR
+   instead of relying on someone happening to notice when a threshold is
+   crossed.
 
-Full dependency-boundary lint (features can't reach into each other) is
-still gated on the ~10-slice trigger, not this one — don't add it yet
-just because CI exists now; that's a separate trigger with its own
-reason.
+Full dependency-boundary lint (domain subfolders can't reach into each
+other's internals) is still gated on the ~10-subfolder trigger, not this
+one — don't add it yet just because CI exists now; that's a separate
+trigger with its own reason.
 
 ### 0.2 ADRs — start here, don't wait for the next decision
 
@@ -62,23 +63,27 @@ decided without re-reading this entire document history:
   — this is the one most likely to get silently violated by a second
   person reaching for `useState` or a new store out of habit.
 - Why folders, not workspace packages, until a stated trigger fires.
+- Why domain-specific components live in a subfolder inside each `ui/`
+  tier (`ui/organisms/home/`, `ui/molecules/roadmap/`) instead of a
+  `features/<name>/` slice — see Section 1's rewrite for the reasoning.
 
 Format: `docs/adr/0001-clean-architecture-and-acl.md` etc. — context,
 decision, consequences, alternatives considered, half a page each. New
 ADRs going forward whenever a decision gets re-litigated more than once
 between the two of you, per the table above.
 
-### 0.3 Two people, one flat `features/` directory, before the lint trigger fires
+### 0.3 Two people, domain subfolders inside `ui/`, before the lint trigger fires
 
-Full import-boundary enforcement isn't due yet (still gated on feature
+Full import-boundary enforcement isn't due yet (still gated on subfolder
 count, not team size), which means for now the only thing stopping two
-people from reaching into the same feature's internals simultaneously is
-convention, not tooling. Until that trigger fires: say out loud (a
-standup line, a Slack message, a claimed row in Section 12.2's backlog
-table) which feature you're each working on before starting, and treat
-`index.ts` exports (Section 8, step 6) as the real contract between your
-work — if you need something a teammate's feature doesn't export, that's
-a conversation, not a reach into their internals.
+people from reaching into the same domain subfolder's internals
+simultaneously is convention, not tooling. Until that trigger fires: say
+out loud (a standup line, a Slack message, a claimed row in Section
+12.2's backlog table) which domain area you're each working on before
+starting, and treat what a domain subfolder actually exports as the real
+contract between your work — if you need something a teammate's
+subfolder doesn't export, that's a conversation, not a reach into their
+internals.
 
 ---
 
@@ -94,28 +99,59 @@ Every rule below exists to enforce this one sentence.
 
 ## 1. Folder structure
 
+**This section was rewritten to match what's actually in the repo.** The
+earlier version of this document described a `features/<name>/` slice
+architecture (one folder per screen-capability, each with its own
+`ui/hooks/model/index.ts`). That's not what got built — in practice,
+domain-specific components ended up living directly inside the matching
+`ui/` Atomic Design tier, in a subfolder named for the domain
+(`ui/organisms/home/`, `ui/molecules/roadmap/`), not in a separate
+`features/` tree. This section now documents that as the real
+convention, not the aspiration. The Clean Architecture layers
+(`core/`, `data/`, `state/`, `providers/`) are kept below — `core/learning/`,
+`data/`, and `state/` are now built (auth/session and course progress
+surfaced the real need for each of them). `providers/` is not built —
+course progress is fetched with a plain `useEffect`/`useState` in each
+screen's headless hook, not a shared query layer (a deliberate
+simplification; the earlier TanStack Query provider was tried and removed
+as over-engineered for what's needed right now). What's still genuinely
+not built is the rest of `core/` (gamification, progression), any DI
+container/repository-interface layer, and a backend for lesson/pathway
+content — no code should be written today as if those specifically
+already exist.
+
+Routing is a real difference too: this app uses **React Navigation**
+(`@react-navigation/native-stack`), not Expo Router — so there is no
+`app/` routes folder. Route/screen registration lives in
+`navigation/MainStack.tsx`.
+
 One diagram. The table right after it explains what's in each folder.
 
 ```
 src/
-├── app/
+├── navigation/
 ├── screens/
-│   ├── today/
-│   └── path/
-├── features/
-│   ├── today/
-│   ├── learning-path/
-│   └── streak/
-├── state/
-├── core/
-│   └── learning/
-├── data/
-│   └── mock/
+│   ├── home/
+│   ├── login/
+│   ├── path/
+│   ├── practice/
+│   └── you/
 ├── ui/
 │   ├── tokens/
 │   ├── atoms/
+│   │   └── <domain>/         (e.g. roadmap/, ai/)
 │   ├── molecules/
+│   │   └── <domain>/         (e.g. home/, roadmap/)
 │   └── organisms/
+│       └── <domain>/         (e.g. home/, roadmap/, lesson/)
+├── data/
+│   └── learnhouse/            (real API client — login/session, course progress, Section 9's trigger fired)
+├── state/
+│   └── useSessionStore.ts     (Zustand + MMKV — auth/session identity)
+├── core/
+│   └── learning/              (course/chapter/activity entities, progress derivation)
+│
+│  — not yet built, planned (see note above) —
 └── providers/
 ```
 
@@ -123,19 +159,68 @@ src/
 
 | Folder | Purpose | What's really there right now |
 |---|---|---|
-| `app/` | Expo Router routes only, nothing else | `_layout.tsx`; `(tabs)/index.tsx` → Today; `(tabs)/path.tsx` → Path |
-| `screens/` | Composition — assembles features, near-zero logic | `today/TodayScreen.tsx`, `path/PathScreen.tsx` |
-| `features/today/` | Everything specific to the Today screen | `ui/` — `TodayLessonHero`, `TodayNextLessonCard`, `FilterChip`; `hooks/useTodayViewModel`; `model/`; `index.ts` |
-| `features/learning-path/` | Everything specific to the Path screen | `ui/` — `StageCrest`, `PathLessonNode`, `PathLessonStep`, `PathStageRow`, `PathOutcomeSummary`; `hooks/useLearningPathViewModel`; `model/`; `index.ts` |
-| `features/streak/` | The streak concept, used inside Today's header | `ui/StreakBadge`; `hooks/useStreak` |
-| `state/` | Cross-cutting state owned by no single feature | `useGamificationStore.ts` — xp, streak, level, as given values |
-| `core/learning/` | Product meaning — zero React Native or network imports, ever | `Lesson`, `LearningPathway`, `PathwayNode` entities + the `LearningRepository` interface |
-| `data/mock/` | Stands in for a real backend that doesn't exist yet | `MockLearningRepository.ts` |
-| `ui/tokens/` | Raw design values | spacing, color, typography, radius |
-| `ui/atoms/` | Smallest reusable pieces, zero domain knowledge | `Box`, `Stack`, `Inline`, `Text`, `Icon`, `Button`, `Badge`, `LessonProgress` |
-| `ui/molecules/` | Small generic groupings of atoms | `IconButton`, `SegmentedControl`, `FeatureIcon`, `Alert`, `ContentRow` |
-| `ui/organisms/` | Generic full sections — shell pieces only | `BottomTabs`, `SystemStatusBar`, `NavigationPageHeader`, `NavigationSheetHeader` |
-| `providers/` | Wiring, nothing else | `AppServicesProvider` (DI), `QueryProvider` (TanStack Query) |
+| `navigation/` | Route registration and cross-screen nav logic, nothing else | `MainStack.tsx` (React Navigation stack), `useTabNavigation.ts` (shared bottom-tab nav hook) |
+| `screens/` | Composition — assembles `ui/` pieces, near-zero logic | `home/HomeScreen.tsx`+`HomeTemplate.tsx`, `path/PathScreen.tsx`, `login/LoginScreen.tsx`, `practice/PracticeScreen.tsx`, `you/YouScreen.tsx` |
+| `ui/tokens/` | Raw + semantic design values (Section 4.2's two tiers) | `colors.ts` (primitives + semantic), `typography.ts` |
+| `ui/atoms/` | Smallest reusable pieces | Generic: `ActiveButton`, `Icon`, `icons.tsx`, `FloatingScrollButton`. Domain (`ui/atoms/<domain>/`): `roadmap/Badge`, `roadmap/IconButton`, `roadmap/StageCrest`, `ai/AIFloatingButton` |
+| `ui/molecules/` | Small groupings of atoms doing one job | Generic: `ProgressBar`, `StatBadge`. Domain: `home/ActionFooter`, `home/NextStepCard`, `home/SectionTitle`, `roadmap/LessonStep`, `roadmap/OutcomeSummary`, `roadmap/PathProgressBar`, `roadmap/SegmentedControl`, `roadmap/StageRow`, `roadmap/StagesBehindSummary` |
+| `ui/organisms/` | Whole recognizable sections | Generic: `BottomTabs`, `BackgroundAbstracts`. Domain: `home/HomeCard`, `home/HomeHeader`, `roadmap/PathHeader`, `roadmap/PathStagesList`, `roadmap/StageDetailPanel`, `lesson/ArticleCard`, `lesson/LessonCard`, `lesson/SlideCard` |
+| `data/learnhouse/` | Talks to the real LearnHouse backend (Section 2 rule 2, now built) | `client.ts` (fetch wrapper, typed `ApiError`), `schemas.ts` (Zod, validated at this boundary per Section 4.2), `authApi.ts` (login/oauth/session/logout), `progressApi.ts` (course/chapter/activity progress, maps into `core/learning/types.ts`), `secureToken.ts` (SecureStore-backed JWT storage), `adminToken.ts` (testing-phase-only org API token — see isolation rule below) |
+| `state/` | Cross-cutting state owned by no single screen (Section 9, now built) | `useSessionStore.ts` — auth status + signed-in identity (user/org), Zustand + MMKV `persist` for the identity snapshot only |
+| `core/learning/` | Product meaning for courses/chapters/activities — zero React Native or network imports (Section 2, now built) | `types.ts` (`CourseProgress`/`Chapter`/`Activity` domain entities — note the course-level type is `CourseProgress`, not `Course`), `deriveProgress.ts` (pure status/streak/next-activity derivation) |
+
+**The admin-token isolation rule** (`data/learnhouse/adminToken.ts`): this
+reads an org-wide LearnHouse API token directly into the client bundle via
+`EXPO_PUBLIC_*`, which is plaintext-extractable from any installed build — a
+leaked copy grants read/write access to every user's progress in the entire
+org, not just this app's current user. Acceptable only because this app
+hasn't shipped to any store or real user yet. Two hard rules while that
+stays true: it is imported **only** by `progressApi.ts`, never merged into
+`client.ts`/`authApi.ts`, and it **must** be replaced by a backend-for-frontend
+(a server holding this token, exposing a user-scoped endpoint) before any
+real distribution. See the design spec's "The admin-token isolation" section
+for the full rationale.
+
+**Known tech debt — don't copy these, they're inconsistencies to fix, not
+the convention:**
+- `src/theme/colorsss.ts` duplicates `ui/tokens/colors.ts`. There should
+  be exactly one color-token source; this file should be reconciled into
+  `ui/tokens/colors.ts` and removed.
+- `src/components/organisms/RoadmapHeader.tsx` sits outside `ui/`
+  entirely. Per this section's own convention it belongs at
+  `ui/organisms/roadmap/RoadmapHeader.tsx`.
+
+### The Clean Architecture layers — partially built now
+
+`data/`, `state/`, and `core/learning/` **are built now** — auth (login,
+Google OAuth exchange, `/users/session`) was the backend/state need
+Section 2 was waiting on, and course progress derivation (status, streak,
+next-activity logic from the LearnHouse endpoint) is the product-domain
+need now met. See `data/learnhouse/`, `state/useSessionStore.ts` in the
+table above, and `core/learning/types.ts` and `core/learning/deriveProgress.ts`
+in the folder structure.
+
+`providers/` is **not** built. A TanStack Query provider was built and
+wired in briefly to serve course-progress data to `useHomeData`/
+`usePathData`, then deliberately removed — it added a real layer of
+machinery (a shared query client, cache keys, provider nesting, a whole
+extra test-teardown concern) for a screen-count and API-call-volume that
+didn't need it yet. `useHomeData.ts`/`usePathData.ts` now fetch with a
+plain `useEffect`/`useState` each, independently — the trade-off is that
+navigating between Home and Path re-fetches each time rather than sharing
+one cached result, which is an accepted cost for now, not an oversight.
+If a real need for shared/cached server state resurfaces (more screens
+consuming the same data, or a real performance cost from the duplicate
+fetches), TanStack Query is still the documented choice in Section 9 — it
+just isn't wired in today.
+
+| Folder | Purpose | Still missing |
+|---|---|---|
+| `providers/` | Wiring, nothing else — DI container, and (if the need resurfaces) a shared server-state client. | The whole folder — nothing today should import as though anything exists behind this path. |
+
+This doesn't pull `data/mock/` forward with it — lesson/pathway content
+still has no backend, and still gets fetched or hardcoded directly
+wherever a screen needs it until that specific need shows up too.
 
 ### The three rules that decide where anything new goes
 
@@ -151,14 +236,15 @@ src/
    decision tree covers every case in detail — nothing above is
    scaffolded ahead of need.
 
-**Reuse doesn't move the answer.** `features/streak/` is its own
-feature specifically so other features (Path, a future Profile) can
-import `StreakBadge` from it — reuse is already solved without
-promoting it to `ui/`. If the *bare shape* — icon + number in a pill —
-ever needs to represent something unrelated to streaks, that's the
-Rule of Three (3.5) moment: extract the shape into a real
-`ui/molecule` and let `StreakBadge` wrap it. Not before that's actually
-happened three times.
+**Reuse doesn't move the answer.** A domain-specific molecule like
+`StreakBadge` living in `ui/molecules/streak/` (rather than plain
+`ui/molecules/`) doesn't stop other domain areas (Path, a future
+Profile) from importing it — reuse is already solved without promoting
+it to the generic tier folder. If the *bare shape* — icon + number in a
+pill — ever needs to represent something unrelated to streaks, that's
+the Rule of Three (3.5) moment: extract the shape into a real generic
+`ui/molecules/` component and let `StreakBadge` wrap it. Not before
+that's actually happened three times.
 
 ### Two things not to build yet, and why
 
@@ -168,46 +254,65 @@ real future modules — but only once a "submit answer" / "complete
 lesson" flow actually needs them. Until then, those values are simply
 *given*, not derived.
 
-**A real backend doesn't exist yet.** `data/learnhouse/`,
-`data/schemas/`, and `data/mappers/` would all be written against a
-response shape nobody has actually inspected — that's guessing, not the
-validation Section 4.2 requires. `data/mock/` is what stands in until
-real API access exists.
+**A real backend exists now for auth and course progress — but not yet
+for lesson/pathway content.** `data/learnhouse/` already talks to the real
+LearnHouse backend for login/session (`authApi.ts`) and course/chapter/
+activity progress (`progressApi.ts`), validated with Zod (`schemas.ts`) per
+Section 4.2. Lesson and pathway *content* (lesson bodies, slides, path
+structure beyond progress numbers) is a different story: writing
+`data/schemas/` or `data/mappers/` for that content today would still be
+guessing at a response shape nobody has actually inspected. `data/mock/` is
+what stands in for that content until real API access for it exists.
 
 ---
 
 ## 2. Decision tree — where does new code go?
 
-Ask these five questions, in order, every time you're about to create a file:
+Ask these questions, in order, every time you're about to create a file.
+**Note on 1**: `core/learning/` is now built (Section 1, types and
+progress derivation), but the rest of `core/` (gamification, progression,
+repository interfaces) isn't yet — code that would belong in those modules
+today lives inline in the screen or a co-located hook, same accepted interim
+as before. `data/` and `state/` are now real (auth/session), but that doesn't
+change how you decide something new belongs there — still ask the same question
+each time.
 
 1. **Is this a fact about the product's meaning** (what a lesson is, how
-   XP is computed, what "locked" means)? → `core/`. No React Native
-   import, ever. Should be testable with plain `node`.
+   XP is computed, what "locked" means)? → `core/` (once built). No
+   React Native import, ever. Should be testable with plain `node`.
 2. **Is this talking to something outside the app** (LearnHouse, a
-   database, an AI API)? → `data/`. Implements an interface `core/`
-   defined. Runtime-validate everything that crosses this boundary
-   with Zod.
-3. **Is this state used by three or more unrelated features, owned by
-   none of them** (XP/streak, theme, tenant)? → `state/`. See Section
-   9.1 — these are Zustand stores, so unlike `core/` they do import
-   React, but they're still not owned by any single feature.
-   **Tie-breaker**: apply the Rule of Three (3.5) to state exactly like
-   components — the first two features that need it keep it local
-   (duplicated if necessary), and only the third promotes it to
-   `state/`. If the two of you disagree on whether a third use is
+   database, an AI API)? → `data/` — `data/learnhouse/` already exists
+   for auth; a genuinely different external system gets its own
+   `data/<system>/` sibling, not a folder inside `learnhouse/`.
+   Implements an interface `core/` defined once `core/` exists.
+   Runtime-validate everything that crosses this boundary with Zod.
+3. **Is this state used by three or more unrelated screens/domain areas,
+   owned by none of them** (XP/streak, theme, tenant)? → `state/`. See
+   Section 9.1 — these are Zustand stores, so unlike `core/` they do
+   import React, but they're still not owned by any single screen or
+   domain area. `useSessionStore` (auth status + identity) is the first
+   one — it skipped the Rule-of-Three tie-breaker below because Section
+   9.1 already named it as a confirmed store ahead of need, not
+   something accumulating organically across screens.
+   **Tie-breaker for anything else**: apply the Rule of Three (3.5) to
+   state exactly like components — the first two consumers that need it
+   keep it local (duplicated if necessary), and only the third promotes
+   it to `state/`. If the two of you disagree on whether a third use is
    "coming soon enough" to promote early, the conservative default wins:
-   keep it feature-local until a third real usage actually exists in
-   code, not in a plan.
-4. **Is this reusable behavior or UI for one product capability**
-   (today's plan, the learning path, streaks)? → `features/<name>/`.
-   **Before creating a new component here, check the component catalog
-   (Section 3.5.1)** — a pattern that already crossed the Rule of Three
-   threshold elsewhere doesn't get a fourth reinvention just because
-   this feature didn't personally write the first three.
+   keep it local until a third real usage actually exists in code, not
+   in a plan.
+4. **Is this reusable behavior or UI specific to one domain area**
+   (the home screen, the learning path, lessons)? → the matching
+   subfolder inside the right `ui/` tier (Section 3.7) —
+   `ui/organisms/home/`, `ui/molecules/roadmap/`, etc. **Before creating
+   a new component here, check the component catalog (Section 3.5.1)**
+   — a pattern that already crossed the Rule of Three threshold
+   elsewhere doesn't get a fourth reinvention just because this domain
+   area didn't personally write the first three.
 5. **Is this purely about how something looks or where it sits on
-   screen**, with no product-specific behavior? → `ui/` (if reusable
-   across features) or `screens/` (if it's just arranging features on
-   one screen).
+   screen**, with no product-specific behavior? → `ui/<tier>/` directly,
+   no domain subfolder (if reusable across domain areas), or `screens/`
+   (if it's just arranging pieces on one screen).
 
 If you can't answer in ten seconds, stop and ask — don't guess and move on.
 
@@ -245,8 +350,9 @@ that name verbatim as the file and export name by default. This keeps
 Figma and code from silently diverging — but it's a tie-breaker, not
 a law with no exceptions: if a Figma name is clearly a placeholder or
 contradicts a product term the rule book has already established elsewhere
-(e.g. this document treats "Today," not "Home," as canonical — see the
-naming discussion in Section 12), fix the name in Figma first, then let
+(e.g. this document now treats "Home," not "Today," as canonical — the
+actual screen, template, header, and card are all named `Home*`; see the
+naming note in Section 12), fix the name in Figma first, then let
 the corrected name flow into code. Never let code and Figma name the
 same thing two different ways in either direction — pick one, correct
 the source that's wrong, keep both in sync.
@@ -305,35 +411,39 @@ image itself.
 
 ### 3.7 Atomic Design — the tier every component belongs to
 
-`ui/` and `features/*/ui/` are organized by Atomic Design tier, not a
-flat `components/` bucket. Each tier is defined by its relationship to
-the tier below it, not by size alone.
+`ui/` is organized by Atomic Design tier, not a flat `components/`
+bucket, and each tier is itself split into generic components (directly
+in the tier folder) versus domain-specific ones (in a `<domain>/`
+subfolder inside that tier — Section 1). Each tier is defined by its
+relationship to the tier below it, not by size alone.
 
-| Tier | Definition | `ui/` examples (generic) | `features/*/ui/` examples (domain-specific) |
+| Tier | Definition | `ui/<tier>/` examples (generic) | `ui/<tier>/<domain>/` examples (domain-specific) |
 |---|---|---|---|
-| Tokens | Raw design values, no UI (4.2) | spacing, color, typography, radius | — |
-| Atoms | Smallest indivisible piece — alone, can't yet do a useful job | `Box`, `Stack`, `Inline`, `Text`, `Icon`, `Button`, `Badge`, `LessonProgress` | — |
-| Molecules | A small number of atoms combined to do *one* simple job | `FeatureIcon`, `Alert`, `IconButton`, `SegmentedControl`, `ContentRow` | `StreakBadge`, `FilterChip`, `StageCrest`, `TodayNextLessonCard` |
-| Organisms | Several molecules/atoms combined into a *whole recognizable section* | `BottomTabs`, `SystemStatusBar`, `NavigationPageHeader`, `NavigationSheetHeader` | `TodayLessonHero`, `PathLessonNode`, `PathLessonStep`, `PathStageRow`, `PathOutcomeSummary` |
-| Templates / Pages | A Template is a screen's layout skeleton with no real data; a Page fills it with real ViewModel data | — | `TodayScreen.tsx`, `PathScreen.tsx` (currently implement both in one file — see note below) |
+| Tokens | Raw + semantic design values, no UI (4.2) | spacing, color, typography, radius | — |
+| Atoms | Smallest indivisible piece — alone, can't yet do a useful job | `ActiveButton`, `Icon`, `icons.tsx`, `FloatingScrollButton` | `roadmap/Badge`, `roadmap/IconButton`, `roadmap/StageCrest`, `ai/AIFloatingButton` |
+| Molecules | A small number of atoms combined to do *one* simple job | `ProgressBar`, `StatBadge` | `home/ActionFooter`, `home/NextStepCard`, `home/SectionTitle`, `roadmap/LessonStep`, `roadmap/OutcomeSummary`, `roadmap/PathProgressBar`, `roadmap/SegmentedControl`, `roadmap/StageRow`, `roadmap/StagesBehindSummary` |
+| Organisms | Several molecules/atoms combined into a *whole recognizable section* | `BottomTabs`, `BackgroundAbstracts` | `home/HomeCard`, `home/HomeHeader`, `roadmap/PathHeader`, `roadmap/PathStagesList`, `roadmap/StageDetailPanel`, `lesson/ArticleCard`, `lesson/LessonCard`, `lesson/SlideCard` |
+| Templates / Pages | A Template is a screen's layout skeleton with no real data; a Page fills it with real data | — | `screens/home/HomeTemplate.tsx` (Template) + `HomeScreen.tsx` (Page) — already split. `screens/path/PathScreen.tsx` still combines both in one file (see note below) |
 
-**Why `StreakBadge` and `FeatureIcon` sit at the same tier but different
-folders**: tier is about structural complexity (how many atoms, combined
-how); folder is about domain knowledge (Part 1's shape-vs-meaning test).
-The two are independent axes.
+**Why a domain-specific molecule/organism and a generic one at the same
+tier live in different folders**: tier is about structural complexity
+(how many atoms, combined how); the `<domain>/` subfolder is about
+domain knowledge (Part 1's shape-vs-meaning test). The two are
+independent axes.
 
-**Templates, deferred honestly**: `TodayScreen.tsx`/`PathScreen.tsx`
-combine Template and Page in one file right now — split the Template out
-only once a second Page needs to reuse the same skeleton with different
-data (Rule of Three). Don't pre-create an empty `templates/` folder.
+**Templates, deferred honestly**: `PathScreen.tsx` still combines
+Template and Page in one file — split the Template out only once a
+second Page needs to reuse the same skeleton with different data (Rule
+of Three), the way `HomeTemplate.tsx`/`HomeScreen.tsx` already did.
+Don't pre-create an empty `templates/` folder for it ahead of that need.
 
 **The gut-check for molecule vs. organism**: one simple job → molecule.
 A whole section → organism.
 
 **The guardrail**: don't spend real time debating the exact tier — it's
 a placement aid, not a taxonomy to get precisely right. Being in the
-*right folder* (`ui/` vs. `features/`) matters far more than which
-numbered tier inside `ui/`.
+*right tier* matters far more than whether something also earns its own
+`<domain>/` subfolder yet.
 
 ---
 
@@ -498,9 +608,10 @@ matter and now live elsewhere:
 
 ## 6. Adding a new component — step by step
 
-1. Check `ui/` and the relevant `features/*/ui` folder — does something
-   close enough already exist? If yes, extend it with a variant (3.2),
-   don't create a new one.
+1. Check `ui/` — both the generic tier folder and the relevant domain
+   subfolder (e.g. `ui/organisms/home/`) — does something close enough
+   already exist? If yes, extend it with a variant (3.2), don't create a
+   new one.
 2. Determine the layer with the Part 2 decision tree.
 3. If it maps to a named component in the Figma file's annotations, use
    that exact name.
@@ -520,11 +631,11 @@ matter and now live elsewhere:
 
 1. Run the app and navigate to it first — confirm you understand its
    current behavior before changing it.
-2. Check `features/*` usages — is this component used by more than one
-   feature? If your change is feature-specific, you may be modifying a
-   shared component for a one-off need — that's a sign it should become
-   a variant, or the specific need belongs in the feature's own wrapper,
-   not a change to the shared component.
+2. Grep for every usage — is this component used by more than one screen
+   or domain area? If your change only really applies to one of them,
+   you may be modifying a shared component for a one-off need — that's a
+   sign it should become a variant, or the specific need belongs in that
+   domain's own wrapper component, not a change to the shared one.
 3. Make the change.
 4. Re-check it live, and any other screens that compose it, at all
    three breakpoints.
@@ -532,38 +643,66 @@ matter and now live elsewhere:
    usage and update them in the same change — no partially-migrated
    components left behind.
 
-## 8. Adding a new feature
+## 8. Adding a new product capability (a new domain area)
 
-1. Create `features/<name>/{ui,hooks,model,index.ts}`.
-2. `core/` first: does this feature need new domain concepts or use
-   cases? Write those before any UI.
-3. `data/` next, only if it needs a new data source or shape not already
-   covered by an existing repository.
-4. Headless hook in `hooks/` — no JSX, pulls from `core`/`data` via the
-   `AppServicesProvider`, returns a ViewModel.
-5. UI components in `ui/`, consuming only the ViewModel the hook returns
-   — never a raw API/domain type.
-6. Export only what other code needs from `index.ts` — nothing reaches
-   into `features/<name>/ui/SomeInternal.tsx` from outside the feature.
-7. Verify it live against `MockLearningRepository`'s data at all three
-   breakpoints (Part 4/Section 5).
-8. Compose it into a screen (`screens/`) — the screen file should be
+There's no `features/<name>/` slice to scaffold — a new capability adds
+components directly into the matching `ui/<tier>/<domain>/` subfolders
+(Section 1) and a screen that composes them.
+
+1. `core/` first, **once it exists** (Section 1): does this capability
+   need new domain concepts or use cases? Write those before any UI.
+   Until `core/` is built, this step is a no-op — the concept lives
+   inline in the screen or a co-located hook instead (Section 2's note).
+2. `data/` next, **once it exists**, only if the capability needs a new
+   data source or shape not already covered by an existing repository.
+3. A headless hook, colocated with the screen or domain folder (no
+   dedicated `hooks/` tree required at this scale) — no JSX, returns a
+   plain data/view object for the UI to consume.
+4. UI components in the matching `ui/<tier>/<domain>/` subfolders,
+   consuming only what the hook returns — never a raw API/domain type
+   reaching directly into a component.
+5. Verify it live at all three breakpoints (Part 4/Section 5).
+6. Compose it into a screen (`screens/`) — the screen file should be
    short enough to read in one glance.
 
 ---
 
 ## 9. State — which of the six buckets does this belong in?
 
+**Partially built.** Zustand, MMKV, and SecureStore are now wired in —
+`state/useSessionStore.ts` (auth status + signed-in identity), backed by
+MMKV `persist` for the identity snapshot and SecureStore for the JWT
+(Section 9.1). TanStack Query is **not** wired in — it was tried for course
+progress (`useHomeData`/`usePathData`) and deliberately removed in favor of
+plain `useEffect`/`useState` fetching per screen, since a shared query
+cache wasn't worth its complexity yet (see Section 1's "Clean Architecture
+layers" note). It remains the documented destination for server data if a
+real need for shared/cached state resurfaces. SQLite and React Hook Form
+are also still not wired in — there's no offline/structured local data or
+forms yet that need them. All other state in the app (e.g.
+`useTabNavigation`) remains plain React state/hooks. This section documents
+where each kind goes once its real need exists, so the decision is made
+once, in advance, rather than re-litigated the day it's first needed.
+
 | Kind of state | Goes in | Example from this app |
 |---|---|---|
-| Server data | TanStack Query | lesson content, pathway progress from LearnHouse |
-| Global client state | Zustand (small, scoped) | current tenant, theme, XP/streak (cross-cutting) |
+| Server data | TanStack Query (not wired in — course progress currently fetched with plain useEffect/useState instead; see Section 1) | course/chapter/activity progress from LearnHouse |
+| Global client state | Zustand (small, scoped) | `useSessionStore`: auth status, signed-in user + org (built); future: theme, XP/streak |
 | Local UI state | `useState` | which tab of `SegmentedControl` is active |
 | Complex multi-step workflow | State pattern / XState | assessment lifecycle, exercise submission |
-| Form state | React Hook Form | onboarding forms |
-| Fast non-sensitive local storage | MMKV (paired with Zustand `persist`) | persisted theme, tenant, feature-flag overrides |
+| Form state | React Hook Form (not wired in yet) | onboarding forms |
+| Fast non-sensitive local storage | MMKV (paired with Zustand `persist`) | `useSessionStore`'s persisted identity snapshot (built); future: theme, feature-flag overrides |
 | Larger structured local data | SQLite | offline lesson cache, outbox queue |
-| Sensitive / secret | SecureStore | auth tokens, refresh tokens |
+| Sensitive / secret | SecureStore | the LearnHouse JWT (`data/learnhouse/secureToken.ts`, built) |
+
+**Deliberate exception — local getting-started profile.** `data/local/localProfileDb.ts`
+(SQLite via `expo-sqlite`) keeps one row per username holding a salted
+SHA-256 password hash next to that user's onboarding answers. This is allowed
+to sit in SQLite rather than SecureStore because it is **not an
+authentication boundary**: LearnHouse verifies every login server-side, and
+nothing reads this hash to grant access. It only identifies "this user" on
+the device so their answers can be keyed to them. The JWT still lives in
+SecureStore only, and no new code should treat this hash as proof of identity.
 
 Never put server data in Zustand. Never put cross-cutting XP/streak state
 in `useState` local to one screen — other screens need it too.
@@ -575,11 +714,11 @@ A few concrete rules keep it from sprawling into an unstructured dumping
 ground as the app grows:
 
 1. **Several small, purpose-scoped stores — not one mega store.**
-   `useGamificationStore` (xp, streak, level) is the one currently
-   needed. `useSessionStore` (tenant, theme, feature-flag overrides) is
-   a second example of the same pattern — add it as its own store the
-   day theming/tenants are real, not as an empty placeholder now. Mirror
-   the same "one concern, one place" logic the
+   `useSessionStore` (auth status, signed-in user + org identity) is the
+   first one, built for real login (Section 1/2). `useGamificationStore`
+   (xp, streak, level) and a future theme/feature-flag store are the same
+   pattern — add each as its own store the day its concern is real, not
+   as an empty placeholder now. Mirror the same "one concern, one place" logic the
    rest of this rule book applies to folders. If a single store's concerns
    genuinely grow large enough to feel unwieldy, use Zustand's own
    **slices pattern** to split it internally (separate slice-creator
@@ -612,6 +751,17 @@ ground as the app grows:
    `persist`/MMKV — auth tokens still go through SecureStore specifically,
    not a fast general-purpose key-value store, no matter how convenient
    that looks.
+   **How `useSessionStore` reconciles this with holding
+   server-originated identity** (user/org, fetched from
+   `/users/session`): it only persists a lightweight identity snapshot
+   for instant paint on cold start, not `status`. The snapshot is never
+   trusted as proof of a valid session — every app boot calls `hydrate()`
+   to re-fetch a live session with the SecureStore-held token, which
+   both refreshes the snapshot and re-validates the JWT. This is the
+   same treatment the state table already gives "current tenant" (global
+   client state, not TanStack Query's job), extended to the rest of the
+   identity a session carries — it is not a license to persist bulk
+   server content (lesson/pathway data) the same way.
 5. **Type state and actions together, in one interface, colocated with
    the store file** — this is what gives you autocomplete and catches a
    typo'd action name at compile time instead of a silent runtime
@@ -669,8 +819,8 @@ exactly what checks it, not just that it's expected:
 
 **The PR review checklist**, for everything above that isn't caught by
 CI: both of you check the unenforced items on every PR touching
-`ui/`, `screens/`, or `features/*/ui` — treat this list as the actual
-checklist, not a vague memory of "the rules."
+`ui/` or `screens/` — treat this list as the actual checklist, not a
+vague memory of "the rules."
 
 ---
 
@@ -678,48 +828,58 @@ checklist, not a vague memory of "the rules."
 
 ### 12.1 Two worked examples of the pattern
 
-**Today (`TD-01`)** — feature: `features/today`. States: `today-morning`,
-`today-midday`, `today-evening`. Composes: `NavigationPageHeader` (`ui/`),
-`StreakBadge` (`features/streak`), `LessonProgress`/`ProgressBar` (`ui/`),
-`TodayLessonHero`, `TodayNextLessonCard`, `FilterChip` (`features/today/ui`),
-`BottomTabs`, `SystemStatusBar` (`ui/`).
+**Home (`HM-01`)** — domain area: `home`. States: `today-morning`,
+`today-midday`, `today-evening`. Composes: `BottomTabs` (`ui/organisms`),
+`StreakBadge` (a future `ui/molecules/streak/` — not yet built),
+`ProgressBar` (`ui/molecules`), `HomeCard`, `HomeHeader`
+(`ui/organisms/home/`), `ActionFooter`, `NextStepCard`, `SectionTitle`
+(`ui/molecules/home/`).
 
-**Path (`PT-01`)** — feature: `features/learning-path`. States:
-`path-current`, `path-overview`, `path-review`. Composes:
-`NavigationPageHeader`, `IconButton`, `SegmentedControl`, `ProgressBar`
-(`ui/`), `StageCrest`, `PathLessonNode`, `PathLessonStep`, `PathStageRow`,
-`PathOutcomeSummary` (`features/learning-path/ui`), `BottomTabs`,
-`SystemStatusBar` (`ui/`).
+**Path (`PT-01`)** — domain area: `roadmap`. States: `path-current`,
+`path-overview`, `path-review`. Composes: `BottomTabs`, `ProgressBar`
+(`ui/`), `IconButton`, `Badge`, `StageCrest` (`ui/atoms/roadmap/`),
+`SegmentedControl`, `LessonStep`, `StageRow`, `StagesBehindSummary`,
+`OutcomeSummary`, `PathProgressBar` (`ui/molecules/roadmap/`),
+`PathHeader`, `PathStagesList`, `StageDetailPanel`
+(`ui/organisms/roadmap/`).
 
 These two aren't the boundary of the project — they're worked examples
-proving the pattern (Clean Architecture + MVVM/MVI + Repository,
-verified against `MockLearningRepository`'s data) holds up in practice.
-Every feature in the backlog below follows the identical shape: a
-`core/` concept if it needs one, a `data/` adapter if it needs one, a
-`features/<name>/` slice, verified live per Section 5.
+proving the pattern (Atomic Design tiers + domain subfolders now; Clean
+Architecture + MVVM/MVI + Repository once Section 1's "planned" layers
+are built) holds up in practice. Every domain area in the backlog below
+follows the identical shape: a `core/` concept if it needs one (once
+`core/` exists), a `data/` adapter if it needs one (once `data/`
+exists), matching `ui/<tier>/<domain>/` subfolders, verified live per
+Section 5.
 
-**Sequencing note**: Today's `StreakBadge` depends on cross-cutting
-gamification state (Section 2, Q3 → `state/useGamificationStore.ts`),
-not state owned by the Today feature itself — build a minimal `state/`
-store alongside whichever feature first needs it, not strictly after.
+**Sequencing note**: Home's `StreakBadge` will depend on cross-cutting
+gamification state (Section 2, Q3 → `state/useGamificationStore.ts`,
+once `state/` exists), not state owned by the Home area itself — build
+a minimal `state/` store alongside whichever domain area first needs it,
+not strictly after.
 
 ### 12.2 The full backlog — every page discovered in the design file
 
 The design file contains **10 pages, roughly 195 screen states** — the
 actual scope of the product, documented here so it's a lookup, not a
-rediscovery:
+rediscovery. The last column now names the `ui/` domain subfolder each
+row would use, not a `features/` slice:
 
-| Page | States | Feature area | Likely `features/` slice |
+| Page | States | Feature area | Likely `ui/` domain subfolder |
 |---|---|---|---|
-| `01 — Today` | 14 | Home/daily-plan, incl. streak-risk, offline, empty, 3 hero media types | `features/today` (started) |
-| `02 — Your Path` | 16 | Path + lesson-detail sheet, incl. locked/access-restricted previews | `features/learning-path` (started) |
-| `03 — Getting Started` | 23 | Auth, onboarding quiz (role/experience/goal/budget), diagnostic, path generation/reveal | `features/onboarding` |
-| `04 — Learning` | 65 | The lesson player: article/audio/video/deck/worksheet, checkpoints, feedback, completion | `features/lesson` |
-| `05 — AI Coach` | 11 | AI tutor chat — streaming, citations, offline | `features/ai-tutor` |
-| `06 — Guidance & Recovery` | 12 | "Why this plan?" sheets, path replanning, catch-up-after-absence | `features/guidance` |
-| `07 — You & Practice` | 20 | Profile, streak calendar, skills, spaced-repetition practice, settings | `features/profile`, `features/practice` |
-| `08 — Access & Plans` | 12 | Pricing, checkout, employer/B2B access, payment states | `features/billing` |
-| `09 — System States` | 16 | Shared offline/error/empty states used across the whole app | `ui/organisms` (shared) |
+| `01 — Home` | 14 | Home/daily-plan, incl. streak-risk, offline, empty, 3 hero media types | `ui/*/home/` (started) |
+| `02 — Your Path` | 16 | Path + lesson-detail sheet, incl. locked/access-restricted previews | `ui/*/roadmap/` (started) |
+| `03 — Getting Started` | 23 | Auth, onboarding quiz (role/experience/goal/budget), diagnostic, path generation/reveal | `ui/*/onboarding/` |
+| `04 — Learning` | 65 | The lesson player: article/audio/video/deck/worksheet, checkpoints, feedback, completion | `ui/*/lesson/` (started — `ArticleCard`, `LessonCard`, `SlideCard`) |
+| `05 — AI Coach` | 11 | AI tutor chat — streaming, citations, offline | `ui/*/ai/` (started — `AIFloatingButton`) |
+| `06 — Guidance & Recovery` | 12 | "Why this plan?" sheets, path replanning, catch-up-after-absence | `ui/*/guidance/` |
+| `07 — You & Practice` | 20 | Profile, streak calendar, skills, spaced-repetition practice, settings | `ui/*/profile/`, `ui/*/practice/` — screens exist (`screens/you/`, `screens/practice/`), domain `ui/` subfolders not yet built |
+| `08 — Access & Plans` | 12 | Pricing, checkout, employer/B2B access, payment states | `ui/*/billing/` |
+| `09 — System States` | 16 | Shared offline/error/empty states used across the whole app | `ui/organisms` (shared, no domain subfolder) |
+
+Not in the original design-file backlog but already real in the repo:
+**Login** (`screens/login/LoginScreen.tsx`) — auth entry point exists as
+a screen; no dedicated `ui/*/auth/` domain subfolder yet.
 
 Each row gets built per Part 2's decision tree when its turn comes.
 
