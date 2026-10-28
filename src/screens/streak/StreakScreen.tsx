@@ -7,7 +7,7 @@ import tw from 'twrnc';
 import { colors } from '../../ui/tokens/colors';
 import { typography } from '../../ui/tokens/typography';
 import { ActiveButton } from '../../ui/atoms/ActiveButton';
-import { BackHeader } from '../../ui/atoms/onboarding/BackHeader';
+import { BackHeader } from '../../ui/molecules/BackHeader';
 import { Alert } from '../../ui/molecules/Alert';
 import { ContentRow } from '../../ui/molecules/ContentRow';
 import { MessagePill } from '../../ui/molecules/MessagePill';
