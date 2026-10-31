@@ -65,7 +65,8 @@ export default function LessonScreen() {
   const kept = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A) => { chrome.poke(); fn(...a); };
   // A checkpoint question needs the portrait layout: leave full screen when one opens.
   const quizOpen = !!p.quiz;
-  useEffect(() => { if (quizOpen) fs.exit(); }, [quizOpen, fs.exit]);
+  const exitFullscreen = fs.exit;
+  useEffect(() => { if (quizOpen) exitFullscreen(); }, [quizOpen, exitFullscreen]);
 
   const blockedMessage =
     loadError ??
