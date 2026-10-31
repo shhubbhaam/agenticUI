@@ -12,7 +12,7 @@ export interface CourseProgressState {
   errorMessage: string | null;
   onRetry: () => void;
   course: CourseProgress | null;
-  // Every course on the trail (the Skills screens aggregate across all of them).
+  // Every enrolled course — streaks count activity across all of them.
   courses: CourseProgress[];
 }
 

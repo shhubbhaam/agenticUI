@@ -5,7 +5,6 @@ import {
   deriveActivityStatus,
   findNextActivities,
   allCompletionDates,
-  computeStreak,
 } from './deriveProgress';
 import type { CourseProgress, Chapter, Activity } from './types';
 
@@ -147,33 +146,5 @@ describe('allCompletionDates', () => {
       ],
     });
     expect(allCompletionDates(makeCourse({ chapters: [chapter] }))).toEqual([date1]);
-  });
-});
-
-describe('computeStreak', () => {
-  const now = new Date('2026-09-23T15:00:00');
-
-  it('returns 0 for no completions', () => {
-    expect(computeStreak([], now)).toBe(0);
-  });
-
-  it('counts consecutive calendar days including today, deduping same-day completions', () => {
-    const completions = [
-      new Date('2026-09-23T09:00:00'),
-      new Date('2026-09-22T09:00:00'),
-      new Date('2026-09-22T20:00:00'),
-      new Date('2026-09-21T09:00:00'),
-    ];
-    expect(computeStreak(completions, now)).toBe(3);
-  });
-
-  it('stops at a gap', () => {
-    const completions = [new Date('2026-09-23T09:00:00'), new Date('2026-09-20T09:00:00')];
-    expect(computeStreak(completions, now)).toBe(1);
-  });
-
-  it('still counts yesterday when nothing is completed yet today (grace period)', () => {
-    const completions = [new Date('2026-09-22T09:00:00'), new Date('2026-09-21T09:00:00')];
-    expect(computeStreak(completions, now)).toBe(2);
   });
 });

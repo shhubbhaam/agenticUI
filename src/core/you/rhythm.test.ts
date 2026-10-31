@@ -1,4 +1,4 @@
-import { completedToday, latestSavedWork, savedLabel, streakCaption } from './rhythm';
+import { latestSavedWork, savedLabel, streakCaption } from './rhythm';
 import { makeActivity, makeChapter, makeCourse } from './fixtures';
 
 const NOW = new Date('2026-10-28T12:00:00');
@@ -26,11 +26,7 @@ describe('latestSavedWork', () => {
   });
 });
 
-describe('completedToday / streakCaption', () => {
-  it('detects a completion today', () => {
-    expect(completedToday([new Date('2026-10-27T10:00:00')], NOW)).toBe(false);
-    expect(completedToday([new Date('2026-10-28T01:00:00')], NOW)).toBe(true);
-  });
+describe('streakCaption', () => {
   it('words the streak', () => {
     expect(streakCaption(0, false)).toBe('Start your streak today');
     expect(streakCaption(13, true)).toBe('13 days · Streak kept today');

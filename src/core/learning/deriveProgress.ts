@@ -62,20 +62,7 @@ export function allCompletionDates(course: CourseProgress): Date[] {
     .filter((date): date is Date => date !== null);
 }
 
-export function computeStreak(completions: Date[], now: Date = new Date()): number {
-  if (completions.length === 0) return 0;
-  const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  const days = new Set(completions.map(dayKey));
-  const cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  // A day without a completion yet doesn't break the streak until the day
-  // is over — only start counting from yesterday if today has nothing yet.
-  if (!days.has(dayKey(cursor))) {
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  let streak = 0;
-  while (days.has(dayKey(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
+// Activity in ANY enrolled course keeps the streak, not just the active one.
+export function allCoursesCompletionDates(courses: CourseProgress[]): Date[] {
+  return courses.flatMap(allCompletionDates);
 }
