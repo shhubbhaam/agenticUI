@@ -17,6 +17,7 @@ import AccessibilityScreen from '../screens/settings/AccessibilityScreen';
 import ManageDownloadsScreen from '../screens/settings/ManageDownloadsScreen';
 import { useSettingsStore } from '../state/useSettingsStore';
 import { useSettingsSync } from '../state/useSettingsSync';
+import LessonScreen from '../screens/lesson/LessonScreen';
 import RoleScreen from '../screens/onboarding/RoleScreen';
 import ExperienceScreen from '../screens/onboarding/ExperienceScreen';
 import GoalScreen from '../screens/onboarding/GoalScreen';
@@ -48,6 +49,8 @@ export type RootStackParamList = {
   ManageDownloads: undefined;
   // Settings rows whose screens are not designed yet.
   ComingSoon: { title: string };
+  /** Without params: the demo lesson (fake clock). With params: that activity's real video. */
+  Lesson: { courseUuid: string; activityUuid: string; title?: string; chapter?: string; format?: string } | undefined;
   OnboardingRole: undefined;
   OnboardingExperience: undefined;
   OnboardingGoal: undefined;
@@ -95,6 +98,7 @@ export default function MainStack() {
         <Stack.Screen name="ComingSoon">
           {({ route }) => <ComingSoonScreen title={route.params.title} />}
         </Stack.Screen>
+        <Stack.Screen name="Lesson" component={LessonScreen} />
         <Stack.Screen name="OnboardingRole" component={RoleScreen} />
         <Stack.Screen name="OnboardingExperience" component={ExperienceScreen} />
         <Stack.Screen name="OnboardingGoal" component={GoalScreen} />
