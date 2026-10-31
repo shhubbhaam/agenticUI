@@ -172,30 +172,8 @@ describe('YouScreen', () => {
     expect(mockNavigate).toHaveBeenLastCalledWith('Skills');
   });
 
-  it('signs out and resets navigation to Login', async () => {
-    mockSignOut.mockReset().mockResolvedValue(undefined);
+  it('no longer shows a Log out link (moved into Settings)', async () => {
     const tree = await renderScreen();
-
-    await act(async () => {
-      pressByLabel(tree, 'Log out');
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mockSignOut).toHaveBeenCalled();
-    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'Login' }] });
-  });
-
-  it('still navigates to Login even if signOut rejects', async () => {
-    mockSignOut.mockReset().mockRejectedValue(new Error('network error'));
-    const tree = await renderScreen();
-
-    await act(async () => {
-      pressByLabel(tree, 'Log out');
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'Login' }] });
+    expect(texts(tree)).not.toContain('Log out');
   });
 });

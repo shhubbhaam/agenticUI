@@ -131,6 +131,9 @@ const primitives = {
   featureIconInk: '#5975B3',
   iconBtnInk: '#506079',
   rowChevronInk: '#8995AA',
+  // Settings switch (Figma Switch 29:290 on / 29:292 off)
+  switchOnSurface: '#5372D3',
+  switchOffSurface: '#DCE2ED',
   radarRing: '#DCE3F0',
   radarStroke: '#6B80C5',
   radarFill: '#677EC4',
@@ -313,6 +316,7 @@ export const colors = {
     featureIconInk: primitives.featureIconInk,
     iconBtnInk: primitives.iconBtnInk,
     rowChevronInk: primitives.rowChevronInk,
+    switchTrack: { on: primitives.switchOnSurface, off: primitives.switchOffSurface },
     radar: {
       ring: primitives.radarRing,
       stroke: primitives.radarStroke,
