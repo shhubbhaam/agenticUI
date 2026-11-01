@@ -43,6 +43,14 @@ export const FlameIcon = ({ size = 16 }: { size?: number }) => (
 
 );
 
+// Streak-frozen badge glyph — exact Figma export (node 26:20, "snow", 17x17).
+export const SnowIcon = ({ size = 17 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 17 17" fill="none">
+    <Path d="M8.5 1.41667V15.5833ZM2.125 4.95833L14.875 12.0417ZM2.125 12.0417L14.875 4.95833ZM6.375 2.83333L8.5 4.95833L10.625 2.83333M6.375 14.1667L8.5 12.0417L10.625 14.1667M2.125 7.08333L4.95833 6.375L4.25 3.54167M14.875 9.91667L12.0417 10.625L12.75 13.4583" fill="#FFB64F" />
+    <Path d="M8.5 1.41667V15.5833M2.125 4.95833L14.875 12.0417M2.125 12.0417L14.875 4.95833M6.375 2.83333L8.5 4.95833L10.625 2.83333M6.375 14.1667L8.5 12.0417L10.625 14.1667M2.125 7.08333L4.95833 6.375L4.25 3.54167M14.875 9.91667L12.0417 10.625L12.75 13.4583" stroke="#D77B21" strokeWidth={1.275} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
 export const StarIcon = ({ size = 16 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="#eab308">
     <Path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />

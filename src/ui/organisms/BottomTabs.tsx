@@ -36,6 +36,9 @@ const NavItem: React.FC<{
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="tab"
+      accessibilityLabel={tab.label}
+      accessibilityState={{ selected: isActive }}
       style={tw`flex-1 items-center pt-2 pb-1`}
     >
       {IconComponent ? (
@@ -54,7 +57,6 @@ const BottomTabs: React.FC<BottomNavBarProps> = ({
   tabs,
   activeTab,
   onTabPress,
-  reserveSlot = false,
   activeColor = colors.action.primary,
   inactiveColor = colors.text.muted,
 }) => {

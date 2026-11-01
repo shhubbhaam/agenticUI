@@ -16,6 +16,9 @@ export type PathDataStatus = 'loading' | 'error' | 'empty' | 'ready';
 
 export interface PathData {
   status: PathDataStatus;
+  courseUuid: string;
+  /** The activity Path shows as "You are here" (opened by Continue). */
+  currentActivity: { id: string; name: string; chapterName: string; format: string } | null;
   errorMessage: string | null;
   onRetry: () => void;
   courseName: string;
@@ -29,6 +32,8 @@ export interface PathData {
 const TONES: StageTone[] = ['indigo', 'teal', 'plum'];
 
 const EMPTY_FIELDS = {
+  courseUuid: '',
+  currentActivity: null,
   courseName: '',
   totalActivities: 0,
   completedActivities: 0,
@@ -118,6 +123,10 @@ export function usePathData(): PathData {
     status: 'ready',
     errorMessage: null,
     onRetry,
+    courseUuid: course.courseUuid,
+    currentActivity: nextActivity
+      ? { id: nextActivity.activity.id, name: nextActivity.activity.name, chapterName: nextActivity.chapterName, format: activityTypeLabel(nextActivity.activity.type) }
+      : null,
     courseName: course.courseName,
     totalActivities: course.totalActivities,
     completedActivities: course.completedActivities,

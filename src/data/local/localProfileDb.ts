@@ -1,8 +1,6 @@
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import type { OnboardingAnswers } from '../../core/onboarding/types';
+import { getDatabase } from './database';
 import { hashPassword } from './passwordHash';
-
-const DATABASE_NAME = 'getting-started.db';
 
 export interface LocalProfile {
   username: string;
@@ -25,37 +23,6 @@ interface ProfileRow {
   diagnostic: string | null;
   completed: number;
   updated_at: string;
-}
-
-let databasePromise: Promise<SQLiteDatabase> | null = null;
-
-function getDatabase(): Promise<SQLiteDatabase> {
-  if (!databasePromise) {
-    databasePromise = openDatabaseAsync(DATABASE_NAME)
-      .then(async (db) => {
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS profiles (
-            username TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
-            password_hash TEXT,
-            password_salt TEXT,
-            role TEXT,
-            experience TEXT,
-            goal TEXT,
-            budget_minutes INTEGER,
-            formats TEXT,
-            diagnostic TEXT,
-            completed INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL
-          );
-        `);
-        return db;
-      })
-      .catch((error: unknown) => {
-        databasePromise = null;
-        throw error;
-      });
-  }
-  return databasePromise;
 }
 
 export async function saveCredentials(username: string, password: string): Promise<void> {

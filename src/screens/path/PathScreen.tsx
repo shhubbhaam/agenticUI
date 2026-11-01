@@ -12,6 +12,9 @@ import { PathStagesList } from '../../ui/organisms/roadmap/PathStagesList';
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
 import { usePathData } from './usePathData';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/MainStack';
 
 const bodyTextStyle = {
   fontFamily: typography.fontFamily.jakarta,
@@ -22,6 +25,7 @@ const bodyTextStyle = {
 export default function PathScreen() {
   const { tabs, onTabPress } = useTabNavigation('path');
   const pathData = usePathData();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [view, setView] = useState('Map');
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
   const hasSetInitialExpansion = useRef(false);
@@ -75,7 +79,10 @@ export default function PathScreen() {
                 onReviewCtaPress={() => setExpandedStageId(pathData.defaultExpandedStageId)}
                 onOutcomeCtaPress={() => console.log('Continue current stage')}
                 onOptionalBranchPress={() => console.log('Open flashcards')}
-                onLessonContinuePress={() => console.log('Continue lesson')}
+                onLessonContinuePress={() => {
+                  const a = pathData.currentActivity;
+                  if (a) navigation.navigate('Lesson', { courseUuid: pathData.courseUuid, activityUuid: a.id, title: a.name, chapter: a.chapterName, format: a.format });
+                }}
               />
             </>
           )}

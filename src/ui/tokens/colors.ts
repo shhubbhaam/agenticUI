@@ -116,6 +116,61 @@ const primitives = {
   rhythmCardSurface: '#F0EAF8',
   rhythmCardBorder: '#E4D8F0',
   miniIconSurface: '#E9EEF9',
+  // Practice screens (Figma PR-01 / PR-02 frames, 37:6268..37:7103) — only the values
+  // no other flow shares; card / badge / alert / divider reuse the onboarding + profile tokens.
+  btnPlumShadow: '#573888',
+  summaryTealSurface: '#E9F4F1',
+  summaryTealBorder: '#D8EAE4',
+  // You tab + Skills & evidence (AI Launchpad — Mobile Design System, nodes 37-3842..37-5726)
+  avatarSurface: '#DBE5F8',
+  avatarInk: '#3752A2',
+  profileCardBorder: '#E4E9F1',
+  savedCardBorder: '#E7EAF0',
+  rowDivider: '#E9EDF3',
+  profileProgressFill: '#5774CC',
+  featureIconInk: '#5975B3',
+  iconBtnInk: '#506079',
+  rowChevronInk: '#8995AA',
+  // Settings switch (Figma Switch 29:290 on / 29:292 off)
+  switchOnSurface: '#5372D3',
+  switchOffSurface: '#DCE2ED',
+  radarRing: '#DCE3F0',
+  radarStroke: '#6B80C5',
+  radarFill: '#677EC4',
+  radarLabel: '#8190A7',
+  skillPrompting: '#5270CC',
+  skillContext: '#8563AE',
+  skillWorkflows: '#B87459',
+  skillAgents: '#8393C5',
+  skillJudgement: '#518E86',
+  // Message pills + Streak screen (nodes 29:1462/29:1470, 37-4230..37-5342)
+  alertSuccessSurface: '#E9F5EF',
+  alertSuccessBorder: '#D5EADE',
+  alertSuccessInk: '#35694F',
+  alertWarningSurface: '#FFF5E5',
+  alertWarningBorder: '#F3E2BC',
+  alertWarningInk: '#835B27',
+  streakDoneSurface: '#E69B43',
+  streakCurrentSurface: '#FFF4E4',
+  streakCurrentBorder: '#D4A570',
+  streakCurrentInk: '#B57230',
+  streakDayIdleSurface: '#EDF0F6',
+  streakDayIdleInk: '#94A0B3',
+  streakWeekdayInk: '#8B98AD',
+  streakFrozenSurface: '#E8F4FA',
+  streakFrozenInk: '#48739E',
+  // Lesson video player ("WATCH & NOTICE" frame). No Figma node was shared for the player; these
+  // two are sampled from the design screenshot (25 Oct 2026). Replace with Figma values when available.
+  playerStageSurface: '#25365A',
+  playerStageEyebrow: '#7F8DAA',
+  playerOverlayButton: 'rgba(255,255,255,0.16)',
+  playerBuffered: '#C9D2EC',
+  // Full-screen controls float over the video: white on a dark scrim.
+  playerOnDarkTrack: 'rgba(255,255,255,0.28)',
+  playerOnDarkWatched: 'rgba(255,255,255,0.5)',
+  playerOnDarkInk: 'rgba(255,255,255,0.92)',
+  playerScrim: 'rgba(0,0,0,0.72)',
+  black: '#000000',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -134,7 +189,8 @@ export const colors = {
     primary: primitives.blue600, // used in: HomeScreen, BottomTabs, PathScreen
     lesson: primitives.purple500, // used in: ActiveButton
     ghost: primitives.btnGhostInk, // used in: LoginScreen ghost links
-    primaryShadow: primitives.actionPrimaryShadow, // used in: LoginScreen primary CTA
+    primaryShadow: primitives.actionPrimaryShadow, // used in: LoginScreen primary CTA, ActiveButton blue
+    plumShadow: primitives.btnPlumShadow, // used in: ActiveButton plum
   },
   surface: {
     white: primitives.white, // used in: HomeCard
@@ -144,8 +200,15 @@ export const colors = {
     ink: primitives.slateBlue600, // used in: HomeHeader
   },
   streak: {
-    ink: primitives.rust600, // used in: HomeHeader
-    surface: primitives.cream100, // used in: HomeHeader
+    ink: primitives.rust600, // used in: HomeHeader, StreakBadge
+    surface: primitives.cream100, // used in: HomeHeader, StreakBadge
+    frozen: { surface: primitives.streakFrozenSurface, ink: primitives.streakFrozenInk }, // used in: StreakBadge
+    calendar: {
+      weekdayInk: primitives.streakWeekdayInk,
+      idle: { surface: primitives.streakDayIdleSurface, ink: primitives.streakDayIdleInk },
+      done: { surface: primitives.streakDoneSurface, ink: primitives.white },
+      current: { surface: primitives.streakCurrentSurface, border: primitives.streakCurrentBorder, ink: primitives.streakCurrentInk },
+    }, // used in: StreakCalendar
   },
   hero: {
     surface: primitives.lavender100, // used in: HomeCard
@@ -220,6 +283,16 @@ export const colors = {
       border: primitives.alertErrorSurface2,
       ink: primitives.alertErrorInk,
     },
+    success: {
+      surface: primitives.alertSuccessSurface, // used in: MessagePill (settings saved)
+      border: primitives.alertSuccessBorder,
+      ink: primitives.alertSuccessInk,
+    },
+    warning: {
+      surface: primitives.alertWarningSurface, // used in: MessagePill (streak at risk)
+      border: primitives.alertWarningBorder,
+      ink: primitives.alertWarningInk,
+    },
   },
   onboarding: {
     // used in: ChoiceCard, Radio, BackHeader, Badge (neutral), Alert (info), BudgetPicker, BudgetScreen
@@ -244,9 +317,73 @@ export const colors = {
     rhythmCard: { surface: primitives.rhythmCardSurface, border: primitives.rhythmCardBorder },
     miniIconSurface: primitives.miniIconSurface,
   },
+  profile: {
+    // used in: Avatar, FeatureIcon, ContentRow, ProgressSummaryCard, InfoCard, IconButton,
+    // PentagonChart, SkillIndicator (You tab + Skills & evidence screens)
+    avatar: { surface: primitives.avatarSurface, ink: primitives.avatarInk },
+    cardBorder: primitives.profileCardBorder,
+    savedCardBorder: primitives.savedCardBorder,
+    rowDivider: primitives.rowDivider,
+    progressFill: primitives.profileProgressFill,
+    featureIconInk: primitives.featureIconInk,
+    iconBtnInk: primitives.iconBtnInk,
+    rowChevronInk: primitives.rowChevronInk,
+    switchTrack: { on: primitives.switchOnSurface, off: primitives.switchOffSurface },
+    radar: {
+      ring: primitives.radarRing,
+      stroke: primitives.radarStroke,
+      fill: primitives.radarFill,
+      label: primitives.radarLabel,
+    },
+    skill: {
+      prompting: primitives.skillPrompting,
+      context: primitives.skillContext,
+      workflows: primitives.skillWorkflows,
+      agents: primitives.skillAgents,
+      judgement: primitives.skillJudgement,
+    },
+  },
+  practice: {
+    // used in: EmptyState (summary panel)
+    summary: { surface: primitives.summaryTealSurface, border: primitives.summaryTealBorder },
+  },
   input: {
     border: primitives.inputBorder, // used in: TextField (login)
     ink: primitives.inputInk,
+  },
+  player: {
+    // used in: VideoStage, PlayPauseButton, PlayerTimeline, CheckpointMarker, PlayerActions,
+    // VideoMeta, WatchPromptCard, CheckpointQuizOverlay (lesson player)
+    stage: {
+      surface: primitives.playerStageSurface,
+      eyebrow: primitives.playerStageEyebrow,
+      ink: primitives.white,
+      overlayButton: primitives.playerOverlayButton,
+    },
+    timeline: {
+      track: primitives.pathTrackSurface,
+      played: primitives.pathFillSurface,
+      watched: primitives.playerBuffered, // furthest point reached (ahead of the playhead after a rewind)
+      time: primitives.slate500,
+    },
+    /** Same timeline over the video in full screen. */
+    timelineOnDark: {
+      track: primitives.playerOnDarkTrack,
+      played: primitives.white,
+      watched: primitives.playerOnDarkWatched,
+      time: primitives.playerOnDarkInk,
+    },
+    checkpoint: {
+      upcoming: primitives.white, // ring in the played colour
+      current: primitives.blue600,
+      passed: primitives.stageTeal,
+      locked: primitives.slate300,
+    },
+    actionInk: primitives.slate600,
+    actionInkOnDark: primitives.playerOnDarkInk,
+    /** Full screen: letterbox and the gradient behind the floating controls. */
+    fullscreen: { surface: primitives.black, scrim: primitives.playerScrim },
+    card: { surface: primitives.white, border: primitives.slate200 },
   },
 } as const;
 

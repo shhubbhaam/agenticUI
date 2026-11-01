@@ -12,7 +12,10 @@ interface ActiveButtonProps {
   // 'primary' (default): full-width filled purple CTA used across lesson screens.
   // 'secondary': the Path screen's bordered white CTA (Figma "Button · secondary",
   // approved source class "btn") — exact height/radius/ink per source tokens.
-  variant?: 'primary' | 'secondary';
+  // 'plum' / 'blue': the raised 49px Figma "Button" (radius 13, 3px solid
+  // under-shadow) — plum for hero CTAs, blue for in-session / empty-state CTAs.
+  variant?: 'primary' | 'secondary' | 'plum' | 'blue';
+  testID?: string;
   disabled?: boolean;
   // Optional background color override for the 'primary' variant only.
   // Leaves the shared purple fill (colors.action.lesson) untouched when
@@ -20,17 +23,60 @@ interface ActiveButtonProps {
   fillColor?: string;
 }
 
+const RAISED = {
+  plum: { surface: colors.action.lesson, shadow: colors.action.plumShadow },
+  blue: { surface: colors.action.primary, shadow: colors.action.primaryShadow },
+} as const;
+
 export const ActiveButton: React.FC<ActiveButtonProps> = ({
   onPress,
   label,
   icon,
   variant = 'primary',
+  testID,
   disabled = false,
   fillColor,
 }) => {
+  if (variant === 'plum' || variant === 'blue') {
+    const tone = RAISED[variant];
+    // The 3px under-shadow is drawn as an offset layer (not a native shadow)
+    // so it renders identically on iOS and Android and adds no layout height.
+    return (
+      <View style={{ height: 49, width: '100%' }}>
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', left: 0, right: 0, top: 3, height: 49, borderRadius: 13, backgroundColor: tone.shadow }}
+        />
+        <TouchableOpacity
+          testID={testID}
+          onPress={onPress}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          style={[
+            tw`flex-row items-center justify-center`,
+            { height: 49, borderRadius: 13, gap: 8, backgroundColor: tone.surface },
+          ]}
+        >
+          {icon}
+          <Text
+            style={{
+              color: colors.surface.white,
+              fontFamily: typography.fontFamily['jakarta-bold'],
+              ...typography.fontSize['type-14-base'],
+            }}
+          >
+            {label}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (variant === 'secondary') {
     return (
       <TouchableOpacity
+        testID={testID}
         onPress={disabled ? undefined : onPress}
         activeOpacity={0.75}
         disabled={disabled}
@@ -62,6 +108,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
 
 return (
     <TouchableOpacity
+      testID={testID}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       style={[
