@@ -20,6 +20,8 @@ export type LessonStepData = {
 interface LessonStepProps {
   lesson: LessonStepData;
   onContinuePress?: () => void;
+  /** Opens this lesson from its row (the "You are here" row uses its Continue button instead). */
+  onPress?: () => void;
 }
 
 const LessonNode: React.FC<{ lesson: LessonStepData; size: number }> = ({ lesson, size }) => {
@@ -94,12 +96,13 @@ const LessonNode: React.FC<{ lesson: LessonStepData; size: number }> = ({ lesson
   );
 };
 
-export const LessonStep: React.FC<LessonStepProps> = ({ lesson, onContinuePress }) => {
+export const LessonStep: React.FC<LessonStepProps> = ({ lesson, onContinuePress, onPress }) => {
   const isLarge = lesson.size === 'large';
   const nodeSize = isLarge ? 76 : 56;
+  const rowStyle = [tw`flex-row items-center w-full`, { gap: 16 }];
 
-  return (
-    <View style={[tw`flex-row items-center w-full`, { gap: 16 }]}>
+  const row = (
+    <>
       <LessonNode lesson={lesson} size={nodeSize} />
       <View style={tw`flex-1`}>
         {isLarge && (
@@ -159,6 +162,21 @@ export const LessonStep: React.FC<LessonStepProps> = ({ lesson, onContinuePress 
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </>
+  );
+
+  return onPress && !isLarge ? (
+    <TouchableOpacity
+      testID={`lesson-row-${lesson.id}`}
+      onPress={onPress}
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${lesson.title}`}
+      style={rowStyle}
+    >
+      {row}
+    </TouchableOpacity>
+  ) : (
+    <View style={rowStyle}>{row}</View>
   );
 };

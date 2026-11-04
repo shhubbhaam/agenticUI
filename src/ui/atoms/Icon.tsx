@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dumbbell, Play, LockKeyhole, RefreshCw, Zap, Eye, EyeOff, TriangleAlert, ChevronLeft, Sun } from 'lucide-react-native';
+import { Dumbbell, Play, LockKeyhole, RefreshCw, Zap, Eye, EyeOff, TriangleAlert, ChevronLeft, Sun, Maximize2, Minimize2 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 
 export type IconType =
@@ -56,7 +56,11 @@ export type IconType =
   | 'download'
   | 'info'
   | 'moon'
-  | 'volume';
+  | 'volume'
+  // Slide viewer: next (mirror of 'back'), enter / leave full screen.
+  | 'forward'
+  | 'expand'
+  | 'collapse';
 
 export interface IconProps {
   name: IconType;
@@ -98,6 +102,7 @@ const FIGMA_PATHS: Partial<Record<IconType, { viewBox: string; d: string; stroke
   info: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M11 10.0833V15.5833M11 6.41667H11.0092M20.1667 11C20.1667 13.4312 19.2009 15.7627 17.4818 17.4818C15.7627 19.2009 13.4312 20.1667 11 20.1667C8.56885 20.1667 6.23727 19.2009 4.51819 17.4818C2.7991 15.7627 1.83333 13.4312 1.83333 11C1.83333 8.56885 2.7991 6.23727 4.51819 4.51819C6.23727 2.7991 8.56885 1.83333 11 1.83333C13.4312 1.83333 15.7627 2.7991 17.4818 4.51819C19.2009 6.23727 20.1667 8.56885 20.1667 11Z' },
   moon: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M18.3333 13.75C16.938 14.1186 15.4704 14.1147 14.077 13.7386C12.6836 13.3626 11.4133 12.6277 10.3928 11.6072C9.3723 10.5867 8.63736 9.31635 8.26135 7.92299C7.88535 6.52963 7.88143 5.06201 8.25 3.66667C6.84744 4.03714 5.56736 4.77089 4.53885 5.79393C3.51034 6.81696 2.76977 8.09311 2.39182 9.49367C2.01387 10.8942 2.0119 12.3697 2.38612 13.7713C2.76033 15.1728 3.4975 16.451 4.52327 17.4767C5.54905 18.5025 6.82716 19.2397 8.22873 19.6139C9.6303 19.9881 11.1058 19.9861 12.5063 19.6082C13.9069 19.2302 15.183 18.4897 16.2061 17.4611C17.2291 16.4326 17.9629 15.1526 18.3333 13.75Z' },
   volume: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M14.6667 7.33333C15.5686 8.34171 16.0672 9.64712 16.0672 11C16.0672 12.3529 15.5686 13.6583 14.6667 14.6667M17.4167 4.58333C19.0962 6.29685 20.037 8.6006 20.037 11C20.037 13.3994 19.0962 15.7032 17.4167 17.4167M2.75 8.25H6.41667L11 3.66667V18.3333L6.41667 13.75H2.75V8.25Z' },
+  forward: { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M8.25 4.5835L14.6666 11.0002L8.25 17.4168' },
   'play-outline': { viewBox: '0 0 22 22', strokeWidth: 1.65, d: 'M7.33331 3.6665L18.3333 10.9998L7.33331 18.3332V3.6665Z' },
 };
 
@@ -123,6 +128,10 @@ export const Icon: React.FC<IconProps> = ({ name, color, size = 24 }) => {
       return <TriangleAlert size={size} color={color} strokeWidth={2} />;
     case 'sun':
       return <Sun size={size} color={color} strokeWidth={1.8} />;
+    case 'expand':
+      return <Maximize2 size={size} color={color} strokeWidth={1.8} />;
+    case 'collapse':
+      return <Minimize2 size={size} color={color} strokeWidth={1.8} />;
     default: {
       const spec = FIGMA_PATHS[name];
       if (!spec) return null;

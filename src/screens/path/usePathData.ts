@@ -10,7 +10,10 @@ import {
 import { activityTypeLabel, activityIcon } from '../../ui/atoms/activityDisplay';
 import type { PathStageData } from '../../ui/molecules/roadmap/types';
 import type { StageTone } from '../../ui/atoms/roadmap/StageCrest';
-import type { CourseProgress } from '../../core/learning/types';
+import type { ActivityType, CourseProgress } from '../../core/learning/types';
+
+/** What the app needs to open an activity, by id (Path rows carry only the id). */
+export interface PathActivity { id: string; name: string; chapterName: string; format: string; type: ActivityType }
 
 export type PathDataStatus = 'loading' | 'error' | 'empty' | 'ready';
 
@@ -18,7 +21,9 @@ export interface PathData {
   status: PathDataStatus;
   courseUuid: string;
   /** The activity Path shows as "You are here" (opened by Continue). */
-  currentActivity: { id: string; name: string; chapterName: string; format: string } | null;
+  currentActivity: PathActivity | null;
+  /** Every activity of the course by id, so any row can open its own content. */
+  activities: Record<string, PathActivity>;
   errorMessage: string | null;
   onRetry: () => void;
   courseName: string;
@@ -34,6 +39,7 @@ const TONES: StageTone[] = ['indigo', 'teal', 'plum'];
 const EMPTY_FIELDS = {
   courseUuid: '',
   currentActivity: null,
+  activities: {} as Record<string, PathActivity>,
   courseName: '',
   totalActivities: 0,
   completedActivities: 0,
@@ -90,6 +96,12 @@ export function usePathData(): PathData {
   const [nextActivity] = findNextActivities(course, 1);
   const nextActivityId = nextActivity?.activity.id ?? null;
   const sortedChapters = [...course.chapters].sort((a, b) => a.order - b.order);
+  const activities: Record<string, PathActivity> = {};
+  for (const chapter of sortedChapters) {
+    for (const a of chapter.activities) {
+      activities[a.id] = { id: a.id, name: a.name, chapterName: chapter.name, format: activityTypeLabel(a.type), type: a.type };
+    }
+  }
 
   const stages: PathStageData[] = sortedChapters.map((chapter) => {
     const status = deriveChapterStatus(chapter, course.chapters);
@@ -124,9 +136,8 @@ export function usePathData(): PathData {
     errorMessage: null,
     onRetry,
     courseUuid: course.courseUuid,
-    currentActivity: nextActivity
-      ? { id: nextActivity.activity.id, name: nextActivity.activity.name, chapterName: nextActivity.chapterName, format: activityTypeLabel(nextActivity.activity.type) }
-      : null,
+    currentActivity: nextActivity ? activities[nextActivity.activity.id] ?? null : null,
+    activities,
     courseName: course.courseName,
     totalActivities: course.totalActivities,
     completedActivities: course.completedActivities,

@@ -77,7 +77,7 @@ export function toLessonVideo(a: LessonActivity): LessonVideo {
   return videoId ? { kind: 'youtube', videoId, ...playerWindow(a.details) } : { kind: 'unsupported', reason: 'unrecognized_url' };
 }
 
-function baseUrl(): string {
+export function baseUrl(): string {
   let url = process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL ?? '';
   while (url.endsWith('/')) url = url.slice(0, -1);
   return url;

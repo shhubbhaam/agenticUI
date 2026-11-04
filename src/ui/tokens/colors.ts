@@ -171,6 +171,13 @@ const primitives = {
   playerOnDarkInk: 'rgba(255,255,255,0.92)',
   playerScrim: 'rgba(0,0,0,0.72)',
   black: '#000000',
+  // Stage completion (LN-08 "Completion · stage earned"), sampled from the design (4 Nov 2026).
+  completionSurface: '#17264A',
+  completionEyebrow: '#A9B6D3',
+  completionBody: '#C6D0E4',
+  completionTileSurface: 'rgba(255,255,255,0.04)',
+  completionTileBorder: 'rgba(255,255,255,0.14)',
+  completionCardSurface: 'rgba(255,255,255,0.06)',
 } as const;
 
 // Semantic tokens: the tier every component imports and reads from.
@@ -384,6 +391,37 @@ export const colors = {
     /** Full screen: letterbox and the gradient behind the floating controls. */
     fullscreen: { surface: primitives.black, scrim: primitives.playerScrim },
     card: { surface: primitives.white, border: primitives.slate200 },
+  },
+  completion: {
+    // used in: StatTile, NextChapterCard, StageCompleteHero, StageCompleteScreen (stage earned).
+    surface: primitives.completionSurface,
+    eyebrow: primitives.completionEyebrow,
+    ink: primitives.white,
+    body: primitives.completionBody,
+    tile: { surface: primitives.completionTileSurface, border: primitives.completionTileBorder },
+    card: { surface: primitives.completionCardSurface, border: primitives.completionTileBorder },
+  },
+  quiz: {
+    // used in: QuestionChip, QuestionCard, QuizForm (assignment quiz). Each question card takes one of
+    // the Path stage tones in turn (plum, teal, indigo), so the quiz reads like the Path screen.
+    tone: {
+      plum: { surface: primitives.panelPlumSurface, border: primitives.panelPlumBorder, ink: primitives.panelPlumInk, chip: primitives.historyLinkSurface },
+      teal: { surface: primitives.panelTealSurface, border: primitives.panelTealBorder, ink: primitives.panelTealInk, chip: primitives.badgeGoodSurface },
+      indigo: { surface: primitives.panelIndigoSurface, border: primitives.panelIndigoBorder, ink: primitives.panelIndigoInk, chip: primitives.miniIconSurface },
+    },
+    countInk: primitives.slate500,
+  },
+  slides: {
+    // used in: SlideStage, SlideCounter, SlidePager (slide deck viewer). The deck card shares the
+    // player's dark stage colour; sampled from the slide-screen design (1 Nov 2026).
+    stage: {
+      surface: primitives.playerStageSurface,
+      eyebrow: primitives.playerStageEyebrow,
+      ink: primitives.white,
+      overlayButton: primitives.playerOverlayButton,
+    },
+    pagerInk: primitives.slate500,
+    fullscreen: { surface: primitives.black, scrim: primitives.playerScrim },
   },
 } as const;
 

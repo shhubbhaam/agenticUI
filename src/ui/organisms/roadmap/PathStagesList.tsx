@@ -15,6 +15,7 @@ interface PathStagesListProps {
   onOutcomeCtaPress?: () => void;
   onReviewCtaPress?: (stageId: string) => void;
   onLessonContinuePress?: () => void;
+  onLessonPress?: (lessonId: string) => void;
 }
 
 export const PathStagesList: React.FC<PathStagesListProps> = ({
@@ -25,6 +26,7 @@ export const PathStagesList: React.FC<PathStagesListProps> = ({
   onOutcomeCtaPress,
   onReviewCtaPress,
   onLessonContinuePress,
+  onLessonPress,
 }) => {
   const expandedIndex = stages.findIndex((stage) => stage.id === expandedStageId);
   const expandedStage = expandedIndex >= 0 ? stages[expandedIndex] : undefined;
@@ -61,6 +63,7 @@ export const PathStagesList: React.FC<PathStagesListProps> = ({
               onOutcomeCtaPress={onOutcomeCtaPress}
               onReviewCtaPress={() => onReviewCtaPress?.(stage.id)}
               onLessonContinuePress={onLessonContinuePress}
+              onLessonPress={onLessonPress}
             />
           );
         }

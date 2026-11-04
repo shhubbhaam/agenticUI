@@ -49,13 +49,15 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
         />
         <TouchableOpacity
           testID={testID}
-          onPress={onPress}
+          onPress={disabled ? undefined : onPress}
+          disabled={disabled}
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={label}
+          accessibilityState={{ disabled }}
           style={[
             tw`flex-row items-center justify-center`,
-            { height: 49, borderRadius: 13, gap: 8, backgroundColor: tone.surface },
+            { height: 49, borderRadius: 13, gap: 8, backgroundColor: tone.surface, opacity: disabled ? 0.5 : 1 },
           ]}
         >
           {icon}

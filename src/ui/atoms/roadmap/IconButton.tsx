@@ -12,6 +12,8 @@ interface IconButtonProps {
   iconColor?: string;
   accessibilityLabel?: string;
   testID?: string;
+  /** Greys the button out and ignores presses (e.g. "previous" on the first slide). */
+  disabled?: boolean;
 }
 
 export const IconButton: React.FC<IconButtonProps> = ({
@@ -20,16 +22,19 @@ export const IconButton: React.FC<IconButtonProps> = ({
   iconColor = colors.text.primary,
   accessibilityLabel,
   testID,
+  disabled = false,
 }) => (
   <TouchableOpacity
     testID={testID}
-    onPress={onPress}
+    onPress={disabled ? undefined : onPress}
+    disabled={disabled}
     activeOpacity={0.7}
     accessibilityRole="button"
     accessibilityLabel={accessibilityLabel}
+    accessibilityState={{ disabled }}
     style={[
       tw`items-center justify-center border`,
-      { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.surface.white, borderColor: colors.path.iconBtnBorder, borderWidth: 0.8 },
+      { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.surface.white, borderColor: colors.path.iconBtnBorder, borderWidth: 0.8, opacity: disabled ? 0.4 : 1 },
     ]}
   >
     <Icon name={icon} color={iconColor} size={22} />

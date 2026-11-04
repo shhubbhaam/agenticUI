@@ -18,6 +18,9 @@ import ManageDownloadsScreen from '../screens/settings/ManageDownloadsScreen';
 import { useSettingsStore } from '../state/useSettingsStore';
 import { useSettingsSync } from '../state/useSettingsSync';
 import LessonScreen from '../screens/lesson/LessonScreen';
+import SlidesScreen from '../screens/slides/SlidesScreen';
+import AssignmentScreen from '../screens/assignment/AssignmentScreen';
+import StageCompleteScreen from '../screens/completion/StageCompleteScreen';
 import RoleScreen from '../screens/onboarding/RoleScreen';
 import ExperienceScreen from '../screens/onboarding/ExperienceScreen';
 import GoalScreen from '../screens/onboarding/GoalScreen';
@@ -51,6 +54,10 @@ export type RootStackParamList = {
   ComingSoon: { title: string };
   /** Without params: the demo lesson (fake clock). With params: that activity's real video. */
   Lesson: { courseUuid: string; activityUuid: string; title?: string; chapter?: string; format?: string } | undefined;
+  /** A PDF (document) activity, opened as a slide deck. Route by content with navigation/activityRoute.ts. */
+  Slides: { courseUuid: string; activityUuid: string; title?: string; chapter?: string };
+  Assignment: { courseUuid: string; activityUuid: string; title?: string; chapter?: string };
+  StageComplete: { courseUuid: string; chapterId: string };
   OnboardingRole: undefined;
   OnboardingExperience: undefined;
   OnboardingGoal: undefined;
@@ -99,6 +106,9 @@ export default function MainStack() {
           {({ route }) => <ComingSoonScreen title={route.params.title} />}
         </Stack.Screen>
         <Stack.Screen name="Lesson" component={LessonScreen} />
+        <Stack.Screen name="Slides" component={SlidesScreen} />
+        <Stack.Screen name="Assignment" component={AssignmentScreen} />
+        <Stack.Screen name="StageComplete" component={StageCompleteScreen} options={{ animation: 'fade' }} />
         <Stack.Screen name="OnboardingRole" component={RoleScreen} />
         <Stack.Screen name="OnboardingExperience" component={ExperienceScreen} />
         <Stack.Screen name="OnboardingGoal" component={GoalScreen} />
