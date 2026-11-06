@@ -30,6 +30,7 @@ import { runLayoutAction } from './actions';
 import { useSessionStore } from '../../state/useSessionStore';
 import { clearTrailCache } from '../../data/learnhouse/trailCache';
 import { useHomeData } from './useHomeData';
+import { useHomeActions } from './useHomeActions';
 
 const bodyTextStyle = {
   fontFamily: typography.fontFamily.jakarta,
@@ -143,11 +144,12 @@ export default function HomeScreen() {
     ) : (
       renderSlot('mainCard')
     );
+  const actions = useHomeActions();
 
   return (
     <HomeTemplate
       background={<View style={tw`bg-slate-50`} />}
-      homeHeader={<HomeHeader username={homeData.username} streakCount={homeData.streakCount} />}
+      homeHeader={<HomeHeader username={homeData.username} streakCount={homeData.streakCount} onPressStreak={actions.openStreak} />}
       progressBar={
         homeData.status === 'ready' ? (
           <ProgressBar

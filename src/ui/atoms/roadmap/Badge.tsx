@@ -11,7 +11,8 @@ interface BadgeProps {
   // 'good' (default) is the green path-screen badge; 'neutral' is the grey
   // onboarding "A QUICK STARTING POINT" badge.
   tone?: 'good' | 'neutral';
-  icon?: IconType;
+  // Pass null for a text-only pill (e.g. the You tab's "42%" badge).
+  icon?: IconType | null;
 }
 
 const TONE = {
@@ -22,11 +23,11 @@ const TONE = {
 export const Badge: React.FC<BadgeProps> = ({ label, tone = 'good', icon = 'check' }) => (
   <View
     style={[
-      tw`flex-row items-center px-2 py-1 rounded-lg self-start`,
-      { backgroundColor: TONE[tone].surface, gap: 5 },
+      tw`flex-row items-center px-2 rounded-lg self-start`,
+      { backgroundColor: TONE[tone].surface, gap: 5, paddingVertical: icon === null ? 5 : 4 },
     ]}
   >
-    <Icon name={icon} color={TONE[tone].ink} size={13} />
+    {icon === null ? null : <Icon name={icon} color={TONE[tone].ink} size={13} />}
     <Text
       style={{
         fontFamily: typography.fontFamily['jakarta-bold'],

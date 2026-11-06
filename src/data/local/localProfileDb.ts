@@ -1,10 +1,8 @@
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import type { OnboardingAnswers } from '../../core/onboarding/types';
+import { getDatabase } from './database';
 
 // The local profile holds onboarding answers per username. It never stores the password, or
 // anything derived from it: LearnHouse (through the BFF) is the only place a login is checked.
-
-const DATABASE_NAME = 'getting-started.db';
 
 export interface LocalProfile {
   username: string;
@@ -23,40 +21,6 @@ interface ProfileRow {
   diagnostic: string | null;
   completed: number;
   updated_at: string;
-}
-
-let databasePromise: Promise<SQLiteDatabase> | null = null;
-
-function getDatabase(): Promise<SQLiteDatabase> {
-  if (!databasePromise) {
-    databasePromise = openDatabaseAsync(DATABASE_NAME)
-      .then(async (db) => {
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS profiles (
-            username TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
-            role TEXT,
-            experience TEXT,
-            goal TEXT,
-            budget_minutes INTEGER,
-            formats TEXT,
-            diagnostic TEXT,
-            completed INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL
-          );
-        `);
-        // Earlier builds stored a salted password hash here. Wipe it on installs that still have it.
-        const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(profiles)');
-        if (columns.some((c) => c.name === 'password_hash')) {
-          await db.runAsync('UPDATE profiles SET password_hash = NULL, password_salt = NULL');
-        }
-        return db;
-      })
-      .catch((error: unknown) => {
-        databasePromise = null;
-        throw error;
-      });
-  }
-  return databasePromise;
 }
 
 /** Make sure a profile row exists for this user (e.g. right after sign-in). Stores no credentials. */

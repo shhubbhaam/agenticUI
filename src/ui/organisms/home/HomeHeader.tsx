@@ -1,6 +1,6 @@
 // src/components/organisms/HomeHeader.tsx
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
@@ -8,14 +8,14 @@ import { typography } from '../../tokens/typography';
 import {FlameIcon} from '../../atoms/icons';
 
 interface HomeHeaderProps {
+  // Real first name from the session; empty/absent while loading -> neutral greeting.
   username?: string;
   streakCount: number;
+  // Opens the Streak screen when provided.
+  onPressStreak?: () => void;
 }
 
-export const HomeHeader: React.FC<HomeHeaderProps> = ({
-  username = 'Priya',
-  streakCount = 12,
-}) => {
+export const HomeHeader: React.FC<HomeHeaderProps> = ({ username, streakCount, onPressStreak }) => {
   const insets = useSafeAreaInsets();
 
   const today = new Date();
@@ -45,7 +45,15 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           {formattedDate}
         </Text>
         
-        <View style={[tw`flex-row items-center px-3 py-1.5 rounded-full`, { backgroundColor: colors.streak.surface }]}>
+        <TouchableOpacity
+          onPress={onPressStreak}
+          disabled={!onPressStreak}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${streakCount} day streak`}
+          accessibilityHint="Opens your learning rhythm"
+          style={[tw`flex-row items-center px-3 py-1.5 rounded-full`, { backgroundColor: colors.streak.surface }]}
+        >
           <View style={tw`mr-1`}><FlameIcon /></View>
           <Text
             style={[
@@ -58,7 +66,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           >
             {streakCount}
           </Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <Text 
@@ -70,7 +78,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           }
         ]}
       >
-        {`${greeting}, ${username}`}
+        {username?.trim() ? `${greeting}, ${username.trim()}` : greeting}
       </Text>
     </View>
   );

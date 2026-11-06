@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import tw from 'twrnc';
 import { colors } from '../../ui/tokens/colors';
-import { BackHeader } from '../../ui/atoms/onboarding/BackHeader';
+import { BackHeader } from '../../ui/molecules/BackHeader';
 import { VideoStage } from '../../ui/organisms/player/VideoStage';
 import { VideoMeta } from '../../ui/molecules/player/VideoMeta';
 import { PlayerTimeline } from '../../ui/molecules/player/PlayerTimeline';
@@ -67,7 +67,8 @@ export default function LessonScreen() {
   const kept = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A) => { chrome.poke(); fn(...a); };
   // A checkpoint question needs the portrait layout: leave full screen when one opens.
   const quizOpen = !!p.quiz;
-  useEffect(() => { if (quizOpen) fs.exit(); }, [quizOpen, fs.exit]);
+  const exitFullscreen = fs.exit;
+  useEffect(() => { if (quizOpen) exitFullscreen(); }, [quizOpen, exitFullscreen]);
 
   const blockedMessage =
     loadError ??

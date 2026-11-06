@@ -3,21 +3,40 @@ import React from 'react';
 import { TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
-import { Icon } from '../Icon';
+import { Icon, type IconType } from '../Icon';
 
 interface IconButtonProps {
   onPress?: () => void;
+  // Defaults to the Path screen's 'blocks' glyph.
+  icon?: IconType;
+  iconColor?: string;
+  accessibilityLabel?: string;
+  testID?: string;
+  /** Greys the button out and ignores presses (e.g. "previous" on the first slide). */
+  disabled?: boolean;
 }
 
-export const IconButton: React.FC<IconButtonProps> = ({ onPress }) => (
+export const IconButton: React.FC<IconButtonProps> = ({
+  onPress,
+  icon = 'blocks',
+  iconColor = colors.text.primary,
+  accessibilityLabel,
+  testID,
+  disabled = false,
+}) => (
   <TouchableOpacity
-    onPress={onPress}
+    testID={testID}
+    onPress={disabled ? undefined : onPress}
+    disabled={disabled}
     activeOpacity={0.7}
+    accessibilityRole="button"
+    accessibilityLabel={accessibilityLabel}
+    accessibilityState={{ disabled }}
     style={[
-      tw`items-center justify-center rounded-2xl border`,
-      { width: 48, height: 48, backgroundColor: colors.surface.white, borderColor: colors.path.iconBtnBorder, borderWidth: 0.8 },
+      tw`items-center justify-center border`,
+      { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.surface.white, borderColor: colors.path.iconBtnBorder, borderWidth: 0.8, opacity: disabled ? 0.4 : 1 },
     ]}
   >
-    <Icon name="blocks" color={colors.text.primary} size={22} />
+    <Icon name={icon} color={iconColor} size={22} />
   </TouchableOpacity>
 );

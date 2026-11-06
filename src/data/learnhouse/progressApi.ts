@@ -12,6 +12,32 @@ function mapActivityType(raw: string): ActivityType {
   return 'other';
 }
 
+// Chapter skill tag: `extra_metadata.skill` (string, trimmed, empty -> null).
+// extra_metadata may arrive as an object or as a JSON-encoded string.
+export const CHAPTER_SKILL_KEY = 'skill';
+
+function readChapterSkill(extra: unknown): string | null {
+  let meta = extra;
+  if (typeof meta === 'string') {
+    try {
+      meta = JSON.parse(meta);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof meta !== 'object' || meta === null) return null;
+  const value = (meta as Record<string, unknown>)[CHAPTER_SKILL_KEY];
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+function readGrade(raw: number | string | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  const n = typeof raw === 'number' ? raw : raw.trim() === '' ? NaN : Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 function mapCourse(raw: TrailCourse): CourseProgress {
   return {
     courseUuid: raw.course_uuid,
@@ -27,6 +53,7 @@ function mapCourse(raw: TrailCourse): CourseProgress {
       order: chapter.order,
       totalActivities: chapter.total_activities,
       completedActivities: chapter.completed_activities,
+      skill: readChapterSkill(chapter.extra_metadata),
       activities: chapter.activities.map((activity) => ({
         id: activity.activity_uuid,
         name: activity.name,
@@ -34,6 +61,8 @@ function mapCourse(raw: TrailCourse): CourseProgress {
         order: activity.order,
         completed: activity.completed,
         completedAt: activity.completed_at ? new Date(activity.completed_at) : null,
+        grade: readGrade(activity.grade),
+        subType: activity.activity_sub_type ?? null,
       })),
     })),
   };

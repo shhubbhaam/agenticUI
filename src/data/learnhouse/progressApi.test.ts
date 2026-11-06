@@ -85,6 +85,7 @@ describe('getMyTrail', () => {
             order: 0,
             totalActivities: 2,
             completedActivities: 1,
+            skill: null,
             activities: [
               {
                 id: 'activity-1',
@@ -93,6 +94,8 @@ describe('getMyTrail', () => {
                 order: 0,
                 completed: true,
                 completedAt: new Date('2026-09-02T00:00:00'),
+                grade: null,
+                subType: 'SUBTYPE_VIDEO_HOSTED',
               },
               {
                 id: 'activity-2',
@@ -101,6 +104,8 @@ describe('getMyTrail', () => {
                 order: 1,
                 completed: false,
                 completedAt: null,
+                grade: null,
+                subType: 'SUBTYPE_DOCUMENT_PDF',
               },
             ],
           },
@@ -121,5 +126,44 @@ describe('getMyTrail', () => {
   it('throws an ApiError on a 401 (e.g. an expired session)', async () => {
     mockFetchOnce(401, { detail: 'Invalid token' });
     await expect(getMyTrail('my-org', 3)).rejects.toMatchObject({ status: 401 });
+  });
+
+  describe('optional fields', () => {
+    function courseWith(chapterExtra: Record<string, unknown>, activityExtra: Record<string, unknown>, strip: string[] = []) {
+      const activity = { ...RAW_COURSE.chapters[0].activities[0], ...activityExtra, activity_type: 'TYPE_ASSIGNMENT' } as Record<string, unknown>;
+      strip.forEach((k) => delete activity[k]);
+      return { courses: [{ ...RAW_COURSE, chapters: [{ ...RAW_COURSE.chapters[0], ...chapterExtra, activities: [activity] }] }] };
+    }
+
+    it('maps extra_metadata.skill, numeric/string grade and activity_sub_type when present', async () => {
+      mockFetchOnce(200, courseWith({ extra_metadata: { skill: '  Prompting ', other: 1 } }, { grade: 87, activity_sub_type: 'SUBTYPE_ASSIGNMENT_ANY' }));
+      const [course] = await getMyTrail('my-org', 3);
+      expect(course.chapters[0].skill).toBe('Prompting');
+      expect(course.chapters[0].activities[0]).toMatchObject({ grade: 87, subType: 'SUBTYPE_ASSIGNMENT_ANY', type: 'assignment' });
+
+      mockFetchOnce(200, courseWith({ extra_metadata: JSON.stringify({ skill: 'Agents' }) }, { grade: '92.5' }));
+      const [second] = await getMyTrail('my-org', 3);
+      expect(second.chapters[0].skill).toBe('Agents');
+      expect(second.chapters[0].activities[0].grade).toBe(92.5);
+    });
+
+    it('treats blank/odd values as absent without failing to parse', async () => {
+      mockFetchOnce(200, courseWith({ extra_metadata: { skill: '   ' } }, { grade: 'n/a', activity_sub_type: null }));
+      const [a] = await getMyTrail('my-org', 3);
+      expect(a.chapters[0].skill).toBeNull();
+      expect(a.chapters[0].activities[0]).toMatchObject({ grade: null, subType: null });
+
+      mockFetchOnce(200, courseWith({ extra_metadata: 'not json' }, {}));
+      expect((await getMyTrail('my-org', 3))[0].chapters[0].skill).toBeNull();
+      mockFetchOnce(200, courseWith({ extra_metadata: { skill: 42 } }, {}));
+      expect((await getMyTrail('my-org', 3))[0].chapters[0].skill).toBeNull();
+    });
+
+    it('parses a trail with none of the optional fields', async () => {
+      mockFetchOnce(200, courseWith({}, {}, ['grade', 'activity_sub_type']));
+      const [course] = await getMyTrail('my-org', 3);
+      expect(course.chapters[0].skill).toBeNull();
+      expect(course.chapters[0].activities[0]).toMatchObject({ grade: null, subType: null });
+    });
   });
 });

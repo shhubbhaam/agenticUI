@@ -10,8 +10,12 @@
 // checkpoints stay enforceable. Online only (YouTube does not allow offline storage).
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { View } from 'react-native';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { WebView as RNWebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import type { EngineEvent, EngineViewProps } from './types';
+
+// react-native-webview 14's class typings collapse their props to `never` under @types/react 19.3.
+// Re-type it with its own public props until upstream fixes that.
+const WebView = RNWebView as unknown as React.ComponentType<WebViewProps & { ref?: React.Ref<RNWebView> }>;
 
 interface YouTubeEngineProps extends EngineViewProps {
   videoId: string;
@@ -74,7 +78,7 @@ const ERRORS: Record<number, string> = { 2: 'bad_video_id', 5: 'html5_error', 10
 export const YouTubeEngine: React.FC<YouTubeEngineProps> = ({
   videoId, startSec, endSec, captions, playing, onEvent, onDuration, onError, engineRef,
 }) => {
-  const web = useRef<WebView>(null);
+  const web = useRef<RNWebView>(null);
   const ready = useRef(false);
   const lastTime = useRef(NaN);
   const playingRef = useRef(playing);

@@ -5,9 +5,9 @@ import {
   selectActiveCourse,
   findCurrentChapter,
   findNextActivities,
-  allCompletionDates,
-  computeStreak,
+  allCoursesCompletionDates,
 } from '../../core/learning/deriveProgress';
+import { deriveStreak } from '../../core/streak/streak';
 import { activityTypeLabel } from '../../ui/atoms/activityDisplay';
 import type { CourseProgress } from '../../core/learning/types';
 
@@ -89,6 +89,7 @@ export function useHomeData(): HomeData {
     };
   }
 
+  const streakCount = deriveStreak(allCoursesCompletionDates(courses!)).current;
   const course = selectActiveCourse(courses!);
   if (!course) {
     return { username, status: 'empty', errorMessage: null, onRetry, ...EMPTY_FIELDS };
@@ -105,7 +106,7 @@ export function useHomeData(): HomeData {
       onRetry,
       courseUuid: course.courseUuid,
       courseName: course.courseName,
-      streakCount: computeStreak(allCompletionDates(course)),
+      streakCount: streakCount,
       currentStageTotal: currentChapter?.totalActivities ?? 0,
       currentStageCompleted: currentChapter?.completedActivities ?? 0,
       nextActivity: null,
@@ -121,7 +122,7 @@ export function useHomeData(): HomeData {
     onRetry,
     courseUuid: course.courseUuid,
     courseName: course.courseName,
-    streakCount: computeStreak(allCompletionDates(course)),
+    streakCount: streakCount,
     currentStageTotal: currentChapter?.totalActivities ?? 0,
     currentStageCompleted: currentChapter?.completedActivities ?? 0,
     nextActivity: first

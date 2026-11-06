@@ -8,8 +8,10 @@ module.exports = {
   // main checkout root double-runs (and can cross-contaminate) every test
   // that also exists inside an active worktree. Anchored to <rootDir> (not
   // a bare "/.worktrees/") so this only excludes a worktree NESTED inside
-  // the current project.
+  // the current project — otherwise, running jest from inside a worktree
+  // whose own path contains ".worktrees" would match every test file here
+  // too and silently exclude the entire suite.
   // The BFF is a separate Node server with its own runner (node:test): `npm run test:bff`.
   // Jest-expo swaps in Expo's fetch polyfill, which breaks real HTTP calls in those tests.
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/', '<rootDir>/bff/'],
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/', '<rootDir>/.claude/', '<rootDir>/bff/'],
 };

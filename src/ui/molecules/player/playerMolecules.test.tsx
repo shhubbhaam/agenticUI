@@ -64,7 +64,6 @@ describe('PlayerTimeline', () => {
   it('a tap beyond the locked point seeks only to it', () => {
     const onSeekRequest = jest.fn();
     const t = render(<PlayerTimeline {...base} positionSec={10} seekableUntilSec={72} onSeekRequest={onSeekRequest} />);
-    const bar = byId(t, 'player-timeline');
     act(() => { press(t, 'player-timeline').props.onLayout({ nativeEvent: { layout: { width: 245, height: 24 } } }); });
     act(() => { press(t, 'player-timeline').props.onPress({ nativeEvent: { locationX: 200 } }); });
     expect(onSeekRequest).toHaveBeenLastCalledWith(72);

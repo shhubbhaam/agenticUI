@@ -12,9 +12,8 @@ import { PathStagesList } from '../../ui/organisms/roadmap/PathStagesList';
 import BottomTabs from '../../ui/organisms/BottomTabs';
 import { useTabNavigation } from '../../navigation/useTabNavigation';
 import { usePathData } from './usePathData';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../navigation/MainStack';
+import { useOpenActivity } from '../../navigation/activityRoute';
+import { useStageCelebration } from './useStageCelebration';
 
 const bodyTextStyle = {
   fontFamily: typography.fontFamily.jakarta,
@@ -25,10 +24,11 @@ const bodyTextStyle = {
 export default function PathScreen() {
   const { tabs, onTabPress } = useTabNavigation('path');
   const pathData = usePathData();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const openActivity = useOpenActivity();
   const [view, setView] = useState('Map');
   const [expandedStageId, setExpandedStageId] = useState<string | null>(null);
   const hasSetInitialExpansion = useRef(false);
+  useStageCelebration(pathData);
 
   useEffect(() => {
     if (pathData.status === 'ready' && !hasSetInitialExpansion.current) {
@@ -36,6 +36,12 @@ export default function PathScreen() {
       setExpandedStageId(pathData.defaultExpandedStageId);
     }
   }, [pathData.status, pathData.defaultExpandedStageId]);
+
+  // The screen follows the content: a PDF opens the slide viewer, a video the player.
+  const openLesson = (activityId: string) => {
+    const a = pathData.activities[activityId];
+    if (a) openActivity({ courseUuid: pathData.courseUuid, activityUuid: a.id, type: a.type, title: a.name, chapter: a.chapterName, format: a.format });
+  };
 
   const handleStagePress = (stageId: string) => {
     setExpandedStageId((current) => (current === stageId ? null : stageId));
@@ -79,10 +85,8 @@ export default function PathScreen() {
                 onReviewCtaPress={() => setExpandedStageId(pathData.defaultExpandedStageId)}
                 onOutcomeCtaPress={() => console.log('Continue current stage')}
                 onOptionalBranchPress={() => console.log('Open flashcards')}
-                onLessonContinuePress={() => {
-                  const a = pathData.currentActivity;
-                  if (a) navigation.navigate('Lesson', { courseUuid: pathData.courseUuid, activityUuid: a.id, title: a.name, chapter: a.chapterName, format: a.format });
-                }}
+                onLessonContinuePress={() => pathData.currentActivity && openLesson(pathData.currentActivity.id)}
+                onLessonPress={openLesson}
               />
             </>
           )}

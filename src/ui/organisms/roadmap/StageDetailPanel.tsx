@@ -18,6 +18,8 @@ interface StageDetailPanelProps {
   onOutcomeCtaPress?: () => void;
   onReviewCtaPress?: () => void;
   onLessonContinuePress?: () => void;
+  /** A lesson row was tapped (any lesson in an open stage, not only the next one). */
+  onLessonPress?: (lessonId: string) => void;
 }
 
 export const StageDetailPanel: React.FC<StageDetailPanelProps> = ({
@@ -26,10 +28,13 @@ export const StageDetailPanel: React.FC<StageDetailPanelProps> = ({
   onOutcomeCtaPress,
   onReviewCtaPress,
   onLessonContinuePress,
+  onLessonPress,
 }) => {
   const panel = colors.path.panel[stage.tone];
   const isCurrent = stage.status === 'current';
   const isLocked = stage.status === 'locked';
+  // Rows open in the stage the learner is in and in finished ones; stages still ahead are previews.
+  const rowsOpen = !!onLessonPress && (stage.status === 'current' || stage.status === 'completed');
 
   return (
     <View
@@ -117,7 +122,11 @@ export const StageDetailPanel: React.FC<StageDetailPanelProps> = ({
         <View style={{ gap: 16 }}>
           {stage.lessons.map((lesson, index) => (
             <React.Fragment key={lesson.id}>
-              <LessonStep lesson={lesson} onContinuePress={onLessonContinuePress} />
+              <LessonStep
+                lesson={lesson}
+                onContinuePress={onLessonContinuePress}
+                onPress={rowsOpen ? () => onLessonPress?.(lesson.id) : undefined}
+              />
               {isCurrent && index === 0 && !!stage.optionalBranchLabel && (
                 <TouchableOpacity
                   onPress={onOptionalBranchPress}

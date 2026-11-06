@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
-import { BackHeader } from '../../atoms/onboarding/BackHeader';
+import { BackHeader } from '../../molecules/BackHeader';
 import { StepProgress } from '../../atoms/onboarding/StepProgress';
 
 interface QuestionLayoutProps {

@@ -44,3 +44,15 @@ describe('colors — onboarding tokens (Figma AC-04..AC-07)', () => {
     expect(colors.onboarding.miniIconSurface).toBe('#E9EEF9');
   });
 });
+
+describe('colors — profile tokens (You tab, Figma 37-3842..37-5726)', () => {
+  it('defines avatar, card and skill colours', () => {
+    expect(colors.profile.avatar).toEqual({ surface: '#DBE5F8', ink: '#3752A2' });
+    expect(colors.profile.cardBorder).toBe('#E4E9F1');
+    expect(colors.profile.progressFill).toBe('#5774CC');
+    expect(colors.profile.skill).toEqual({
+      prompting: '#5270CC', context: '#8563AE', workflows: '#B87459', agents: '#8393C5', judgement: '#518E86',
+    });
+    expect(colors.profile.radar.stroke).toBe('#6B80C5');
+  });
+});

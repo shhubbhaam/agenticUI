@@ -3,7 +3,7 @@ import ReactTestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { Radio } from './Radio';
 import { StepProgress } from './StepProgress';
-import { BackHeader } from './BackHeader';
+import { BackHeader } from '../../molecules/BackHeader';
 import { Badge } from '../roadmap/Badge';
 
 function render(node: React.ReactElement) {
