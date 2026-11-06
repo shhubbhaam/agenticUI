@@ -19,6 +19,8 @@ import { useFullscreen } from '../lesson/useFullscreen';
 import { PdfJsEngine } from './engines/PdfJsEngine';
 import { useSlideDeck } from './useSlideDeck';
 import { useSlidePager } from './useSlidePager';
+import { CompleteActivityButton } from '../../ui/molecules/activity/CompleteActivityButton';
+import { useActivityCompletion } from '../activity/useActivityCompletion';
 
 const VIEWER_ERRORS: Record<string, string> = {
   viewer_unavailable: 'The slide viewer needs an internet connection to start.',
@@ -34,6 +36,7 @@ export default function SlidesScreen() {
   const { courseUuid, activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Slides'>>().params;
   const deck = useSlideDeck(courseUuid, activityUuid);
   const pager = useSlidePager();
+  const completion = useActivityCompletion(activityUuid);
   const { setTotal } = pager;
   const fs = useFullscreen();
   const insets = useSafeAreaInsets();
@@ -128,6 +131,7 @@ export default function SlidesScreen() {
       <View style={[tw`px-4 pt-3`, { gap: 18 }]}>
         {stage}
         <SlidePager page={pager.page} total={pager.total} onPrev={pager.prev} onNext={pager.next} />
+        <CompleteActivityButton status={completion.status} error={completion.error} onPress={() => completion.markComplete()} />
       </View>
     </SafeAreaView>
   );

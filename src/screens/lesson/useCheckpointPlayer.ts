@@ -155,6 +155,9 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
     status: (ended ? 'ended' : engineStatus) as StageStatus,
     position, watched, duration, playing, seekableUntil, timeline,
     prompt: nextOpen?.prompt ?? null,
+    /** Checkpoints answered correctly so far, of all of them (gates "Mark as complete"). */
+    checkpointsPassed: ordered.filter((c) => passed.has(c.id)).length,
+    checkpointsTotal: ordered.length,
     canOpenCheckpoint: atCheckpoint && !openId,
     openCheckpoint: () => { if (nextOpen && atCheckpoint) setOpenId(nextOpen.id); },
     quiz: open
