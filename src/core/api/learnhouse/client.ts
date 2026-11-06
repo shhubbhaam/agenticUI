@@ -165,3 +165,53 @@ export function lessonVideoFileSource(courseUuid: string, activityUuid: string):
     headers: { Authorization: `Bearer ${token}` },
   };
 }
+
+// ---------- slide decks ----------
+import { SlideDeckResponseSchema, type SlideDeckResponse } from '../../../contracts/slides';
+
+const activityPath = (courseUuid: string, activityUuid: string) =>
+  `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}`;
+
+/** The deck's title and version, or why it has none (validated against the shared contract). */
+export async function getSlideDeckInfo(courseUuid: string, activityUuid: string): Promise<SlideDeckResponse> {
+  return SlideDeckResponseSchema.parse(await bffFetch<unknown>(`${activityPath(courseUuid, activityUuid)}/slides`));
+}
+
+/** Where the deck's PDF is downloaded from: the BFF's file route with the learner's BFF session. Null when signed out. */
+export function slideDeckFileSource(courseUuid: string, activityUuid: string): { uri: string; headers: Record<string, string> } | null {
+  const token = getSessionToken();
+  if (!token) return null;
+  return { uri: `${LEARNHOUSE.baseUrl}${activityPath(courseUuid, activityUuid)}/slides/file`, headers: { Authorization: `Bearer ${token}` } };
+}
+
+// ---------- assignment quizzes ----------
+// The BFF makes every LearnHouse call as the learner; the app only names course + activity.
+import {
+  AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, RetryResponseSchema,
+  type AssignmentQuiz, type AssignmentGrade, type QuizAnswers,
+} from '../../../contracts/assignment';
+
+const assignmentPath = (courseUuid: string, activityUuid: string) => `${activityPath(courseUuid, activityUuid)}/assignment`;
+
+export async function getAssignmentQuiz(courseUuid: string, activityUuid: string): Promise<AssignmentQuiz> {
+  return AssignmentQuizSchema.parse(await bffFetch<unknown>(assignmentPath(courseUuid, activityUuid)));
+}
+
+/** Answers saved in an earlier visit (questionId -> option ids). */
+export async function getSavedAnswers(courseUuid: string, activityUuid: string): Promise<QuizAnswers> {
+  return SavedAnswersResponseSchema.parse(await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/answers`)).answers;
+}
+
+/** Save every task's answers and hand the assignment in. */
+export async function submitAssignment(courseUuid: string, activityUuid: string, answers: QuizAnswers): Promise<void> {
+  await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/submit`, { method: 'POST', body: JSON.stringify({ answers }) });
+}
+
+export async function getAssignmentGrade(courseUuid: string, activityUuid: string): Promise<AssignmentGrade> {
+  return AssignmentGradeSchema.parse(await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/grade`));
+}
+
+/** Start another attempt. `retriesLeft` = attempts left after this one, when LearnHouse says. */
+export async function retryAssignment(courseUuid: string, activityUuid: string): Promise<{ retriesLeft: number | null }> {
+  return RetryResponseSchema.parse(await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/retry`, { method: 'POST' }));
+}

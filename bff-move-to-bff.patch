@@ -1,0 +1,2460 @@
+diff --git a/bff/.env.example b/bff/.env.example
+index 0e4d407..3471bd7 100644
+--- a/bff/.env.example
++++ b/bff/.env.example
+@@ -9,8 +9,9 @@ LH_ORG_SLUG=your-org-slug
+ LH_API_TOKEN=replace-with-org-api-token
+ # Comma-separated course UUIDs learners may open through this BFF
+ LH_ALLOWED_COURSES=course_xxxxxxxx
+-# Org uuid, for uploaded-video files (scripts/diagnose.ts prints it in step 6c). Not a secret.
+-# Leave empty to turn uploaded-video streaming off.
++# Org uuid, for files stored in LearnHouse: uploaded videos and slide-deck PDFs
++# (scripts/diagnose.ts prints it in step 6c). Not a secret.
++# Leave empty to turn both off (Google Drive / Docs decks still work).
+ LH_ORG_UUID=
+ # Optional. Without it the BFF serves the deterministic LearnHouse-derived layout.
+ GEMINI_API_KEY=
+diff --git a/bff/server.ts b/bff/server.ts
+index 45d1ef4..9066ef9 100644
+--- a/bff/server.ts
++++ b/bff/server.ts
+@@ -19,4 +19,4 @@ const agent = env.GEMINI_API_KEY ? createGeminiAgent({ apiKey: env.GEMINI_API_KE
+ console.log(`LearnHouse: ${env.LH_BASE_URL} org=${env.LH_ORG_SLUG} courses=${allowedCourses.size} token=${env.LH_API_TOKEN ? 'set' : 'MISSING'} media=${env.LH_ORG_UUID ? 'on' : 'off (set LH_ORG_UUID)'} agent=${agent ? env.GEMINI_MODEL || 'gemini-3.5-flash-lite' : 'fallback-only (no GEMINI_API_KEY)'}`);
+ 
+ const PORT = Number(env.PORT ?? 3000);
+-createApp({ lh, agent, allowedCourses, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));
++createApp({ lh, agent, allowedCourses, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined, lhOrigin: env.LH_BASE_URL ? new URL(env.LH_BASE_URL).origin : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));
+diff --git a/bff/src/app.ts b/bff/src/app.ts
+index 9f0b19e..3969ccb 100644
+--- a/bff/src/app.ts
++++ b/bff/src/app.ts
+@@ -9,7 +9,11 @@ import { buildSlots, fallbackSlots, authorizeSlots, type Agent, type Decision, t
+ import type { LearnHouse, LearnerProfile, Trail } from './learnhouse.ts';
+ import { causeCode, type HttpError, type Logger } from './util.ts';
+ import { LessonVideoResponseSchema, youTubeIdFrom, type LessonVideo } from '../../src/contracts/lessonVideo.ts';
+-import type { LhActivityFull } from './learnhouse.ts';
++import type { LhActivityFull, LearnerApi } from './learnhouse.ts';
++import { resolveDeck, deckVersion, type DeckLocator } from './slides.ts';
++import { assignmentUuidFrom, quizFrom, savedTasksFrom, taskSubmissionBody, unknownAnswer, gradeFrom, retriesLeftFrom } from './assignments.ts';
++import { SlideDeckResponseSchema } from '../../src/contracts/slides.ts';
++import { AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, SubmitRequestSchema, RetryResponseSchema, type AssignmentQuiz } from '../../src/contracts/assignment.ts';
+ 
+ /** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
+ function playerWindow(details: unknown): { startSec?: number; endSec?: number } {
+@@ -45,7 +49,7 @@ export function toLessonVideo(a: LhActivityFull, { mediaEnabled = false }: { med
+ }
+ 
+ const UUID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+-const MAX_BODY = 8 * 1024;
++const MAX_BODY = 64 * 1024; // an assignment hand-in carries every chosen option id
+ 
+ // ---- tiny router: route('GET', '/api/me/courses/:courseUuid/meta', ...handlers) ----
+ export interface Req extends IncomingMessage {
+@@ -103,6 +107,8 @@ export interface AppOptions {
+   logger?: Logger;
+   /** The LearnHouse org this BFF serves (LH_ORG_SLUG). /api/me only returns roles in this org. */
+   org?: { slug: string; name?: string };
++  /** LearnHouse's origin (from LH_BASE_URL): a PDF link in course content is fetched only from here. */
++  lhOrigin?: string;
+ }
+ export interface App {
+   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
+@@ -112,7 +118,7 @@ export interface App {
+ interface CompletionResult { activityUuid: string; idempotencyKey: string; status: 'applied' | 'received' }
+ interface Outcome { http: number; body: Record<string, unknown> }
+ 
+-export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org }: AppOptions): App {
++export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin }: AppOptions): App {
+   const routes: Route[] = [];
+   const route = (method: string) => (path: string, ...handlers: Handler[]) => { routes.push({ method, path, ...compile(path), handlers }); };
+   const app = { get: route('GET'), post: route('POST') };
+@@ -397,6 +403,198 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
+     }
+   });
+ 
++  // ---- shared gate for activity routes: enrolled in this course + activity published in it ----
++  type Gate = { error: 'not_enrolled' | 'activity_forbidden' } | { inCourse: { activity_uuid: string; name?: string } };
++  async function gateActivity(learnerId: string, courseUuid: string, activityUuid: string): Promise<Gate> {
++    if (!(await isEnrolled(learnerId, courseUuid))) return { error: 'not_enrolled' };
++    const trail = await trailOrNull(learnerId, courseUuid);
++    const inCourse = (await publishedActivities(courseUuid, trail)).find((a) => a.activity_uuid === activityUuid);
++    return inCourse ? { inCourse } : { error: 'activity_forbidden' };
++  }
++  const firstName = (...names: unknown[]) =>
++    names.map((n) => (typeof n === 'string' ? n.trim() : '')).find(Boolean)?.slice(0, 200);
++
++  // ---- Slide decks: the BFF finds the PDF and streams it; the app never gets its address ----
++  // The access decision + locator are cached per learner+activity for a minute (like media grants).
++  const deckGrants = new Map<string, { loc: DeckLocator; exp: number }>();
++  async function deckFor(learnerId: string, courseUuid: string, activityUuid: string) {
++    const gate = await gateActivity(learnerId, courseUuid, activityUuid);
++    if ('error' in gate) return { error: gate.error };
++    const activity = await lh.getActivity!(activityUuid);
++    const found = resolveDeck(activity, lhOrigin ?? '');
++    // A deck stored in LearnHouse needs LH_ORG_UUID (media paths); without it the BFF cannot fetch it.
++    const deck = 'problem' in found ? found
++      : found.kind === 'lh' && !lh.openActivityDocument ? { problem: 'not_downloadable' as const }
++      : found.kind === 'public' && !lh.openPublicPdf ? { problem: 'not_downloadable' as const }
++      : found;
++    return { activity, inCourse: gate.inCourse, deck };
++  }
++
++  app.get('/api/me/courses/:courseUuid/activities/:activityUuid/slides', requireSession, requireCourse, async (req, res) => {
++    const { courseUuid, activityUuid } = req.params;
++    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
++    if (!lh.getActivity) return res.status(501).json({ error: 'not_supported' });
++    try {
++      const r = await deckFor(req.learner.learnerId, courseUuid, activityUuid);
++      if ('error' in r) return res.status(403).json({ error: r.error });
++      if (!('problem' in r.deck)) {
++        if (deckGrants.size > 5000) deckGrants.clear(); // bounded
++        deckGrants.set(`${req.learner.learnerId}|${courseUuid}|${activityUuid}`, { loc: r.deck, exp: Date.now() + 60_000 });
++      }
++      const body = SlideDeckResponseSchema.safeParse({
++        activityUuid,
++        title: firstName(r.activity?.name, r.inCourse.name) ?? 'Slides',
++        deck: 'problem' in r.deck ? { kind: 'unavailable', reason: r.deck.problem } : { kind: 'pdf', version: deckVersion(activityUuid, r.deck) },
++      });
++      if (!body.success) { logger.warn?.('[slides] response failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
++      res.json(body.data);
++    } catch (e) { upstreamError(res, e); }
++  });
++
++  const MAX_DECK_BYTES = 100 * 1024 * 1024;
++  app.get('/api/me/courses/:courseUuid/activities/:activityUuid/slides/file', requireSession, requireCourse, async (req, res) => {
++    const { courseUuid, activityUuid } = req.params;
++    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
++    if (!lh.getActivity) return res.status(501).json({ error: 'not_supported' });
++    const learnerId = req.learner.learnerId;
++    try {
++      const key = `${learnerId}|${courseUuid}|${activityUuid}`;
++      let loc = deckGrants.get(key)?.exp! > Date.now() ? deckGrants.get(key)!.loc : null;
++      if (!loc) {
++        const r = await deckFor(learnerId, courseUuid, activityUuid);
++        if ('error' in r) return res.status(403).json({ error: r.error });
++        if ('problem' in r.deck) return res.status(r.deck.problem === 'not_downloadable' ? 422 : 404).json({ error: r.deck.problem });
++        loc = r.deck;
++      }
++      const ctrl = new AbortController();
++      res.on('close', () => { if (!res.writableFinished) ctrl.abort(); });
++      const up = loc.kind === 'lh'
++        ? await lh.openActivityDocument!({ courseUuid, activityUuid, filename: loc.filename, ...(loc.blockUuid ? { blockUuid: loc.blockUuid } : {}) }, ctrl.signal)
++        : await lh.openPublicPdf!(loc.url, ctrl.signal);
++      if (up.status !== 200 || !up.body) {
++        await up.body?.cancel().catch(() => {});
++        logger.warn?.(`[slides] ${loc.kind === 'lh' ? 'LearnHouse' : 'public host'} answered ${up.status}`);
++        // A public file that is private / needs sign-in is "not downloadable" (the app explains sharing).
++        if (loc.kind === 'public') return res.status(422).json({ error: 'not_downloadable' });
++        if (up.status === 404) return res.status(404).json({ error: 'not_found' });
++        return res.status(502).json({ error: 'upstream_error', upstreamStatus: up.status });
++      }
++      // Only a real PDF is passed on: Drive's sign-in / virus-scan pages are HTML, not decks.
++      const reader = up.body.getReader();
++      let head = new Uint8Array(0);
++      while (head.length < 5) {
++        const { done, value } = await reader.read();
++        if (done) break;
++        const next = new Uint8Array(head.length + value.length); next.set(head); next.set(value, head.length); head = next;
++      }
++      if (Buffer.from(head.subarray(0, 5)).toString('latin1') !== '%PDF-') {
++        await reader.cancel().catch(() => {});
++        return res.status(422).json({ error: 'not_downloadable' });
++      }
++      res.statusCode = 200;
++      res.setHeader('Content-Type', 'application/pdf');
++      res.setHeader('Cache-Control', 'private, no-store');
++      res.setHeader('X-Content-Type-Options', 'nosniff');
++      const len = Number(up.header('content-length'));
++      if (Number.isFinite(len) && len > 0 && len <= MAX_DECK_BYTES) res.setHeader('Content-Length', String(len));
++      let sent = 0;
++      const write = (chunk: Uint8Array) => new Promise<void>((resolve) => { if (res.write(chunk)) resolve(); else res.once('drain', resolve); });
++      for (let chunk: Uint8Array | undefined = head; chunk; ) {
++        sent += chunk.length;
++        if (sent > MAX_DECK_BYTES || res.destroyed) { await reader.cancel().catch(() => {}); res.destroy(); return; }
++        await write(chunk);
++        const r = await reader.read();
++        chunk = r.done ? undefined : r.value;
++      }
++      res.end();
++    } catch (e) {
++      if ((e as Error)?.name === 'AbortError' && res.destroyed) return;
++      if (!res.headersSent) upstreamError(res, e); else res.destroy();
++    }
++  });
++
++  // ---- Assignment quizzes: made AS the learner, with their LearnHouse token held in the session ----
++  // Routes are keyed by course + activity; the LearnHouse assignment uuid is looked up here each time,
++  // so the app cannot point a call at another assignment.
++  const asLearner = (req: Req): LearnerApi | null => (req.learner.lhToken && lh.asLearner ? lh.asLearner(req.learner.lhToken) : null);
++  const learnerCallError = (res: Res, e: unknown) => {
++    // LearnHouse rejected the learner's own token (expired): the app asks them to sign in again.
++    if (statusOf(e) === 401) return res.status(401).json({ error: 'learnhouse_session_expired' });
++    upstreamError(res, e);
++  };
++  async function assignmentFor(req: Req, res: Res): Promise<{ api: LearnerApi; uuid: string } | null> {
++    const { courseUuid, activityUuid } = req.params;
++    if (!UUID_RE.test(activityUuid)) { res.status(400).json({ error: 'invalid_activity' }); return null; }
++    const api = asLearner(req);
++    // Dev login has no LearnHouse token: assignments need a real LearnHouse sign-in.
++    if (!api) { res.status(403).json({ error: 'learnhouse_login_required' }); return null; }
++    const gate = await gateActivity(req.learner.learnerId, courseUuid, activityUuid);
++    if ('error' in gate) { res.status(403).json({ error: gate.error }); return null; }
++    const uuid = assignmentUuidFrom(await api.getAssignmentForActivity(activityUuid));
++    if (!uuid) { res.status(404).json({ error: 'not_an_assignment' }); return null; }
++    return { api, uuid };
++  }
++  async function quizOf(api: LearnerApi, uuid: string, activityUuid: string): Promise<AssignmentQuiz> {
++    const [a, tasks] = await Promise.all([api.getAssignmentForActivity(activityUuid), api.getAssignmentTasks(uuid)]);
++    return quizFrom(a, tasks);
++  }
++  const A = '/api/me/courses/:courseUuid/activities/:activityUuid/assignment';
++
++  app.get(A, requireSession, requireCourse, async (req, res) => {
++    try {
++      const found = await assignmentFor(req, res); if (!found) return;
++      const body = AssignmentQuizSchema.safeParse(await quizOf(found.api, found.uuid, req.params.activityUuid));
++      if (!body.success) { logger.warn?.('[assignment] quiz failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
++      res.json(body.data);
++    } catch (e) { learnerCallError(res, e); }
++  });
++
++  app.get(`${A}/answers`, requireSession, requireCourse, async (req, res) => {
++    try {
++      const found = await assignmentFor(req, res); if (!found) return;
++      const saved = savedTasksFrom(await found.api.getMyTaskSubmissions(found.uuid));
++      const body = SavedAnswersResponseSchema.safeParse({ answers: saved.answers });
++      res.json(body.success ? body.data : { answers: {} });
++    } catch (e) {
++      if ([400, 404, 422].includes(statusOf(e) as number)) return res.json({ answers: {} }); // nothing saved yet
++      learnerCallError(res, e);
++    }
++  });
++
++  // Save every task's answers, then hand in. Only questions/options of THIS quiz are accepted.
++  app.post(`${A}/submit`, requireSession, requireCourse, async (req, res) => {
++    const parsed = SubmitRequestSchema.safeParse(req.body);
++    if (!parsed.success) return res.status(400).json({ error: 'invalid_answers' });
++    try {
++      const found = await assignmentFor(req, res); if (!found) return;
++      const { api, uuid } = found;
++      const quiz = await quizOf(api, uuid, req.params.activityUuid);
++      if (unknownAnswer(quiz, parsed.data.answers)) return res.status(400).json({ error: 'unknown_answer' });
++      const saved = savedTasksFrom(await api.getMyTaskSubmissions(uuid).catch(() => null));
++      for (const task of quiz.tasks) {
++        await api.saveTaskSubmission(uuid, task.taskUuid, taskSubmissionBody(task, parsed.data.answers, saved.submissionUuids[task.taskUuid]));
++      }
++      await api.submitAssignment(uuid);
++      res.json({ submitted: true });
++    } catch (e) { learnerCallError(res, e); }
++  });
++
++  app.get(`${A}/grade`, requireSession, requireCourse, async (req, res) => {
++    try {
++      const found = await assignmentFor(req, res); if (!found) return;
++      const body = AssignmentGradeSchema.safeParse(gradeFrom(await found.api.getGrade(found.uuid, req.learner.learnerId)));
++      if (!body.success) { logger.warn?.('[assignment] grade failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
++      res.json(body.data);
++    } catch (e) { learnerCallError(res, e); }
++  });
++
++  app.post(`${A}/retry`, requireSession, requireCourse, async (req, res) => {
++    try {
++      const found = await assignmentFor(req, res); if (!found) return;
++      res.json(RetryResponseSchema.parse({ retriesLeft: retriesLeftFrom(await found.api.retryAssignment(found.uuid)) }));
++    } catch (e) { learnerCallError(res, e); }
++  });
++
+   // Agent layout: built here, authorized here, wrapped in the versioned envelope.
+   app.get('/api/me/courses/:courseUuid/home-layout', requireSession, requireCourse, async (req, res) => {
+     const { courseUuid } = req.params;
+diff --git a/bff/src/assignments.ts b/bff/src/assignments.ts
+new file mode 100644
+index 0000000..7e0bd70
+--- /dev/null
++++ b/bff/src/assignments.ts
+@@ -0,0 +1,158 @@
++// bff/src/assignments.ts — LearnHouse assignment quizzes, mapped to the app's contract
++// (src/contracts/assignment.ts). Moved here from the app (src/data/learnhouse/assignmentApi.ts).
++// LearnHouse calls (captured from its web app, 4 Nov 2026), all made with the LEARNER's own
++// LearnHouse token, which stays in the BFF session:
++//   GET  /assignments/activity/{activity}                 -> the assignment (uuid, title, retry/grading)
++//   GET  /assignments/{a}/tasks                           -> its tasks; a QUIZ task's contents hold questions
++//   GET  /assignments/{a}/tasks/submissions/me            -> { [taskUuid]: saved task submission }
++//   PUT  /assignments/{a}/tasks/{t}/submissions           -> save one task's answers
++//   POST /assignments/{a}/submissions                     -> hand in the whole assignment
++//   GET  /assignments/{a}/submissions/{user_id}/grade     -> overall + per-task score, pass/fail
++//   POST /assignments/{a}/submissions/me/retry            -> new attempt (attempt_number, max_retries)
++import type { AssignmentGrade, AssignmentQuiz, QuizAnswers, QuizTask } from '../../src/contracts/assignment.ts';
++
++type Obj = Record<string, unknown>;
++const obj = (v: unknown): Obj | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : null);
++const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
++const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
++const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
++const id = (v: unknown) => (typeof v === 'string' && ID_RE.test(v) ? v : null);
++const cap = (s: string, n = 2000) => s.slice(0, n);
++
++/** The assignment's LearnHouse uuid, from GET /assignments/activity/{activity}. */
++export function assignmentUuidFrom(raw: unknown): string | null {
++  return id(obj(raw)?.assignment_uuid);
++}
++
++/** QUIZ tasks only; questions without text or options and tasks without questions are dropped. */
++export function quizTasksFrom(rawTasks: unknown): QuizTask[] {
++  if (!Array.isArray(rawTasks)) return [];
++  const out: QuizTask[] = [];
++  for (const raw of rawTasks) {
++    const t = obj(raw);
++    const taskUuid = id(t?.assignment_task_uuid);
++    if (!t || !taskUuid || t.assignment_type !== 'QUIZ') continue;
++    const questions = (Array.isArray(obj(t.contents)?.questions) ? (obj(t.contents)!.questions as unknown[]) : [])
++      .map((q) => obj(q))
++      .map((q) => q && {
++        id: id(q.questionUUID),
++        question: cap(str(q.questionText)),
++        multiple: q.response_type === 'multiple',
++        options: (Array.isArray(q.options) ? q.options : []).map(obj)
++          .filter((o): o is Obj => !!o && !!id(o.optionUUID) && !!str(o.text))
++          .slice(0, 50)
++          .map((o) => ({ id: o.optionUUID as string, label: cap(str(o.text)) })),
++      })
++      .filter((q): q is QuizTask['questions'][number] => !!q && !!q.id && !!q.question && q.options.length > 0)
++      .slice(0, 200);
++    if (!questions.length) continue;
++    const description = cap(str(t.description));
++    const points = num(t.max_grade_value);
++    out.push({ taskUuid, title: cap(str(t.title)) || 'Quiz', ...(description ? { description } : {}), ...(points !== undefined ? { points } : {}), questions });
++  }
++  return out.slice(0, 50);
++}
++
++export function quizFrom(rawAssignment: unknown, rawTasks: unknown): AssignmentQuiz {
++  const a = obj(rawAssignment) ?? {};
++  const description = cap(str(a.description));
++  const maxRetries = num(a.max_retries);
++  const passPercent = num(a.pass_threshold_percentage);
++  return {
++    title: cap(str(a.title)) || 'Assignment',
++    ...(description ? { description } : {}),
++    allowRetries: a.allow_retries === true,
++    ...(maxRetries !== undefined ? { maxRetries } : {}),
++    ...(passPercent !== undefined ? { passPercent } : {}),
++    showCorrectAnswers: a.show_correct_answers === true,
++    tasks: quizTasksFrom(rawTasks),
++  };
++}
++
++export interface SavedTasks {
++  answers: QuizAnswers;
++  /** taskUuid -> LearnHouse task-submission uuid (needed to update a saved task). Never sent to the app. */
++  submissionUuids: Record<string, string>;
++}
++
++/** GET …/tasks/submissions/me -> chosen options per question (only options flagged true). */
++export function savedTasksFrom(raw: unknown): SavedTasks {
++  const out: SavedTasks = { answers: {}, submissionUuids: {} };
++  const all = obj(raw);
++  if (!all) return out;
++  for (const [taskUuid, value] of Object.entries(all)) {
++    const t = obj(value);
++    if (!t || !id(taskUuid)) continue;
++    const sub = id(t.assignment_task_submission_uuid);
++    if (sub) out.submissionUuids[taskUuid] = sub;
++    const subs = obj(t.task_submission)?.submissions;
++    for (const s of Array.isArray(subs) ? subs : []) {
++      const o = obj(s);
++      const q = id(o?.questionUUID), opt = id(o?.optionUUID);
++      if (q && opt && o?.answer === true) (out.answers[q] ??= []).push(opt);
++    }
++  }
++  return out;
++}
++
++/** The body LearnHouse expects for one task: every option of the task, flagged true when chosen. */
++export function taskSubmissionBody(task: QuizTask, answers: QuizAnswers, submissionUuid?: string) {
++  const submissions = task.questions.flatMap((q) =>
++    q.options.map((o) => ({ questionUUID: q.id, optionUUID: o.id, answer: (answers[q.id] ?? []).includes(o.id) })),
++  );
++  return {
++    ...(submissionUuid ? { assignment_task_submission_uuid: submissionUuid } : {}),
++    task_submission: { questions: [], submissions, ...(submissionUuid ? { assignment_task_submission_uuid: submissionUuid } : {}) },
++    grade: 0,
++    task_submission_grade_feedback: '',
++  };
++}
++
++/** Answers may only name questions and options of this quiz. Returns the first unknown id, or null. */
++export function unknownAnswer(quiz: AssignmentQuiz, answers: QuizAnswers): string | null {
++  const options = new Map(quiz.tasks.flatMap((t) => t.questions).map((q) => [q.id, new Set(q.options.map((o) => o.id))]));
++  for (const [q, chosen] of Object.entries(answers)) {
++    const allowed = options.get(q);
++    if (!allowed) return q;
++    for (const o of chosen) if (!allowed.has(o)) return o;
++  }
++  return null;
++}
++
++/** GET …/submissions/{user}/grade. No per-option right/wrong is returned, so the app shows scores only. */
++export function gradeFrom(raw: unknown): AssignmentGrade {
++  const g = obj(raw) ?? {};
++  const percent = Math.max(0, Math.min(100, num(g.percentage) ?? 0));
++  const pointsLabel = cap(str(g.points_summary), 100);
++  const passPercent = num(g.passing_threshold);
++  const feedback = cap(str(g.overall_feedback));
++  return {
++    percent,
++    percentLabel: `${Math.round(percent)}%`,
++    ...(pointsLabel ? { pointsLabel } : {}),
++    passed: g.passed === true,
++    ...(passPercent !== undefined ? { passPercent } : {}),
++    ...(feedback ? { feedback } : {}),
++    tasks: (Array.isArray(g.tasks) ? g.tasks : []).map(obj)
++      .filter((t): t is Obj => !!t && !!id(t.assignment_task_uuid))
++      .slice(0, 50)
++      .map((t) => {
++        const pl = cap(str(t.points_summary), 100), fb = cap(str(t.feedback));
++        return {
++          taskUuid: t.assignment_task_uuid as string,
++          // Task titles repeat across tasks; the description ("Knowledge check for Day 1") tells them apart.
++          title: cap(str(t.description)) || cap(str(t.title)) || 'Quiz',
++          ...(pl ? { pointsLabel: pl } : {}),
++          passed: t.passed === true,
++          ...(fb ? { feedback: fb } : {}),
++        };
++      }),
++  };
++}
++
++/** POST …/submissions/me/retry -> retries left after this attempt, when LearnHouse says. */
++export function retriesLeftFrom(raw: unknown): number | null {
++  const r = obj(raw);
++  const attempt = num(r?.attempt_number), max = num(r?.max_retries);
++  return attempt !== undefined && max !== undefined ? Math.max(0, Math.floor(max - attempt)) : null;
++}
+diff --git a/bff/src/learnhouse.ts b/bff/src/learnhouse.ts
+index 5903761..cb57b89 100644
+--- a/bff/src/learnhouse.ts
++++ b/bff/src/learnhouse.ts
+@@ -2,6 +2,7 @@
+ // Endpoints follow docs.learnhouse.app/reference/headless; verify them against the
+ // pinned LearnHouse release you run (see docs/W3-plan-and-evidence.md, "Pinning").
+ import { httpError, type FetchLike } from './util.ts';
++import { PUBLIC_PDF_HOSTS } from './slides.ts';
+ import type { Learner } from './sessions.ts';
+ 
+ // ---- LearnHouse response shapes (only the fields the BFF reads) ----------
+@@ -57,6 +58,25 @@ export interface LearnHouse {
+   getActivity?(activityUuid: string): Promise<LhActivityFull>;
+   /** An uploaded activity video as a stream (Range passed through). The BFF checks access first. */
+   openActivityVideo?(ref: MediaRef, range: string | undefined, signal: AbortSignal): Promise<MediaResponse>;
++  /** A slide deck PDF stored in LearnHouse (document activity, or an article's PDF block). Org token. */
++  openActivityDocument?(ref: DocumentRef, signal: AbortSignal): Promise<MediaResponse>;
++  /** A public PDF (Google Drive / Docs export). Only PUBLIC_PDF_HOSTS; no credentials are sent. */
++  openPublicPdf?(url: string, signal: AbortSignal): Promise<MediaResponse>;
++  /** Calls LearnHouse only accepts as the learner, made with their own LearnHouse token. */
++  asLearner?(lhToken: string): LearnerApi;
++}
++
++export interface DocumentRef { courseUuid: string; activityUuid: string; filename: string; blockUuid?: string }
++
++/** LearnHouse calls made AS the learner. Paths are built here from validated ids only. */
++export interface LearnerApi {
++  getAssignmentForActivity(activityUuid: string): Promise<unknown>;
++  getAssignmentTasks(assignmentUuid: string): Promise<unknown>;
++  getMyTaskSubmissions(assignmentUuid: string): Promise<unknown>;
++  saveTaskSubmission(assignmentUuid: string, taskUuid: string, body: unknown): Promise<unknown>;
++  submitAssignment(assignmentUuid: string): Promise<unknown>;
++  getGrade(assignmentUuid: string, learnerId: string): Promise<unknown>;
++  retryAssignment(assignmentUuid: string): Promise<unknown>;
+ }
+ 
+ export interface MediaRef { courseUuid: string; activityUuid: string; filename: string }
+@@ -78,15 +98,16 @@ export interface LearnHouseOptions {
+   mediaFetch?: typeof fetch;
+ }
+ 
+-interface CallOptions { body?: unknown; form?: Record<string, string>; auth?: 'org' | 'none' }
++interface CallOptions { body?: unknown; form?: Record<string, string>; auth?: 'org' | 'none'; /** A learner's LearnHouse token instead of the org token. */ bearer?: string }
+ 
+ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000, fetchImpl = fetch, orgUuid, mediaFetch = fetch }: LearnHouseOptions): LearnHouse {
+   if (!baseUrl || !orgToken || !orgSlug) {
+     throw new Error('LH_BASE_URL, LH_API_TOKEN and LH_ORG_SLUG must be set in bff/.env');
+   }
+-  async function call<T>(method: string, path: string, { body, form, auth = 'org' }: CallOptions = {}): Promise<T> {
++  async function call<T>(method: string, path: string, { body, form, auth = 'org', bearer }: CallOptions = {}): Promise<T> {
+     const headers: Record<string, string> = { Accept: 'application/json' };
+-    if (auth === 'org') headers.Authorization = `Bearer ${orgToken}`;
++    if (bearer) headers.Authorization = `Bearer ${bearer}`;
++    else if (auth === 'org') headers.Authorization = `Bearer ${orgToken}`;
+     let payload: string | undefined;
+     if (form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; payload = new URLSearchParams(form).toString(); }
+     else if (body) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+@@ -115,8 +136,8 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
+     };
+   }
+ 
+-  // Turn a LearnHouse login/oauth response into a learner. The learner's own LearnHouse token is used
+-  // here once (to read their session) and never stored or returned to the app.
++  // Turn a LearnHouse login/oauth response into a learner. The learner's own LearnHouse token reads
++  // their session here and is kept server-side in the BFF session; it is never returned to the app.
+   async function finishLogin(data: LhLoginResponse | null): Promise<Learner | null> {
+     // LearnHouse versions differ: the id may be at user.id, user.user_id or top-level.
+     let user: LhUser | null | undefined = data?.user ?? data;
+@@ -134,7 +155,19 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
+       return null;
+     }
+     const displayName = profile?.user.first_name || user?.first_name || user?.username || 'Learner';
+-    return { learnerId: String(id), displayName, profile };
++    // The learner's token stays in the BFF session (assignment calls need it); never sent to the app.
++    return { learnerId: String(id), displayName, profile, ...(userToken ? { lhToken: userToken } : {}) };
++  }
++  // A raw stream (PDF). The timeout covers the response HEADERS only; the body streams while read.
++  async function openStream(url: string, headers: Record<string, string>, signal: AbortSignal): Promise<MediaResponse> {
++    const ctrl = new AbortController();
++    const stop = () => ctrl.abort();
++    signal.addEventListener('abort', stop, { once: true });
++    const timer = setTimeout(stop, timeoutMs);
++    try {
++      const res = await mediaFetch(url, { headers, signal: ctrl.signal, redirect: 'follow' });
++      return { status: res.status, header: (n) => res.headers.get(n), body: res.body };
++    } finally { clearTimeout(timer); }
+   }
+   const rejected = (e: unknown) => [400, 401, 403].includes((e as { status?: number }).status as number);
+ 
+@@ -154,7 +187,32 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
+     // Uploaded files are served at {origin}/content/orgs/{org}/courses/{course}/activities/{activity}/video/{file}
+     // (401 without auth, per scripts/diagnose.ts 6c). The timeout covers the response HEADERS only:
+     // the body can stream for as long as the client keeps reading.
++    async openPublicPdf(url: string, signal: AbortSignal): Promise<MediaResponse> {
++      const u = new URL(url);
++      if (u.protocol !== 'https:' || !PUBLIC_PDF_HOSTS.has(u.hostname)) throw httpError('host not allowed', 400);
++      return openStream(url, {}, signal);
++    },
++    asLearner(lhToken: string): LearnerApi {
++      const e = encodeURIComponent;
++      const as = <T>(method: string, path: string, body?: unknown) => call<T>(method, path, { bearer: lhToken, body });
++      const a = (uuid: string) => `/assignments/${e(uuid)}`;
++      return {
++        getAssignmentForActivity: (activityUuid) => as('GET', `/assignments/activity/${e(activityUuid)}`),
++        getAssignmentTasks: (uuid) => as('GET', `${a(uuid)}/tasks`),
++        getMyTaskSubmissions: (uuid) => as('GET', `${a(uuid)}/tasks/submissions/me`),
++        saveTaskSubmission: (uuid, taskUuid, body) => as('PUT', `${a(uuid)}/tasks/${e(taskUuid)}/submissions`, body),
++        submitAssignment: (uuid) => as('POST', `${a(uuid)}/submissions`),
++        getGrade: (uuid, learnerId) => as('GET', `${a(uuid)}/submissions/${e(learnerId)}/grade`),
++        retryAssignment: (uuid) => as('POST', `${a(uuid)}/submissions/me/retry`),
++      };
++    },
+     ...(orgUuid ? {
++      async openActivityDocument({ courseUuid, activityUuid, filename, blockUuid }: DocumentRef, signal: AbortSignal): Promise<MediaResponse> {
++        const e = encodeURIComponent;
++        const where = blockUuid ? `dynamic/blocks/pdfBlock/${e(blockUuid)}` : 'documentpdf';
++        const url = `${new URL(baseUrl).origin}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/${where}/${e(filename)}`;
++        return openStream(url, { Authorization: `Bearer ${orgToken}` }, signal);
++      },
+       async openActivityVideo({ courseUuid, activityUuid, filename }: MediaRef, range: string | undefined, signal: AbortSignal): Promise<MediaResponse> {
+         const e = encodeURIComponent;
+         const url = `${new URL(baseUrl).origin}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/video/${e(filename)}`;
+diff --git a/bff/src/sessions.ts b/bff/src/sessions.ts
+index 7dbe5de..c5814d8 100644
+--- a/bff/src/sessions.ts
++++ b/bff/src/sessions.ts
+@@ -9,6 +9,12 @@ export interface Learner {
+   /** LearnHouse identity read at login (absent for dev login). Server-side only until GET /api/me. */
+   profile?: LearnerProfile;
+   email?: string;
++  /**
++   * The learner's own LearnHouse access token, for calls LearnHouse only accepts AS the learner
++   * (assignment answers and hand-in). Kept in this in-memory session: never returned to the app,
++   * never logged. Absent for dev login.
++   */
++  lhToken?: string;
+ }
+ export interface Session extends Learner {
+   expiresAt: number;
+diff --git a/bff/src/slides.ts b/bff/src/slides.ts
+new file mode 100644
+index 0000000..af97665
+--- /dev/null
++++ b/bff/src/slides.ts
+@@ -0,0 +1,124 @@
++// bff/src/slides.ts — slide decks: find the PDF behind an activity and decide where the BFF fetches it.
++// Moved here from the app (src/data/learnhouse/slidesApi.ts): the app now gets only a title, a
++// version and the BFF's file route, never a LearnHouse or Google address.
++//
++// A deck is either
++//  - a TYPE_DOCUMENT activity: content.filename, served by LearnHouse at
++//      {origin}/content/orgs/{org}/courses/{course}/activities/{activity}/documentpdf/{file}
++//  - a TYPE_DYNAMIC article with a PDF inside its content: an editor PDF block (file_id + file_format),
++//    served at …/activities/{activity}/dynamic/blocks/pdfBlock/{block}/{file}, or a link to a PDF on
++//    LearnHouse, or an embedded Google Drive file / Google Doc (fetched as Google's PDF export, which
++//    works only for files shared as "anyone with the link").
++// Any other host is refused: the BFF never fetches an arbitrary URL taken from course content.
++import { createHash } from 'node:crypto';
++import type { LhActivityFull } from './learnhouse.ts';
++
++export type DeckProblem = 'not_slides' | 'no_file' | 'not_downloadable';
++export type DeckLocator =
++  | { kind: 'lh'; filename: string; blockUuid?: string }
++  | { kind: 'public'; url: string };
++
++const FILE_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,150}$/;
++const BLOCK_RE = /^[A-Za-z0-9_-]{1,100}$/;
++const PDF_MARK = /\.pdf($|[?#])/i;
++
++/** Hosts the BFF may fetch a public PDF from (no credentials are ever sent there). */
++export const PUBLIC_PDF_HOSTS = new Set(['drive.google.com', 'docs.google.com']);
++
++/** A PDF reference found inside an article's content. */
++export interface PdfRef {
++  /** An absolute https URL, or a file name. */
++  ref: string;
++  /** The editor block that holds the file, when the content says so. */
++  blockUuid?: string;
++  /** Set when the PDF is a Google Drive file (the article embeds the Drive viewer). */
++  driveId?: string;
++  /** Set when the article embeds a Google Doc / Slides / Sheet: Google's own PDF export of it. */
++  exportUrl?: string;
++}
++
++/** The file id in a Google Drive link: /file/d/<id>/view|preview, open?id=<id>, uc?id=<id>. */
++const DRIVE_LINK = /^https:\/\/drive\.google\.com\/(?:file\/d\/|open\?(?:[^#]*&)?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{10,})/i;
++export function driveFileId(url: string): string | null {
++  return url.length <= 500 ? DRIVE_LINK.exec(url)?.[1] ?? null : null;
++}
++
++/** A Google Docs / Slides / Sheets link. Google exports any of these as a PDF itself. */
++const GOOGLE_DOC_LINK = /^https:\/\/docs\.google\.com\/(document|presentation|spreadsheets)\/d\/([A-Za-z0-9_-]{10,})/i;
++export function googleExportUrl(url: string): string | null {
++  const m = url.length <= 500 ? GOOGLE_DOC_LINK.exec(url) : null;
++  if (!m) return null;
++  const kind = m[1].toLowerCase();
++  const tail = kind === 'presentation' ? 'export/pdf' : 'export?format=pdf';
++  return `https://docs.google.com/${kind}/d/${m[2]}/${tail}`;
++}
++
++/**
++ * Find a PDF inside a rich-text article's content (any shape: a string ending in .pdf, or an editor
++ * block with file_id + file_format "pdf"). Returns the first one in reading order, or null.
++ */
++export function findPdfInContent(content: unknown): PdfRef | null {
++  const stack: { node: unknown; block?: string; depth: number }[] = [{ node: content, depth: 0 }];
++  let visited = 0;
++  while (stack.length && visited++ < 20000) {
++    const { node, block, depth } = stack.pop()!;
++    if (typeof node === 'string') {
++      const driveId = driveFileId(node);
++      if (driveId) return { ref: node, driveId };
++      const exportUrl = googleExportUrl(node);
++      if (exportUrl) return { ref: node, exportUrl };
++      if (node.length <= 500 && PDF_MARK.test(node)) return { ref: node, ...(block ? { blockUuid: block } : {}) };
++      continue;
++    }
++    if (!node || typeof node !== 'object' || depth > 20) continue;
++    const o = node as Record<string, unknown>;
++    const here = typeof o.block_uuid === 'string' ? o.block_uuid : block;
++    if (typeof o.file_id === 'string' && typeof o.file_format === 'string' && o.file_format.toLowerCase() === 'pdf') {
++      return { ref: `${o.file_id}.pdf`, ...(here ? { blockUuid: here } : {}) };
++    }
++    const kids = Array.isArray(node) ? [...node] : Object.values(o);
++    for (let i = kids.length - 1; i >= 0; i--) stack.push({ node: kids[i], block: here, depth: depth + 1 });
++  }
++  return null;
++}
++
++/** The deck's PDF file name on a document activity, only if it is a plain file name ending in .pdf. */
++export function slideDeckFile(a: LhActivityFull): string | null {
++  if (a.activity_type !== 'TYPE_DOCUMENT') return null;
++  const f = (a.content as { filename?: unknown } | null | undefined)?.filename;
++  if (typeof f !== 'string' || !FILE_RE.test(f)) return null;
++  return f.toLowerCase().endsWith('.pdf') ? f : null;
++}
++
++/** Where this activity's deck lives, or why it has none. `lhOrigin` = LearnHouse's origin. */
++export function resolveDeck(a: LhActivityFull, lhOrigin: string): DeckLocator | { problem: DeckProblem } {
++  if (a.activity_type === 'TYPE_DOCUMENT') {
++    const filename = slideDeckFile(a);
++    return filename ? { kind: 'lh', filename } : { problem: 'no_file' };
++  }
++  if (a.activity_type !== 'TYPE_DYNAMIC') return { problem: 'not_slides' };
++  const found = findPdfInContent(a.content);
++  if (!found) return { problem: 'no_file' };
++  if (found.driveId) return { kind: 'public', url: `https://drive.google.com/uc?export=download&id=${found.driveId}` };
++  if (found.exportUrl) return { kind: 'public', url: found.exportUrl };
++  let filename = found.ref;
++  if (/^https?:\/\//i.test(found.ref)) {
++    // A link to a PDF: only one served by this LearnHouse is used (as this activity's file).
++    let url: URL;
++    try { url = new URL(found.ref); } catch { return { problem: 'not_downloadable' }; }
++    if (url.origin !== lhOrigin) return { problem: 'not_downloadable' };
++    const block = /\/pdfBlock\/([^/]+)\//.exec(url.pathname)?.[1];
++    filename = decodeURIComponent(url.pathname.split('/').pop() ?? '');
++    if (block && BLOCK_RE.test(block)) return FILE_RE.test(filename) ? { kind: 'lh', filename, blockUuid: block } : { problem: 'no_file' };
++  } else {
++    filename = found.ref.split(/[\\/]/).pop() ?? '';
++  }
++  if (!FILE_RE.test(filename)) return { problem: 'no_file' };
++  if (found.blockUuid && !BLOCK_RE.test(found.blockUuid)) return { problem: 'no_file' };
++  return { kind: 'lh', filename, ...(found.blockUuid ? { blockUuid: found.blockUuid } : {}) };
++}
++
++/** A short, stable id for a locator: the app keys its cached PDF on it. */
++export function deckVersion(activityUuid: string, loc: DeckLocator): string {
++  return createHash('sha256').update(`${activityUuid}\n${JSON.stringify(loc)}`).digest('base64url').slice(0, 22);
++}
+diff --git a/bff/test/bff.test.ts b/bff/test/bff.test.ts
+index 1e34248..81b6443 100644
+--- a/bff/test/bff.test.ts
++++ b/bff/test/bff.test.ts
+@@ -122,7 +122,7 @@ test('home-layout: an agent returning content instead of names cannot inject it'
+ });
+ 
+ test('oversized request body -> 413', async () => {
+-  const r = await call('/auth/login', { method: 'POST', body: { email: 'a', password: 'x'.repeat(20000) } });
++  const r = await call('/auth/login', { method: 'POST', body: { email: 'a', password: 'x'.repeat(70000) } });
+   assert.equal(r.status, 413);
+ });
+ 
+diff --git a/bff/test/learnhouse.test.ts b/bff/test/learnhouse.test.ts
+index b17b37b..a6f50ac 100644
+--- a/bff/test/learnhouse.test.ts
++++ b/bff/test/learnhouse.test.ts
+@@ -52,7 +52,7 @@ test('adapter: all-course trail -> GET /admin/{org}/trails/{user}', async () =>
+   assert.equal(calls[0].url, 'https://lh.example/api/v1/admin/myorg/trails/42');
+ });
+ 
+-test('adapter: google -> POST /auth/oauth (no org token), then the learner session; LH token not kept', async () => {
++test('adapter: google -> POST /auth/oauth (no org token), then the learner session; LH token kept server-side only', async () => {
+   const calls: Array<{ url: string; auth?: string; body?: unknown }> = [];
+   const fetchImpl: FetchLike = async (url, init) => {
+     calls.push({ url, auth: (init?.headers as Record<string, string>)?.Authorization, body: init?.body ? JSON.parse(init.body as string) : undefined });
+@@ -69,7 +69,9 @@ test('adapter: google -> POST /auth/oauth (no org token), then the learner sessi
+   ]);
+   assert.deepEqual(calls[0].body, { email: 'ada@x.org', provider: 'google', access_token: 'g-token' });
+   assert.equal(learner?.learnerId, '7');
+-  assert.ok(!JSON.stringify(learner).includes('lh-user-jwt'));     // learner token not kept
++  // Kept on the server-side learner (assignment calls); the app never receives it (see slidesAssignments.test.ts).
++  assert.equal(learner?.lhToken, 'lh-user-jwt');
++  assert.ok(!JSON.stringify(learner?.profile).includes('lh-user-jwt'));
+   assert.ok(!JSON.stringify(learner).includes('rights'));          // rights matrix dropped
+ });
+ 
+diff --git a/bff/test/slidesAssignments.test.ts b/bff/test/slidesAssignments.test.ts
+new file mode 100644
+index 0000000..be1de1f
+--- /dev/null
++++ b/bff/test/slidesAssignments.test.ts
+@@ -0,0 +1,320 @@
++// Slide decks and assignment quizzes through the BFF (moved from the app's direct LearnHouse calls).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import type { AddressInfo } from 'node:net';
++import { createApp } from '../src/app.ts';
++import { createFakeLearnHouse } from './fakeLearnHouse.ts';
++import { findPdfInContent, driveFileId, googleExportUrl, slideDeckFile, resolveDeck, deckVersion } from '../src/slides.ts';
++import { quizTasksFrom, savedTasksFrom, taskSubmissionBody, gradeFrom, retriesLeftFrom, unknownAnswer, quizFrom } from '../src/assignments.ts';
++import { SlideDeckResponseSchema } from '../../src/contracts/slides.ts';
++import { AssignmentQuizSchema, AssignmentGradeSchema } from '../../src/contracts/assignment.ts';
++import type { LhActivityFull, LearnHouse, LearnerApi, MediaResponse, DocumentRef } from '../src/learnhouse.ts';
++
++const quiet = { info() {}, warn() {} };
++const LH_ORIGIN = 'https://lh.example';
++const PDF = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(3000, 7)]);
++const stream = (b: Buffer) => new Blob([b]).stream() as ReadableStream<Uint8Array>;
++const resp = (status: number, body: Buffer | null): MediaResponse => ({ status, header: (n) => (n === 'content-length' && body ? String(body.length) : null), body: body ? stream(body) : null });
++
++// ---- Shape of GET /assignments/{uuid}/tasks (trimmed from a real response) ----
++const RAW_TASKS = [
++  {
++    title: 'Engineering Reliable Single Agent System', description: 'Knowledge check for Day 1', assignment_type: 'QUIZ',
++    max_grade_value: 100, assignment_task_uuid: 'assignmenttask_1',
++    contents: {
++      grading_mode: 'all_or_nothing',
++      questions: [
++        { questionText: 'Which approach?', questionUUID: 'question_1', response_type: 'single', options: [
++          { text: 'Hardcode', fileID: '', type: 'text', optionUUID: 'option_1' },
++          { text: 'Abstraction layer', fileID: '', type: 'text', optionUUID: 'option_2' },
++          { text: '  ', fileID: '', type: 'text', optionUUID: 'option_blank' },
++        ] },
++        { questionText: 'Pick all', questionUUID: 'question_2', response_type: 'multiple', options: [{ text: 'X', optionUUID: 'option_3' }] },
++        { questionText: '', questionUUID: 'question_empty', options: [] },
++      ],
++    },
++  },
++  { title: 'Upload', assignment_type: 'FILE_SUBMISSION', assignment_task_uuid: 'assignmenttask_2', contents: {} },
++];
++const RAW_ASSIGNMENT = { assignment_uuid: 'assignment_1', title: 'Day 1 check', description: 'Short quiz', allow_retries: true, max_retries: 2, pass_threshold_percentage: 40, show_correct_answers: false };
++
++// ---- A fake LearnHouse with a slide deck, an article deck, a Drive deck, a foreign link and an assignment ----
++function setup(opts: { media?: boolean } = {}) {
++  const fake = createFakeLearnHouse();
++  const extra: Record<string, Partial<LhActivityFull>> = {
++    act_deck: { name: 'Week 1 slides', activity_type: 'TYPE_DOCUMENT', activity_sub_type: 'SUBTYPE_DOCUMENT_PDF', content: { filename: 'deck_1.pdf' } },
++    act_article: { name: 'Reading', activity_type: 'TYPE_DYNAMIC', content: { content: [{ attrs: { blockObject: { block_uuid: 'block_9', content: { file_id: 'file_1', file_format: 'pdf' } } } }] } as never },
++    act_drive: { name: 'Drive deck', activity_type: 'TYPE_DYNAMIC', content: { content: [{ attrs: { embedUrl: 'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/preview' } }] } as never },
++    act_foreign: { name: 'Foreign', activity_type: 'TYPE_DYNAMIC', content: { content: [{ attrs: { src: 'https://evil.example/x.pdf' } }] } as never },
++    act_quiz: { name: 'Day 1 quiz', activity_type: 'TYPE_ASSIGNMENT' },
++  };
++  const metaPromise = fake.lh.getCourseMeta('course_demo');
++  const docRequests: DocumentRef[] = [];
++  const publicRequests: string[] = [];
++  const state = { docStatus: 200, docBody: PDF, publicBody: PDF, lhTokenExpired: false };
++  // Learner-token calls: recorded with the token used; LearnHouse answers 401 for a wrong/expired token.
++  const learnerCalls: Array<{ token: string; op: string; args: unknown[] }> = [];
++  const saved: Record<string, unknown> = { assignmenttask_1: { assignment_task_submission_uuid: 'sub_1', task_submission: { submissions: [
++    { questionUUID: 'question_1', optionUUID: 'option_2', answer: true }] } } };
++  const fail = (m: string, status: number) => Object.assign(new Error(m), { status });
++  const asLearner = (token: string): LearnerApi => {
++    const rec = (op: string, args: unknown[], out: () => unknown) => async () => {
++      learnerCalls.push({ token, op, args });
++      if (state.lhTokenExpired || !/^lh-\d+$/.test(token)) throw fail('expired', 401);
++      return out();
++    };
++    return {
++      getAssignmentForActivity: (a) => rec('getAssignment', [a], () => { if (a !== 'act_quiz') throw fail('nf', 404); return RAW_ASSIGNMENT; })(),
++      getAssignmentTasks: (u) => rec('getTasks', [u], () => RAW_TASKS)(),
++      getMyTaskSubmissions: (u) => rec('getSaved', [u], () => saved)(),
++      saveTaskSubmission: (u, t, body) => rec('save', [u, t, body], () => ({ ok: true }))(),
++      submitAssignment: (u) => rec('submit', [u], () => ({ ok: true }))(),
++      getGrade: (u, id) => rec('grade', [u, id], () => ({ percentage: 50, points_summary: '50/100 pts', passed: true, passing_threshold: 40,
++        tasks: [{ assignment_task_uuid: 'assignmenttask_1', title: 'T', description: 'Knowledge check for Day 1', points_summary: '50/100', passed: true }] }))(),
++      retryAssignment: (u) => rec('retry', [u], () => ({ attempt_number: 2, max_retries: 3 }))(),
++    };
++  };
++  const lh: LearnHouse = {
++    ...fake.lh,
++    // Real login keeps the learner's LearnHouse token in the session (the fake makes one up).
++    async login(email, pw) { const l = await fake.lh.login(email, pw); return l && { ...l, lhToken: `lh-${l.learnerId}` }; },
++    async getActivity(uuid) {
++      if (extra[uuid]) return { activity_uuid: uuid, published: true, ...extra[uuid] } as LhActivityFull;
++      return fake.lh.getActivity!(uuid);
++    },
++    ...(opts.media === false ? {} : {
++      async openActivityDocument(ref) { docRequests.push(ref); return resp(state.docStatus, state.docStatus === 200 ? state.docBody : null); },
++    }),
++    async openPublicPdf(url) { publicRequests.push(url); return resp(200, state.publicBody); },
++    asLearner,
++  };
++  return { fake, lh, metaPromise, extra, docRequests, publicRequests, learnerCalls, state };
++}
++
++async function withServer(s: ReturnType<typeof setup>, fn: (b: string) => Promise<void>, lh: LearnHouse = s.lh) {
++  const meta = await s.metaPromise; // publish the extra activities in the course
++  for (const uuid of Object.keys(s.extra)) meta.chapters![0].activities!.push({ activity_uuid: uuid, name: s.extra[uuid].name, published: true });
++  const srv = createApp({ lh, allowedCourses: new Set(['course_demo']), logger: quiet, lhOrigin: LH_ORIGIN }).server();
++  await new Promise<void>((r) => srv.listen(0, () => r()));
++  try { await fn(`http://127.0.0.1:${(srv.address() as AddressInfo).port}/api`); } finally { srv.close(); }
++}
++const loginRes = (b: string, email = 'asha@test.local') => fetch(`${b}/auth/login`, { method: 'POST', body: JSON.stringify({ email, password: 'Passw0rd!' }) });
++const login = async (b: string, email?: string) => ((await (await loginRes(b, email)).json()) as { token: string }).token;
++const H = (tok: string | null): Record<string, string> => (tok ? { Authorization: `Bearer ${tok}` } : {});
++const act = (b: string, a: string, rest = '') => `${b}/me/courses/course_demo/activities/${a}${rest}`;
++
++// ================================ slides: helpers ================================
++test('slides: document file names, PDF discovery in articles, Drive and Google Docs links', () => {
++  const doc = (o: object) => ({ activity_uuid: 'activity_1', activity_type: 'TYPE_DOCUMENT', ...o }) as LhActivityFull;
++  assert.equal(slideDeckFile(doc({ content: { filename: 'documentpdf_x.pdf' } })), 'documentpdf_x.pdf');
++  assert.equal(slideDeckFile(doc({ content: { filename: 'deck.PDF' } })), 'deck.PDF');
++  for (const f of ['../etc/passwd.pdf', 'notes.docx']) assert.equal(slideDeckFile(doc({ content: { filename: f } })), null, f);
++  assert.equal(slideDeckFile(doc({ activity_type: 'TYPE_VIDEO', content: { filename: 'a.pdf' } })), null);
++
++  assert.equal(findPdfInContent({ type: 'doc', content: [{ type: 'paragraph' }] }), null);
++  assert.deepEqual(findPdfInContent({ content: [{ attrs: { blockObject: { block_uuid: 'block_9', content: { file_id: 'file_1', file_format: 'PDF' } } } }] }), { ref: 'file_1.pdf', blockUuid: 'block_9' });
++  assert.equal(findPdfInContent({ a: ['x.png', 'first.pdf', 'second.pdf'] })?.ref, 'first.pdf');
++  assert.equal(findPdfInContent('not.pdf.exe'), null);
++
++  const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
++  for (const u of [`https://drive.google.com/file/d/${id}/preview`, `https://drive.google.com/open?id=${id}`, `https://drive.google.com/uc?export=download&id=${id}`]) assert.equal(driveFileId(u), id, u);
++  assert.equal(driveFileId('http://drive.google.com/file/d/' + id), null);
++  assert.equal(googleExportUrl(`https://docs.google.com/presentation/d/${id}/preview`), `https://docs.google.com/presentation/d/${id}/export/pdf`);
++  assert.equal(googleExportUrl(`https://docs.google.com/document/d/${id}/edit`), `https://docs.google.com/document/d/${id}/export?format=pdf`);
++  assert.equal(googleExportUrl('https://docs.google.com/forms/d/1AbCdEfGhIjKlMnOp/view'), null);
++});
++
++test('slides: resolveDeck only ever points at this LearnHouse or Google, never another host', () => {
++  const a = (o: object) => ({ activity_uuid: 'act', ...o }) as LhActivityFull;
++  assert.deepEqual(resolveDeck(a({ activity_type: 'TYPE_DOCUMENT', content: { filename: 'd.pdf' } }), LH_ORIGIN), { kind: 'lh', filename: 'd.pdf' });
++  assert.deepEqual(resolveDeck(a({ activity_type: 'TYPE_DOCUMENT', content: {} }), LH_ORIGIN), { problem: 'no_file' });
++  assert.deepEqual(resolveDeck(a({ activity_type: 'TYPE_VIDEO' }), LH_ORIGIN), { problem: 'not_slides' });
++  assert.deepEqual(resolveDeck(a({ activity_type: 'TYPE_DYNAMIC', content: { x: { block_uuid: 'b1', file_id: 'f', file_format: 'pdf' } } }), LH_ORIGIN), { kind: 'lh', filename: 'f.pdf', blockUuid: 'b1' });
++  assert.deepEqual(resolveDeck(a({ activity_type: 'TYPE_DYNAMIC', content: { src: `${LH_ORIGIN}/content/orgs/o/courses/c/activities/act/dynamic/blocks/pdfBlock/b2/f2.pdf` } }), LH_ORIGIN), { kind: 'lh', filename: 'f2.pdf', blockUuid: 'b2' });
++  assert.deepEqual(resolveDeck(a({ activity_type: 'TYPE_DYNAMIC', content: { src: 'https://evil.example/x.pdf' } }), LH_ORIGIN), { problem: 'not_downloadable' });
++  assert.deepEqual(resolveDeck(a({ activity_type: 'TYPE_DYNAMIC', content: { src: 'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view' } }), LH_ORIGIN),
++    { kind: 'public', url: 'https://drive.google.com/uc?export=download&id=1AbCdEfGhIjKlMnOp' });
++  assert.match(deckVersion('act', { kind: 'lh', filename: 'd.pdf' }), /^[A-Za-z0-9_-]{22}$/);
++  assert.notEqual(deckVersion('act', { kind: 'lh', filename: 'd.pdf' }), deckVersion('act', { kind: 'lh', filename: 'd2.pdf' }));
++});
++
++// ================================ slides: routes ================================
++test('slides: a document deck -> title + version, then the PDF streamed from LearnHouse with the org path', async () => {
++  const s = setup();
++  await withServer(s, async (b) => {
++    const tok = await login(b);
++    const r = await fetch(act(b, 'act_deck', '/slides'), { headers: H(tok) });
++    assert.equal(r.status, 200);
++    const body = SlideDeckResponseSchema.parse(await r.json());
++    assert.equal(body.title, 'Week 1 slides');
++    assert.equal(body.deck.kind, 'pdf');
++    assert.ok(!JSON.stringify(body).includes('deck_1.pdf')); // no LearnHouse file name leaves the BFF
++
++    const f = await fetch(act(b, 'act_deck', '/slides/file'), { headers: H(tok) });
++    assert.equal(f.status, 200);
++    assert.equal(f.headers.get('content-type'), 'application/pdf');
++    assert.deepEqual(Buffer.from(await f.arrayBuffer()), PDF);
++    assert.deepEqual(s.docRequests, [{ courseUuid: 'course_demo', activityUuid: 'act_deck', filename: 'deck_1.pdf' }]);
++  });
++});
++
++test('slides: article PDF block, Drive (no credentials), foreign link refused, non-slides, media not configured', async () => {
++  const s = setup();
++  await withServer(s, async (b) => {
++    const tok = await login(b);
++    assert.equal((await fetch(act(b, 'act_article', '/slides/file'), { headers: H(tok) })).status, 200);
++    assert.deepEqual(s.docRequests.at(-1), { courseUuid: 'course_demo', activityUuid: 'act_article', filename: 'file_1.pdf', blockUuid: 'block_9' });
++
++    assert.equal((await fetch(act(b, 'act_drive', '/slides/file'), { headers: H(tok) })).status, 200);
++    assert.deepEqual(s.publicRequests, ['https://drive.google.com/uc?export=download&id=1AbCdEfGhIjKlMnOp']);
++
++    const foreign = SlideDeckResponseSchema.parse(await (await fetch(act(b, 'act_foreign', '/slides'), { headers: H(tok) })).json());
++    assert.deepEqual(foreign.deck, { kind: 'unavailable', reason: 'not_downloadable' });
++    assert.equal((await fetch(act(b, 'act_foreign', '/slides/file'), { headers: H(tok) })).status, 422);
++
++    const video = SlideDeckResponseSchema.parse(await (await fetch(act(b, 'act_2', '/slides'), { headers: H(tok) })).json());
++    assert.deepEqual(video.deck, { kind: 'unavailable', reason: 'not_slides' });
++  });
++  const noMedia = setup({ media: false });
++  await withServer(noMedia, async (b) => {
++    const tok = await login(b);
++    const r = SlideDeckResponseSchema.parse(await (await fetch(act(b, 'act_deck', '/slides'), { headers: H(tok) })).json());
++    assert.deepEqual(r.deck, { kind: 'unavailable', reason: 'not_downloadable' });
++  });
++});
++
++test('slides: anything that is not a PDF (a Drive sign-in page) -> 422 not_downloadable; LearnHouse 404 -> 404', async () => {
++  const s = setup();
++  s.state.publicBody = Buffer.from('<!doctype html><title>Sign in</title>');
++  await withServer(s, async (b) => {
++    const tok = await login(b);
++    const r = await fetch(act(b, 'act_drive', '/slides/file'), { headers: H(tok) });
++    assert.equal(r.status, 422);
++    assert.deepEqual(await r.json(), { error: 'not_downloadable' });
++    s.state.docStatus = 404;
++    assert.equal((await fetch(act(b, 'act_deck', '/slides/file'), { headers: H(tok) })).status, 404);
++  });
++});
++
++test('slides: session, course allow-list, enrollment and publication gates', async () => {
++  const s = setup();
++  await withServer(s, async (b) => {
++    assert.equal((await fetch(act(b, 'act_deck', '/slides'))).status, 401);
++    assert.equal((await fetch(act(b, 'act_deck', '/slides/file'))).status, 401);
++    const tok = await login(b);
++    assert.equal((await fetch(`${b}/me/courses/course_other/activities/act_deck/slides`, { headers: H(tok) })).status, 403);
++    assert.equal((await fetch(act(b, 'act_draft', '/slides'), { headers: H(tok) })).status, 403);
++    const neha = await login(b, 'neha@test.local'); // not enrolled
++    assert.equal((await fetch(act(b, 'act_deck', '/slides/file'), { headers: H(neha) })).status, 403);
++    assert.equal(s.docRequests.length, 0);
++  });
++});
++
++// ================================ assignments: helpers ================================
++test('assignments: quiz tasks, saved answers, task body, grade, retries, unknown answers', () => {
++  const tasks = quizTasksFrom(RAW_TASKS);
++  assert.equal(tasks.length, 1); // the file-upload task is skipped
++  assert.deepEqual(tasks[0].questions.map((q) => q.id), ['question_1', 'question_2']); // empty question dropped
++  assert.deepEqual(tasks[0].questions[0].options, [{ id: 'option_1', label: 'Hardcode' }, { id: 'option_2', label: 'Abstraction layer' }]);
++  assert.equal(tasks[0].questions[1].multiple, true);
++  const quiz = AssignmentQuizSchema.parse(quizFrom(RAW_ASSIGNMENT, RAW_TASKS));
++  assert.deepEqual({ ...quiz, tasks: undefined }, { title: 'Day 1 check', description: 'Short quiz', allowRetries: true, maxRetries: 2, passPercent: 40, showCorrectAnswers: false, tasks: undefined });
++
++  const saved = savedTasksFrom({ assignmenttask_1: { assignment_task_submission_uuid: 'sub_1', grade: 0, task_submission: { questions: [], submissions: [
++    { questionUUID: 'question_1', optionUUID: 'option_1', answer: false }, { questionUUID: 'question_1', optionUUID: 'option_2', answer: true }] } }, junk: 'nope' });
++  assert.deepEqual(saved, { answers: { question_1: ['option_2'] }, submissionUuids: { assignmenttask_1: 'sub_1' } });
++  assert.deepEqual(savedTasksFrom(null), { answers: {}, submissionUuids: {} });
++
++  const body = taskSubmissionBody(tasks[0], { question_1: ['option_2'] }, 'sub_1');
++  assert.equal(body.assignment_task_submission_uuid, 'sub_1');
++  assert.deepEqual(body.task_submission.submissions, [
++    { questionUUID: 'question_1', optionUUID: 'option_1', answer: false },
++    { questionUUID: 'question_1', optionUUID: 'option_2', answer: true },
++    { questionUUID: 'question_2', optionUUID: 'option_3', answer: false },
++  ]);
++  assert.equal(unknownAnswer(quiz, { question_1: ['option_2'] }), null);
++  assert.equal(unknownAnswer(quiz, { question_1: ['option_3'] }), 'option_3');
++  assert.equal(unknownAnswer(quiz, { question_x: ['option_1'] }), 'question_x');
++
++  assert.deepEqual(AssignmentGradeSchema.parse(gradeFrom({ grade: 80, percentage: 40.0, points_summary: '80/200 pts', passed: true, passing_threshold: 40.0, overall_feedback: null,
++    tasks: [{ assignment_task_uuid: 'assignmenttask_1', title: 'Same title', description: 'Knowledge check for Day 1', points_summary: '80/100', passed: true, feedback: '' }] })), {
++    percent: 40, percentLabel: '40%', pointsLabel: '80/200 pts', passed: true, passPercent: 40,
++    tasks: [{ taskUuid: 'assignmenttask_1', title: 'Knowledge check for Day 1', pointsLabel: '80/100', passed: true }] });
++  assert.equal(retriesLeftFrom({ attempt_number: 2, max_retries: 3 }), 1);
++  assert.equal(retriesLeftFrom({}), null);
++});
++
++// ================================ assignments: routes ================================
++test('assignments: the learner LearnHouse token stays in the BFF (not in login or /me responses)', async () => {
++  const s = setup();
++  await withServer(s, async (b) => {
++    const loginText = await (await loginRes(b)).text();
++    assert.ok(!loginText.includes('lh-101'), loginText);
++    const tok = JSON.parse(loginText).token as string;
++    assert.ok(!(await (await fetch(`${b}/me`, { headers: H(tok) })).text()).includes('lh-101'));
++  });
++});
++
++test('assignments: quiz, saved answers, hand-in, grade and retry, all made as the learner', async () => {
++  const s = setup();
++  await withServer(s, async (b) => {
++    const tok = await login(b);
++    const q = await fetch(act(b, 'act_quiz', '/assignment'), { headers: H(tok) });
++    assert.equal(q.status, 200);
++    const quiz = AssignmentQuizSchema.parse(await q.json());
++    assert.equal(quiz.tasks[0].questions.length, 2);
++    assert.ok(!JSON.stringify(quiz).includes('assignment_1')); // no LearnHouse assignment uuid in the app
++
++    assert.deepEqual(await (await fetch(act(b, 'act_quiz', '/assignment/answers'), { headers: H(tok) })).json(), { answers: { question_1: ['option_2'] } });
++
++    const sub = await fetch(act(b, 'act_quiz', '/assignment/submit'), { method: 'POST', headers: H(tok), body: JSON.stringify({ answers: { question_1: ['option_1'], question_2: ['option_3'] } }) });
++    assert.equal(sub.status, 200);
++    const saves = s.learnerCalls.filter((c) => c.op === 'save');
++    assert.equal(saves.length, 1);
++    assert.equal((saves[0].args[2] as { assignment_task_submission_uuid?: string }).assignment_task_submission_uuid, 'sub_1'); // updates the saved task
++    assert.ok(s.learnerCalls.some((c) => c.op === 'submit' && c.args[0] === 'assignment_1'));
++    assert.ok(s.learnerCalls.every((c) => c.token === 'lh-101')); // Asha's own token, every time
++
++    const g = AssignmentGradeSchema.parse(await (await fetch(act(b, 'act_quiz', '/assignment/grade'), { headers: H(tok) })).json());
++    assert.equal(g.percentLabel, '50%');
++    assert.deepEqual(s.learnerCalls.find((c) => c.op === 'grade')?.args, ['assignment_1', '101']);
++
++    assert.deepEqual(await (await fetch(act(b, 'act_quiz', '/assignment/retry'), { method: 'POST', headers: H(tok) })).json(), { retriesLeft: 1 });
++  });
++});
++
++test('assignments: refuses unknown options, bad bodies, non-assignments and ungated activities', async () => {
++  const s = setup();
++  await withServer(s, async (b) => {
++    const tok = await login(b);
++    const post = (answers: unknown) => fetch(act(b, 'act_quiz', '/assignment/submit'), { method: 'POST', headers: H(tok), body: JSON.stringify({ answers }) });
++    assert.equal((await post({ question_1: ['option_from_elsewhere'] })).status, 400);
++    assert.equal((await post({ 'bad id!': ['x'] })).status, 400);
++    assert.equal((await post('nope')).status, 400);
++    assert.equal(s.learnerCalls.filter((c) => c.op === 'save' || c.op === 'submit').length, 0);
++
++    assert.equal((await fetch(act(b, 'act_1', '/assignment'), { headers: H(tok) })).status, 404); // not an assignment
++    assert.equal((await fetch(act(b, 'act_draft', '/assignment'), { headers: H(tok) })).status, 403);
++    assert.equal((await fetch(act(b, 'act_quiz', '/assignment'))).status, 401);
++    const neha = await login(b, 'neha@test.local');
++    assert.equal((await fetch(act(b, 'act_quiz', '/assignment'), { headers: H(neha) })).status, 403);
++  });
++});
++
++test('assignments: expired LearnHouse token -> 401 learnhouse_session_expired; dev login (no token) -> 403', async () => {
++  const s = setup();
++  await withServer(s, async (b) => {
++    const tok = await login(b);
++    s.state.lhTokenExpired = true;
++    const r = await fetch(act(b, 'act_quiz', '/assignment'), { headers: H(tok) });
++    assert.equal(r.status, 401);
++    assert.deepEqual(await r.json(), { error: 'learnhouse_session_expired' });
++  });
++  const dev = setup();
++  await withServer(dev, async (b) => {
++    const tok = await login(b);
++    const r = await fetch(act(b, 'act_quiz', '/assignment'), { headers: H(tok) });
++    assert.equal(r.status, 403);
++    assert.deepEqual(await r.json(), { error: 'learnhouse_login_required' });
++  }, { ...dev.lh, login: dev.fake.lh.login }); // dev-style login: no LearnHouse token
++});
+diff --git a/src/contracts/assignment.ts b/src/contracts/assignment.ts
+new file mode 100644
+index 0000000..2b18db3
+--- /dev/null
++++ b/src/contracts/assignment.ts
+@@ -0,0 +1,64 @@
++// src/contracts/assignment.ts
++// Assignment quizzes as the BFF serves them. Platform-neutral: the BFF validates every response
++// against these before sending, the app parses them again. Routes are keyed by course + activity;
++// the app never sees a LearnHouse assignment/task/submission id or a LearnHouse token.
++// The quiz carries no correct answers: LearnHouse grades on hand-in.
++import { z } from 'zod';
++
++const Id = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
++const Text = z.string().max(2000);
++
++export const QuizQuestionSchema = z.object({
++  id: Id,
++  question: Text.min(1),
++  /** Several options may be ticked. */
++  multiple: z.boolean(),
++  options: z.array(z.object({ id: Id, label: Text.min(1) }).strict()).min(1).max(50),
++}).strict();
++export type QuizQuestion = z.infer<typeof QuizQuestionSchema>;
++
++export const QuizTaskSchema = z.object({
++  taskUuid: Id,
++  title: Text.min(1),
++  description: Text.optional(),
++  points: z.number().optional(),
++  questions: z.array(QuizQuestionSchema).min(1).max(200),
++}).strict();
++export type QuizTask = z.infer<typeof QuizTaskSchema>;
++
++export const AssignmentQuizSchema = z.object({
++  title: Text.min(1),
++  description: Text.optional(),
++  allowRetries: z.boolean(),
++  maxRetries: z.number().optional(),
++  passPercent: z.number().optional(),
++  showCorrectAnswers: z.boolean(),
++  tasks: z.array(QuizTaskSchema).max(50),
++}).strict();
++export type AssignmentQuiz = z.infer<typeof AssignmentQuizSchema>;
++
++/** questionId -> chosen option ids. Used for saved answers (response) and hand-in (request). */
++export const QuizAnswersSchema = z.record(Id, z.array(Id).max(50));
++export type QuizAnswers = z.infer<typeof QuizAnswersSchema>;
++
++export const SavedAnswersResponseSchema = z.object({ answers: QuizAnswersSchema }).strict();
++export const SubmitRequestSchema = z.object({ answers: QuizAnswersSchema }).strict();
++
++export const AssignmentGradeSchema = z.object({
++  percent: z.number().min(0).max(100),
++  percentLabel: z.string().max(20),
++  pointsLabel: z.string().max(100).optional(),
++  passed: z.boolean(),
++  passPercent: z.number().optional(),
++  feedback: Text.optional(),
++  tasks: z.array(z.object({
++    taskUuid: Id,
++    title: Text.min(1),
++    pointsLabel: z.string().max(100).optional(),
++    passed: z.boolean(),
++    feedback: Text.optional(),
++  }).strict()).max(50),
++}).strict();
++export type AssignmentGrade = z.infer<typeof AssignmentGradeSchema>;
++
++export const RetryResponseSchema = z.object({ retriesLeft: z.number().int().min(0).nullable() }).strict();
+diff --git a/src/contracts/slides.ts b/src/contracts/slides.ts
+new file mode 100644
+index 0000000..42d0ae7
+--- /dev/null
++++ b/src/contracts/slides.ts
+@@ -0,0 +1,22 @@
++// src/contracts/slides.ts
++// What the BFF tells the app about a slide deck (a PDF activity, or a PDF inside an article).
++// Platform-neutral: the BFF validates every response against this before sending, the app parses it
++// again. The app never receives a LearnHouse or Google address: it downloads the PDF ONLY from the
++// BFF's fixed file route (/me/courses/:c/activities/:a/slides/file).
++import { z } from 'zod';
++
++const Uuid = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
++
++export const SlideDeckSchema = z.discriminatedUnion('kind', [
++  // `version` changes when the deck's file changes, so the app's cached copy is refetched.
++  z.object({ kind: z.literal('pdf'), version: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) }).strict(),
++  z.object({ kind: z.literal('unavailable'), reason: z.enum(['not_slides', 'no_file', 'not_downloadable']) }).strict(),
++]);
++export type SlideDeckInfo = z.infer<typeof SlideDeckSchema>;
++
++export const SlideDeckResponseSchema = z.object({
++  activityUuid: Uuid,
++  title: z.string().min(1).max(200),
++  deck: SlideDeckSchema,
++}).strict();
++export type SlideDeckResponse = z.infer<typeof SlideDeckResponseSchema>;
+diff --git a/src/core/api/learnhouse/client.ts b/src/core/api/learnhouse/client.ts
+index c3c58f1..b1f306c 100644
+--- a/src/core/api/learnhouse/client.ts
++++ b/src/core/api/learnhouse/client.ts
+@@ -165,3 +165,53 @@ export function lessonVideoFileSource(courseUuid: string, activityUuid: string):
+     headers: { Authorization: `Bearer ${token}` },
+   };
+ }
++
++// ---------- slide decks ----------
++import { SlideDeckResponseSchema, type SlideDeckResponse } from '../../../contracts/slides';
++
++const activityPath = (courseUuid: string, activityUuid: string) =>
++  `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}`;
++
++/** The deck's title and version, or why it has none (validated against the shared contract). */
++export async function getSlideDeckInfo(courseUuid: string, activityUuid: string): Promise<SlideDeckResponse> {
++  return SlideDeckResponseSchema.parse(await bffFetch<unknown>(`${activityPath(courseUuid, activityUuid)}/slides`));
++}
++
++/** Where the deck's PDF is downloaded from: the BFF's file route with the learner's BFF session. Null when signed out. */
++export function slideDeckFileSource(courseUuid: string, activityUuid: string): { uri: string; headers: Record<string, string> } | null {
++  const token = getSessionToken();
++  if (!token) return null;
++  return { uri: `${LEARNHOUSE.baseUrl}${activityPath(courseUuid, activityUuid)}/slides/file`, headers: { Authorization: `Bearer ${token}` } };
++}
++
++// ---------- assignment quizzes ----------
++// The BFF makes every LearnHouse call as the learner; the app only names course + activity.
++import {
++  AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, RetryResponseSchema,
++  type AssignmentQuiz, type AssignmentGrade, type QuizAnswers,
++} from '../../../contracts/assignment';
++
++const assignmentPath = (courseUuid: string, activityUuid: string) => `${activityPath(courseUuid, activityUuid)}/assignment`;
++
++export async function getAssignmentQuiz(courseUuid: string, activityUuid: string): Promise<AssignmentQuiz> {
++  return AssignmentQuizSchema.parse(await bffFetch<unknown>(assignmentPath(courseUuid, activityUuid)));
++}
++
++/** Answers saved in an earlier visit (questionId -> option ids). */
++export async function getSavedAnswers(courseUuid: string, activityUuid: string): Promise<QuizAnswers> {
++  return SavedAnswersResponseSchema.parse(await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/answers`)).answers;
++}
++
++/** Save every task's answers and hand the assignment in. */
++export async function submitAssignment(courseUuid: string, activityUuid: string, answers: QuizAnswers): Promise<void> {
++  await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/submit`, { method: 'POST', body: JSON.stringify({ answers }) });
++}
++
++export async function getAssignmentGrade(courseUuid: string, activityUuid: string): Promise<AssignmentGrade> {
++  return AssignmentGradeSchema.parse(await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/grade`));
++}
++
++/** Start another attempt. `retriesLeft` = attempts left after this one, when LearnHouse says. */
++export async function retryAssignment(courseUuid: string, activityUuid: string): Promise<{ retriesLeft: number | null }> {
++  return RetryResponseSchema.parse(await bffFetch<unknown>(`${assignmentPath(courseUuid, activityUuid)}/retry`, { method: 'POST' }));
++}
+diff --git a/src/data/learnhouse/assignmentApi.ts b/src/data/learnhouse/assignmentApi.ts
+index 69d777e..2a991de 100644
+--- a/src/data/learnhouse/assignmentApi.ts
++++ b/src/data/learnhouse/assignmentApi.ts
+@@ -1,277 +1,8 @@
+-// Assignment quizzes, straight from LearnHouse (same direct pattern as lessonApi.ts / slidesApi.ts),
+-// with the signed-in user's own token.
+-//
+-//   GET /api/v1/assignments/activity/{activity_uuid}   -> the assignment (uuid, title, retry/grading settings)
+-//   GET /api/v1/assignments/{assignment_uuid}/tasks    -> its tasks; a QUIZ task's contents hold the questions
+-//
+-// The responses carry no correct answers: grading happens on the server when answers are submitted.
+-import { z } from 'zod';
+-import { request, ApiError } from './client';
+-import { getStoredToken } from './secureToken';
+-import { fetchSession } from './authApi';
+-
+-const optionSchema = z.object({
+-  text: z.string().default(''),
+-  optionUUID: z.string(),
+-  type: z.string().optional(),
+-});
+-
+-const questionSchema = z.object({
+-  questionText: z.string().default(''),
+-  questionUUID: z.string(),
+-  response_type: z.string().optional(),
+-  options: z.array(optionSchema).default([]),
+-});
+-
+-const taskSchema = z.object({
+-  assignment_task_uuid: z.string(),
+-  title: z.string().nullable().optional(),
+-  description: z.string().nullable().optional(),
+-  assignment_type: z.string(),
+-  max_grade_value: z.number().nullable().optional(),
+-  contents: z.unknown().optional(),
+-});
+-
+-const quizContentsSchema = z.object({
+-  questions: z.array(questionSchema).default([]),
+-  grading_mode: z.string().optional(),
+-});
+-
+-export const assignmentSchema = z.object({
+-  assignment_uuid: z.string(),
+-  title: z.string().nullable().optional(),
+-  description: z.string().nullable().optional(),
+-  auto_grading: z.boolean().nullable().optional(),
+-  show_correct_answers: z.boolean().nullable().optional(),
+-  allow_retries: z.boolean().nullable().optional(),
+-  max_retries: z.number().nullable().optional(),
+-  pass_threshold_percentage: z.number().nullable().optional(),
+-  due_date: z.string().nullable().optional(),
+-});
+-
+-export interface QuizQuestion {
+-  id: string; // LearnHouse questionUUID
+-  question: string;
+-  multiple: boolean; // response_type "multiple": several options may be ticked
+-  options: { id: string; label: string }[]; // id = optionUUID
+-}
+-
+-export interface QuizTask {
+-  taskUuid: string;
+-  title: string;
+-  description?: string;
+-  points?: number;
+-  questions: QuizQuestion[];
+-}
+-
+-export interface AssignmentQuiz {
+-  assignmentUuid: string;
+-  title: string;
+-  description?: string;
+-  allowRetries: boolean;
+-  maxRetries?: number;
+-  passPercent?: number;
+-  showCorrectAnswers: boolean;
+-  tasks: QuizTask[];
+-}
+-
+-const clean = (s: string | null | undefined) => (s ?? '').trim();
+-
+-/** Turn the raw tasks list into quiz tasks: QUIZ tasks only, empty questions/options dropped. */
+-export function quizTasksFrom(rawTasks: unknown): QuizTask[] {
+-  const tasks = z.array(z.unknown()).parse(rawTasks);
+-  const out: QuizTask[] = [];
+-  for (const raw of tasks) {
+-    const t = taskSchema.safeParse(raw);
+-    if (!t.success || t.data.assignment_type !== 'QUIZ') continue;
+-    const c = quizContentsSchema.safeParse(t.data.contents ?? {});
+-    if (!c.success) continue;
+-    const questions = c.data.questions
+-      .map((q) => ({
+-        id: q.questionUUID,
+-        question: clean(q.questionText),
+-        multiple: q.response_type === 'multiple',
+-        options: q.options.filter((o) => clean(o.text)).map((o) => ({ id: o.optionUUID, label: clean(o.text) })),
+-      }))
+-      .filter((q) => q.question && q.options.length > 0);
+-    if (!questions.length) continue;
+-    out.push({
+-      taskUuid: t.data.assignment_task_uuid,
+-      title: clean(t.data.title) || 'Quiz',
+-      ...(clean(t.data.description) ? { description: clean(t.data.description) } : {}),
+-      ...(typeof t.data.max_grade_value === 'number' ? { points: t.data.max_grade_value } : {}),
+-      questions,
+-    });
+-  }
+-  return out;
+-}
+-
+-export async function getAssignmentQuiz(activityUuid: string): Promise<AssignmentQuiz> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-  const a = assignmentSchema.parse(await request(`/api/v1/assignments/activity/${encodeURIComponent(activityUuid)}`, { token }));
+-  const tasks = quizTasksFrom(await request(`/api/v1/assignments/${encodeURIComponent(a.assignment_uuid)}/tasks`, { token }));
+-  return {
+-    assignmentUuid: a.assignment_uuid,
+-    title: clean(a.title) || 'Assignment',
+-    ...(clean(a.description) ? { description: clean(a.description) } : {}),
+-    allowRetries: !!a.allow_retries,
+-    ...(typeof a.max_retries === 'number' ? { maxRetries: a.max_retries } : {}),
+-    ...(typeof a.pass_threshold_percentage === 'number' ? { passPercent: a.pass_threshold_percentage } : {}),
+-    showCorrectAnswers: !!a.show_correct_answers,
+-    tasks,
+-  };
+-}
+-
+-// ---------------------------------------------------------------------------------------------
+-// Answers. LearnHouse stores a quiz task's answers as EVERY option of every question with a flag:
+-//   { task_submission: { questions: [], submissions: [{ questionUUID, optionUUID, answer: true|false }, …] } }
+-//
+-//   GET  /api/v1/assignments/{a}/tasks/submissions/me        -> { [taskUuid]: saved task submission }
+-//   PUT  /api/v1/assignments/{a}/tasks/{t}/submissions       -> save one task's answers ("Save answers")
+-//   POST /api/v1/assignments/{a}/submissions  (no body)      -> hand in the whole assignment
+-// All three were captured from the web app's network traffic (4 Nov 2026).
+-
+-export type QuizAnswers = Record<string, string[]>; // questionUUID -> chosen optionUUIDs
+-
+-const savedTaskSchema = z.object({
+-  assignment_task_submission_uuid: z.string().nullable().optional(),
+-  task_submission: z.object({
+-    submissions: z.array(z.object({ questionUUID: z.string(), optionUUID: z.string(), answer: z.boolean() })).default([]),
+-  }).nullable().optional(),
+-  grade: z.number().nullable().optional(),
+-});
+-
+-export interface SavedTask {
+-  submissionUuid?: string;
+-  answers: QuizAnswers;
+-  grade?: number;
+-}
+-
+-/** Read GET …/tasks/submissions/me into per-task answers (only options flagged true). */
+-export function savedTasksFrom(raw: unknown): Record<string, SavedTask> {
+-  const out: Record<string, SavedTask> = {};
+-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+-  for (const [taskUuid, value] of Object.entries(raw as Record<string, unknown>)) {
+-    const t = savedTaskSchema.safeParse(value);
+-    if (!t.success) continue;
+-    const answers: QuizAnswers = {};
+-    for (const s of t.data.task_submission?.submissions ?? []) {
+-      if (s.answer) (answers[s.questionUUID] ??= []).push(s.optionUUID);
+-    }
+-    out[taskUuid] = {
+-      ...(t.data.assignment_task_submission_uuid ? { submissionUuid: t.data.assignment_task_submission_uuid } : {}),
+-      answers,
+-      ...(typeof t.data.grade === 'number' ? { grade: t.data.grade } : {}),
+-    };
+-  }
+-  return out;
+-}
+-
+-/** The body LearnHouse expects for one task: every option of the task, flagged true when chosen. */
+-export function taskSubmissionBody(task: QuizTask, answers: QuizAnswers, submissionUuid?: string) {
+-  const submissions = task.questions.flatMap((q) =>
+-    q.options.map((o) => ({ questionUUID: q.id, optionUUID: o.id, answer: (answers[q.id] ?? []).includes(o.id) })),
+-  );
+-  return {
+-    ...(submissionUuid ? { assignment_task_submission_uuid: submissionUuid } : {}),
+-    task_submission: { questions: [], submissions, ...(submissionUuid ? { assignment_task_submission_uuid: submissionUuid } : {}) },
+-    grade: 0,
+-    task_submission_grade_feedback: '',
+-  };
+-}
+-
+-const a = (uuid: string) => `/api/v1/assignments/${encodeURIComponent(uuid)}`;
+-
+-export async function getSavedTasks(assignmentUuid: string): Promise<Record<string, SavedTask>> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-  return savedTasksFrom(await request(`${a(assignmentUuid)}/tasks/submissions/me`, { token }));
+-}
+-
+-/** Save every task's answers, then hand in the assignment. */
+-export async function submitAssignmentQuiz(quiz: AssignmentQuiz, answers: QuizAnswers, saved: Record<string, SavedTask>): Promise<void> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-  for (const task of quiz.tasks) {
+-    await request(`${a(quiz.assignmentUuid)}/tasks/${encodeURIComponent(task.taskUuid)}/submissions`, {
+-      method: 'PUT',
+-      token,
+-      json: taskSubmissionBody(task, answers, saved[task.taskUuid]?.submissionUuid),
+-    });
+-  }
+-  await request(`${a(quiz.assignmentUuid)}/submissions`, { method: 'POST', token });
+-}
+-
+-// ---------------------------------------------------------------------------------------------
+-// Result and retry (captured 4 Nov 2026):
+-//   GET  /api/v1/assignments/{a}/submissions/{user_id}/grade  -> overall + per-task score, pass/fail
+-//   POST /api/v1/assignments/{a}/submissions/me/retry         -> resets the hand-in; attempt_number, max_retries
+-// The grade has no per-option right/wrong, so the app shows scores only.
+-
+-const gradeSchema = z.object({
+-  percentage: z.number().nullable().optional(),
+-  percentage_display: z.string().nullable().optional(),
+-  points_summary: z.string().nullable().optional(),
+-  passed: z.boolean().nullable().optional(),
+-  passing_threshold: z.number().nullable().optional(),
+-  overall_feedback: z.string().nullable().optional(),
+-  tasks: z.array(z.object({
+-    assignment_task_uuid: z.string(),
+-    title: z.string().nullable().optional(),
+-    description: z.string().nullable().optional(),
+-    points_summary: z.string().nullable().optional(),
+-    passed: z.boolean().nullable().optional(),
+-    feedback: z.string().nullable().optional(),
+-  })).default([]),
+-});
+-
+-export interface AssignmentGrade {
+-  percent: number; // 0..100
+-  percentLabel: string; // "40%"
+-  pointsLabel?: string; // "80/200 pts"
+-  passed: boolean;
+-  passPercent?: number;
+-  feedback?: string;
+-  tasks: { taskUuid: string; title: string; pointsLabel?: string; passed: boolean; feedback?: string }[];
+-}
+-
+-export function gradeFrom(raw: unknown): AssignmentGrade {
+-  const g = gradeSchema.parse(raw);
+-  const percent = Math.max(0, Math.min(100, g.percentage ?? 0));
+-  return {
+-    percent,
+-    percentLabel: `${Math.round(percent)}%`,
+-    ...(clean(g.points_summary) ? { pointsLabel: clean(g.points_summary) } : {}),
+-    passed: !!g.passed,
+-    ...(typeof g.passing_threshold === 'number' ? { passPercent: g.passing_threshold } : {}),
+-    ...(clean(g.overall_feedback) ? { feedback: clean(g.overall_feedback) } : {}),
+-    tasks: g.tasks.map((t) => ({
+-      taskUuid: t.assignment_task_uuid,
+-      // Task titles repeat across tasks; the description ("Knowledge check for Day 1") tells them apart.
+-      title: clean(t.description) || clean(t.title) || 'Quiz',
+-      ...(clean(t.points_summary) ? { pointsLabel: clean(t.points_summary) } : {}),
+-      passed: !!t.passed,
+-      ...(clean(t.feedback) ? { feedback: clean(t.feedback) } : {}),
+-    })),
+-  };
+-}
+-
+-export async function getAssignmentGrade(assignmentUuid: string): Promise<AssignmentGrade> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-  const userId = (await fetchSession(token)).user.id;
+-  return gradeFrom(await request(`${a(assignmentUuid)}/submissions/${encodeURIComponent(String(userId))}/grade`, { token }));
+-}
+-
+-const retrySchema = z.object({ attempt_number: z.number().nullable().optional(), max_retries: z.number().nullable().optional() });
+-
+-/** Start another attempt. Returns how many retries remain after this one, when the server says. */
+-export async function retryAssignment(assignmentUuid: string): Promise<{ retriesLeft: number | null }> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-  const r = retrySchema.safeParse(await request(`${a(assignmentUuid)}/submissions/me/retry`, { method: 'POST', token }));
+-  const attempt = r.success ? r.data.attempt_number : null;
+-  const max = r.success ? r.data.max_retries : null;
+-  return { retriesLeft: typeof attempt === 'number' && typeof max === 'number' ? Math.max(0, max - attempt) : null };
+-}
++// Assignment quizzes, through the BFF. The BFF makes every LearnHouse call AS the learner (with their
++// LearnHouse token, held server-side) and maps LearnHouse's shapes to src/contracts/assignment.ts;
++// the app names only the course + activity and never sees LearnHouse ids or tokens.
++// The quiz carries no correct answers: LearnHouse grades on hand-in.
++export {
++  getAssignmentQuiz, getSavedAnswers, submitAssignment, getAssignmentGrade, retryAssignment,
++} from '../../core/api/learnhouse/client';
++export type { AssignmentQuiz, AssignmentGrade, QuizAnswers, QuizTask, QuizQuestion } from '../../contracts/assignment';
+diff --git a/src/data/learnhouse/completionApi.ts b/src/data/learnhouse/completionApi.ts
+index e49e2f4..b36ef51 100644
+--- a/src/data/learnhouse/completionApi.ts
++++ b/src/data/learnhouse/completionApi.ts
+@@ -1,15 +1,15 @@
+-// Mark an activity complete for the signed-in learner, the same call LearnHouse's web app makes for
+-// its "Mark as complete" button. Uses the learner's own token (progress reads use the admin token,
+-// but completion must be recorded as the learner).
+-//   POST /api/v1/trail/add_activity/{activity_uuid}
+-import { ApiError, request } from './client';
+-import { getStoredToken } from './secureToken';
++// Mark an activity complete for the signed-in learner, through the BFF's completion route
++// (POST /me/courses/:c/activities/:a/complete). The BFF checks enrollment + publication, writes to
++// LearnHouse's progress API and reads it back; the idempotency key makes a retried tap one effect.
++import { markActivityComplete as bffComplete } from '../../core/api/learnhouse/client';
+ import { clearTrailCache } from './trailCache';
+ 
+-export async function markActivityComplete(activityUuid: string): Promise<void> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-  await request(`/api/v1/trail/add_activity/${encodeURIComponent(activityUuid)}`, { method: 'POST', token });
++export const newIdempotencyKey = () => `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
++
++/** received = the BFF accepted it; applied = LearnHouse already shows it complete. Both count as done. */
++export async function markActivityComplete(courseUuid: string, activityUuid: string, idempotencyKey = newIdempotencyKey()): Promise<'applied' | 'received'> {
++  const r = await bffComplete(activityUuid, idempotencyKey, courseUuid);
+   // Progress changed: Path / Home / streak re-read the trail (and Path may celebrate a finished stage).
+   clearTrailCache();
++  return r.status;
+ }
+diff --git a/src/data/learnhouse/lessonApi.test.ts b/src/data/learnhouse/lessonApi.test.ts
+deleted file mode 100644
+index cf20df9..0000000
+--- a/src/data/learnhouse/lessonApi.test.ts
++++ /dev/null
+@@ -1,93 +0,0 @@
+-import { getLessonVideo, toLessonVideo, playerWindow, hostedVideoFile, type LessonActivity } from './lessonApi';
+-import { getStoredToken } from './secureToken';
+-
+-jest.mock('./secureToken', () => ({ getStoredToken: jest.fn() }));
+-
+-const YT = 'dQw4w9WgXcQ';
+-const activity = (over: Partial<LessonActivity> = {}): LessonActivity => ({
+-  activity_uuid: 'activity_1',
+-  name: 'Intro video',
+-  activity_type: 'TYPE_VIDEO',
+-  activity_sub_type: 'SUBTYPE_VIDEO_YOUTUBE',
+-  content: { uri: `https://www.youtube.com/watch?v=${YT}`, type: 'youtube' },
+-  details: { startTime: 10, endTime: 90 },
+-  ...over,
+-});
+-
+-function mockFetchOnce(status: number, body: unknown) {
+-  (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: status >= 200 && status < 300, status, json: async () => body });
+-}
+-
+-describe('toLessonVideo', () => {
+-  it('YouTube activity -> video id with start/end window', () => {
+-    expect(toLessonVideo(activity())).toEqual({ kind: 'youtube', videoId: YT, startSec: 10, endSec: 90 });
+-  });
+-  it('non-video activity -> not_a_video', () => {
+-    expect(toLessonVideo(activity({ activity_type: 'TYPE_DYNAMIC' }))).toEqual({ kind: 'unsupported', reason: 'not_a_video' });
+-  });
+-  it('vimeo -> unsupported', () => {
+-    expect(toLessonVideo(activity({ content: { uri: 'https://vimeo.com/1', type: 'vimeo' } }))).toEqual({ kind: 'unsupported', reason: 'vimeo' });
+-  });
+-  it('unparseable link -> unrecognized_url', () => {
+-    expect(toLessonVideo(activity({ content: { uri: 'https://example.com/x' } }))).toEqual({ kind: 'unsupported', reason: 'unrecognized_url' });
+-  });
+-  it('uploaded mp4 -> hosted, available', () => {
+-    const a = activity({ activity_sub_type: 'SUBTYPE_VIDEO_HOSTED', content: { filename: 'lesson.mp4' } });
+-    expect(toLessonVideo(a)).toEqual({ kind: 'hosted', available: true, mimeType: 'video/mp4' });
+-  });
+-  it('uploaded file with a path or unknown type -> hosted, unavailable', () => {
+-    expect(hostedVideoFile(activity({ content: { filename: '../etc/passwd.mp4' } }))).toBeNull();
+-    const a = activity({ activity_sub_type: 'SUBTYPE_VIDEO_HOSTED', content: { filename: 'notes.pdf' } });
+-    expect(toLessonVideo(a)).toEqual({ kind: 'hosted', available: false });
+-  });
+-});
+-
+-describe('playerWindow', () => {
+-  it('accepts a JSON string and drops bad values', () => {
+-    expect(playerWindow('{"startTime":5,"endTime":3}')).toEqual({ startSec: 5 });
+-    expect(playerWindow('not json')).toEqual({});
+-    expect(playerWindow({ startTime: -1, endTime: 'x' })).toEqual({});
+-  });
+-});
+-
+-describe('getLessonVideo', () => {
+-  beforeEach(() => {
+-    process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL = 'https://lh.example.com/';
+-    global.fetch = jest.fn();
+-    (getStoredToken as jest.Mock).mockResolvedValue('user-jwt');
+-  });
+-
+-  it('reads the activity with the user token and returns a YouTube video', async () => {
+-    mockFetchOnce(200, activity());
+-    const load = await getLessonVideo('course_1', 'activity_1');
+-    const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+-    expect(url).toBe('https://lh.example.com/api/v1/activities/activity_1');
+-    expect(init.headers.Authorization).toBe('Bearer user-jwt');
+-    expect(load.response).toEqual({ activityUuid: 'activity_1', title: 'Intro video', video: { kind: 'youtube', videoId: YT, startSec: 10, endSec: 90 } });
+-    expect(load.fileSource).toBeNull();
+-  });
+-
+-  it('uploaded video -> stream URL from the session org, with the user token', async () => {
+-    mockFetchOnce(200, activity({ activity_sub_type: 'SUBTYPE_VIDEO_HOSTED', content: { filename: 'lesson.mp4' } }));
+-    mockFetchOnce(200, {
+-      user: { id: 1, user_uuid: 'u', username: 'u', first_name: 'A', last_name: 'B', email: 'a@b.c' },
+-      roles: [{ role: { name: 'user' }, org: { id: 1, org_uuid: 'org_9', slug: 'default', name: 'Org' } }],
+-    });
+-    const load = await getLessonVideo('course_1', 'activity_1');
+-    expect(load.fileSource).toEqual({
+-      uri: 'https://lh.example.com/content/orgs/org_9/courses/course_1/activities/activity_1/video/lesson.mp4',
+-      headers: { Authorization: 'Bearer user-jwt' },
+-    });
+-  });
+-
+-  it('signed out -> 401 without calling LearnHouse', async () => {
+-    (getStoredToken as jest.Mock).mockResolvedValue(null);
+-    await expect(getLessonVideo('c', 'a')).rejects.toMatchObject({ status: 401 });
+-    expect(global.fetch).not.toHaveBeenCalled();
+-  });
+-
+-  it('passes LearnHouse 403 through (screen shows "not available to you")', async () => {
+-    mockFetchOnce(403, { detail: 'Forbidden' });
+-    await expect(getLessonVideo('c', 'a')).rejects.toMatchObject({ status: 403 });
+-  });
+-});
+diff --git a/src/data/learnhouse/lessonApi.ts b/src/data/learnhouse/lessonApi.ts
+deleted file mode 100644
+index bd3c4fe..0000000
+--- a/src/data/learnhouse/lessonApi.ts
++++ /dev/null
+@@ -1,118 +0,0 @@
+-// Lesson video lookup, straight from LearnHouse — same direct pattern as
+-// authApi.ts / progressApi.ts (no middle layer). Uses the signed-in user's
+-// own JWT from SecureStore, never the org admin token.
+-//
+-// GET /api/v1/activities/{activity_uuid} gives the activity's content; this
+-// file turns it into the player's LessonVideo contract (src/contracts/lessonVideo.ts):
+-//  - YouTube   -> an 11-character video id (+ optional start/end seconds)
+-//  - uploaded  -> a file source the native player streams with the user's token
+-//  - otherwise -> 'unsupported' with a reason the screen can show
+-import { z } from 'zod';
+-import { ApiError, request } from './client';
+-import { getStoredToken } from './secureToken';
+-import { fetchSession } from './authApi';
+-import {
+-  LessonVideoResponseSchema,
+-  youTubeIdFrom,
+-  type LessonVideo,
+-  type LessonVideoResponse,
+-} from '../../contracts/lessonVideo';
+-
+-// Only the fields the mapping reads; anything else LearnHouse returns is ignored.
+-export const lessonActivitySchema = z.object({
+-  activity_uuid: z.string(),
+-  name: z.string().nullable().optional(),
+-  activity_type: z.string(),
+-  activity_sub_type: z.string().nullable().optional(),
+-  content: z.record(z.string(), z.unknown()).nullable().optional(),
+-  details: z.unknown().optional(),
+-});
+-export type LessonActivity = z.infer<typeof lessonActivitySchema>;
+-
+-export interface LessonVideoSource {
+-  uri: string;
+-  headers: Record<string, string>;
+-}
+-
+-export interface LessonVideoLoad {
+-  response: LessonVideoResponse;
+-  /** Set only for an uploaded video the player can stream. */
+-  fileSource: LessonVideoSource | null;
+-}
+-
+-/** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
+-export function playerWindow(details: unknown): { startSec?: number; endSec?: number } {
+-  let d: unknown = details;
+-  if (typeof d === 'string') {
+-    try { d = JSON.parse(d); } catch { return {}; }
+-  }
+-  const o = (d ?? {}) as { startTime?: unknown; endTime?: unknown };
+-  const sec = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 86400 ? Math.floor(v) : undefined);
+-  const startSec = sec(o.startTime);
+-  const endSec = sec(o.endTime);
+-  return { ...(startSec ? { startSec } : {}), ...(endSec && endSec > (startSec ?? 0) ? { endSec } : {}) };
+-}
+-
+-const VIDEO_MIME = { mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' } as const;
+-type VideoMime = (typeof VIDEO_MIME)[keyof typeof VIDEO_MIME];
+-
+-/** An uploaded video's file name, only if it is a plain file name with a known video extension (no paths). */
+-export function hostedVideoFile(a: LessonActivity): { filename: string; mimeType: VideoMime } | null {
+-  const f = a.content?.filename;
+-  if (typeof f !== 'string' || !/^[A-Za-z0-9_-][A-Za-z0-9._-]{0,150}$/.test(f)) return null;
+-  const ext = f.split('.').pop()!.toLowerCase() as keyof typeof VIDEO_MIME;
+-  return Object.prototype.hasOwnProperty.call(VIDEO_MIME, ext) ? { filename: f, mimeType: VIDEO_MIME[ext] } : null;
+-}
+-
+-/** Map a LearnHouse activity to what the player can play. */
+-export function toLessonVideo(a: LessonActivity): LessonVideo {
+-  if (a.activity_type !== 'TYPE_VIDEO') return { kind: 'unsupported', reason: 'not_a_video' };
+-  if (a.activity_sub_type === 'SUBTYPE_VIDEO_HOSTED') {
+-    const file = hostedVideoFile(a);
+-    return file ? { kind: 'hosted', available: true, mimeType: file.mimeType } : { kind: 'hosted', available: false };
+-  }
+-  const type = typeof a.content?.type === 'string' ? a.content.type.toLowerCase() : '';
+-  if (type === 'vimeo') return { kind: 'unsupported', reason: 'vimeo' };
+-  const videoId = youTubeIdFrom(a.content?.uri);
+-  return videoId ? { kind: 'youtube', videoId, ...playerWindow(a.details) } : { kind: 'unsupported', reason: 'unrecognized_url' };
+-}
+-
+-export function baseUrl(): string {
+-  let url = process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL ?? '';
+-  while (url.endsWith('/')) url = url.slice(0, -1);
+-  return url;
+-}
+-
+-/**
+- * Where LearnHouse serves an uploaded activity video:
+- * {origin}/content/orgs/{org_uuid}/courses/{course_uuid}/activities/{activity_uuid}/video/{file}
+- */
+-export function hostedVideoUrl(orgUuid: string, courseUuid: string, activityUuid: string, filename: string): string {
+-  const e = encodeURIComponent;
+-  return `${baseUrl()}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/video/${e(filename)}`;
+-}
+-
+-export async function getLessonVideo(courseUuid: string, activityUuid: string): Promise<LessonVideoLoad> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-
+-  const raw = await request(`/api/v1/activities/${encodeURIComponent(activityUuid)}`, { token });
+-  const activity = lessonActivitySchema.parse(raw);
+-
+-  const response = LessonVideoResponseSchema.parse({
+-    activityUuid,
+-    title: activity.name?.trim().slice(0, 200) || 'Video',
+-    video: toLessonVideo(activity),
+-  });
+-
+-  let fileSource: LessonVideoSource | null = null;
+-  const file = response.video.kind === 'hosted' && response.video.available ? hostedVideoFile(activity) : null;
+-  if (file) {
+-    // The media path needs the org's uuid, which only the session carries.
+-    const orgUuid = (await fetchSession(token)).roles[0]?.org.org_uuid;
+-    fileSource = orgUuid
+-      ? { uri: hostedVideoUrl(orgUuid, courseUuid, activityUuid, file.filename), headers: { Authorization: `Bearer ${token}` } }
+-      : null;
+-  }
+-  return { response, fileSource };
+-}
+diff --git a/src/data/learnhouse/slidesApi.ts b/src/data/learnhouse/slidesApi.ts
+index 2256296..86a7867 100644
+--- a/src/data/learnhouse/slidesApi.ts
++++ b/src/data/learnhouse/slidesApi.ts
+@@ -1,87 +1,14 @@
+-// Slide decks (LearnHouse PDF "document" activities), straight from LearnHouse — same direct
+-// pattern as lessonApi.ts. Uses the signed-in user's own JWT from SecureStore, never the admin token.
+-//
+-// GET /api/v1/activities/{activity_uuid} gives the activity; a PDF activity is TYPE_DOCUMENT with
+-// content.filename. The file is served at
+-//   {origin}/content/orgs/{org_uuid}/courses/{course_uuid}/activities/{activity_uuid}/documentpdf/{file}
+-// It is downloaded once into the app cache (so reopening a deck, or toggling full screen, is
+-// instant and works offline afterwards) and handed to the viewer as base64.
++// Slide decks (PDF activities, or a PDF inside an article), through the BFF.
++// The BFF finds the PDF (LearnHouse document, article PDF block, or a shared Google Drive / Docs file)
++// and streams it from one fixed route; the app never gets a LearnHouse or Google address, and its
++// session token goes only to the BFF.
++// The PDF is downloaded once into the app cache, keyed by the deck's version (so reopening a deck, or
++// toggling full screen, is instant and works offline afterwards), and handed to the viewer as base64.
+ import { Directory, File, Paths } from 'expo-file-system';
+-import { ApiError, request } from './client';
+-import { getStoredToken } from './secureToken';
+-import { fetchSession } from './authApi';
+-import { baseUrl, lessonActivitySchema, type LessonActivity } from './lessonApi';
++import { getSlideDeckInfo, slideDeckFileSource, LearnHouseError } from '../../core/api/learnhouse/client';
++import type { SlideDeckInfo } from '../../contracts/slides';
+ 
+-export type SlideDeckProblem = 'not_slides' | 'no_file' | 'not_downloadable';
+-
+-/** A PDF reference found inside an article's content. */
+-export interface PdfRef {
+-  /** An absolute https URL, or a file name. */
+-  ref: string;
+-  /** The editor block that holds the file, when the content says so. */
+-  blockUuid?: string;
+-  /** Set when the PDF is a Google Drive file (the article embeds the Drive viewer). */
+-  driveId?: string;
+-  /** Set when the article embeds a Google Doc / Slides / Sheet: Google's own PDF export of it. */
+-  exportUrl?: string;
+-}
+-
+-/** The file id in a Google Drive link: /file/d/<id>/view|preview, open?id=<id>, uc?id=<id>. */
+-const DRIVE_LINK = /^https:\/\/drive\.google\.com\/(?:file\/d\/|open\?(?:[^#]*&)?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{10,})/i;
+-export function driveFileId(url: string): string | null {
+-  return url.length <= 500 ? DRIVE_LINK.exec(url)?.[1] ?? null : null;
+-}
+-
+-/** A Google Docs / Slides / Sheets link. Google exports any of these as a PDF itself. */
+-const GOOGLE_DOC_LINK = /^https:\/\/docs\.google\.com\/(document|presentation|spreadsheets)\/d\/([A-Za-z0-9_-]{10,})/i;
+-export function googleExportUrl(url: string): string | null {
+-  const m = url.length <= 500 ? GOOGLE_DOC_LINK.exec(url) : null;
+-  if (!m) return null;
+-  const kind = m[1].toLowerCase();
+-  const tail = kind === 'presentation' ? 'export/pdf' : 'export?format=pdf';
+-  return `https://docs.google.com/${kind}/d/${m[2]}/${tail}`;
+-}
+-
+-const PDF_MARK = /\.pdf($|[?#])/i;
+-
+-/**
+- * Find a PDF inside a rich-text article's content (any shape: a string ending in .pdf, or an editor
+- * block with file_id + file_format "pdf"). Returns the first one, or null.
+- */
+-export function findPdfInContent(content: unknown): PdfRef | null {
+-  const stack: { node: unknown; block?: string; depth: number }[] = [{ node: content, depth: 0 }];
+-  let visited = 0;
+-  while (stack.length && visited++ < 20000) {
+-    const { node, block, depth } = stack.pop()!;
+-    if (typeof node === 'string') {
+-      const driveId = driveFileId(node);
+-      if (driveId) return { ref: node, driveId };
+-      const exportUrl = googleExportUrl(node);
+-      if (exportUrl) return { ref: node, exportUrl };
+-      if (node.length <= 500 && PDF_MARK.test(node)) return { ref: node, ...(block ? { blockUuid: block } : {}) };
+-      continue;
+-    }
+-    if (!node || typeof node !== 'object' || depth > 20) continue;
+-    const o = node as Record<string, unknown>;
+-    const here = typeof o.block_uuid === 'string' ? o.block_uuid : block;
+-    if (typeof o.file_id === 'string' && typeof o.file_format === 'string' && o.file_format.toLowerCase() === 'pdf') {
+-      return { ref: `${o.file_id}.pdf`, ...(here ? { blockUuid: here } : {}) };
+-    }
+-    // Children are pushed in reverse so the first PDF in reading order wins.
+-    const kids = Array.isArray(node) ? [...node] : Object.values(o);
+-    for (let i = kids.length - 1; i >= 0; i--) stack.push({ node: kids[i], block: here, depth: depth + 1 });
+-  }
+-  return null;
+-}
+-
+-/** A short structural outline of an article's content, for the dev log when no PDF is found. */
+-export function outlineContent(node: unknown, depth = 0): unknown {
+-  if (typeof node === 'string') return node.length > 60 ? `${node.slice(0, 60)}…` : node;
+-  if (!node || typeof node !== 'object') return node;
+-  if (depth >= 6) return '…';
+-  if (Array.isArray(node)) return node.slice(0, 8).map((n) => outlineContent(n, depth + 1));
+-  return Object.fromEntries(Object.entries(node).slice(0, 12).map(([k, v]) => [k, outlineContent(v, depth + 1)]));
+-}
++export type SlideDeckProblem = Extract<SlideDeckInfo, { kind: 'unavailable' }>['reason'];
+ 
+ /** Thrown when the activity exists but is not a PDF the viewer can open. */
+ export class SlideDeckUnavailable extends Error {
+@@ -100,113 +27,53 @@ export interface SlideDeck {
+   base64: string;
+ }
+ 
+-/** The deck's PDF file name, only if it is a plain file name ending in .pdf (no paths). */
+-export function slideDeckFile(a: LessonActivity): string | null {
+-  if (a.activity_type !== 'TYPE_DOCUMENT') return null;
+-  const f = a.content?.filename;
+-  if (typeof f !== 'string' || !/^[A-Za-z0-9_-][A-Za-z0-9._-]{0,150}$/.test(f)) return null;
+-  return f.toLowerCase().endsWith('.pdf') ? f : null;
+-}
+-
+-/** Where an editor PDF block's file is served (unconfirmed against a live server; see getSlideDeck). */
+-export function articlePdfUrl(orgUuid: string, courseUuid: string, activityUuid: string, blockUuid: string, filename: string): string {
+-  const e = encodeURIComponent;
+-  return `${baseUrl()}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/dynamic/blocks/pdfBlock/${e(blockUuid)}/${e(filename)}`;
+-}
+-
+-export function slideDeckUrl(orgUuid: string, courseUuid: string, activityUuid: string, filename: string): string {
+-  const e = encodeURIComponent;
+-  return `${baseUrl()}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/documentpdf/${e(filename)}`;
+-}
+-
+-/** Cache file name: activity + LearnHouse file name, so a re-uploaded deck with a new name is fetched again. */
+-export function slideCacheName(activityUuid: string, filename: string): string {
+-  return `${activityUuid}-${filename}`.replace(/[^A-Za-z0-9._-]/g, '_');
+-}
+-
+-/** Only the LearnHouse server itself ever gets the user's token. */
+-function sameOrigin(url: string): boolean {
+-  try { return new URL(url).origin === new URL(baseUrl()).origin; } catch { return false; }
++/** Cache file name: activity + the BFF's deck version, so a changed deck is fetched again. */
++export function slideCacheName(activityUuid: string, version: string): string {
++  return `${activityUuid}-${version}.pdf`.replace(/[^A-Za-z0-9._-]/g, '_');
+ }
+ 
+-async function cachedPdf(url: string, name: string, token: string): Promise<File> {
+-  const dir = new Directory(Paths.cache, 'slides');
+-  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+-  const file = new File(dir, name);
+-  if (file.exists && file.size > 0) return file;
+-  // Android streams into the target as it downloads: download beside it, then move into place,
+-  // so a dropped connection never leaves a half-written deck in the cache.
+-  const part = new File(dir, `${name}.part`);
++async function download(courseUuid: string, activityUuid: string, file: File): Promise<void> {
++  const source = slideDeckFileSource(courseUuid, activityUuid);
++  if (!source) throw new LearnHouseError(401, 'slides/file', 'Not signed in');
++  let res: Response;
+   try {
+-    await File.downloadFileAsync(url, part, { headers: sameOrigin(url) ? { Authorization: `Bearer ${token}` } : {}, idempotent: true });
++    res = await fetch(source.uri, { headers: source.headers });
++  } catch {
++    throw new LearnHouseError(0, 'slides/file', 'Network request failed');
++  }
++  // 422: the BFF fetched it but it is not a PDF (e.g. a Drive file that is not shared publicly).
++  if (res.status === 422) throw new SlideDeckUnavailable('not_downloadable');
++  if (res.status === 404) throw new SlideDeckUnavailable('no_file');
++  if (!res.ok) throw new LearnHouseError(res.status, 'slides/file', `BFF returned ${res.status}`);
++  const bytes = new Uint8Array(await res.arrayBuffer());
++  // Write beside the target, then move into place, so a failure never leaves a half-written deck.
++  const part = new File(file.parentDirectory, `${file.name}.part`);
++  try {
++    if (part.exists) part.delete();
++    part.create();
++    part.write(bytes);
+     await part.move(file);
+   } catch (e) {
+     if (part.exists) part.delete();
+-    if (__DEV__) console.log('[slides] download failed:', url, String((e as Error)?.message ?? e).slice(0, 300));
+-    // A failed download from Google (private file, sign-in required, export refused) is "not downloadable".
+-    if (!sameOrigin(url)) throw new SlideDeckUnavailable('not_downloadable');
+     throw e;
+   }
+-  return file;
+ }
+ 
+ export async function getSlideDeck(courseUuid: string, activityUuid: string): Promise<SlideDeck> {
+-  const token = await getStoredToken();
+-  if (!token) throw new ApiError(401, 'Not signed in');
+-
+-  const raw = await request(`/api/v1/activities/${encodeURIComponent(activityUuid)}`, { token });
+-  const activity = lessonActivitySchema.parse(raw);
+-  if (activity.activity_type !== 'TYPE_DOCUMENT' && activity.activity_type !== 'TYPE_DYNAMIC') throw new SlideDeckUnavailable('not_slides');
+-
+-  // The media path needs the org's uuid, which only the session carries.
+-  const orgUuid = (await fetchSession(token)).roles[0]?.org.org_uuid;
+-  if (!orgUuid) throw new ApiError(403, 'No organisation on this session');
++  const info = await getSlideDeckInfo(courseUuid, activityUuid);
++  if (info.deck.kind === 'unavailable') throw new SlideDeckUnavailable(info.deck.reason);
+ 
+-  let url: string;
+-  let cacheName: string;
+-  if (activity.activity_type === 'TYPE_DOCUMENT') {
+-    const filename = slideDeckFile(activity);
+-    if (!filename) throw new SlideDeckUnavailable('no_file');
+-    url = slideDeckUrl(orgUuid, courseUuid, activityUuid, filename);
+-    cacheName = slideCacheName(activityUuid, filename);
+-  } else {
+-    // An article: look for a PDF inside its content.
+-    if (__DEV__) {
+-      // Every link inside the article, so a failed lookup shows what the embed really points at.
+-      const links = (JSON.stringify(activity.content ?? null).match(/https?:[^"\s\\]+/g) ?? []).slice(0, 10);
+-      console.log('[slides] activity', activityUuid, activity.activity_type, 'links:', JSON.stringify(links));
+-    }
+-    const found = findPdfInContent(activity.content);
+-    if (!found) {
+-      if (__DEV__) console.log('[slides] no PDF found in article content:', JSON.stringify(outlineContent(activity.content)).slice(0, 1500));
+-      throw new SlideDeckUnavailable('no_file');
+-    }
+-    if (found.driveId) {
+-      // The article embeds a Google Drive viewer. Drive's direct-download form of the same file
+-      // works without a login only when the file is shared as "anyone with the link".
+-      url = `https://drive.google.com/uc?export=download&id=${found.driveId}`;
+-    } else if (found.exportUrl) {
+-      // A Google Doc / Slides / Sheet: Google converts it to PDF (needs "anyone with the link").
+-      url = found.exportUrl;
+-    } else if (/^https:\/\//i.test(found.ref)) {
+-      url = found.ref;
+-    } else {
+-      const filename = found.ref.split(/[\\/]/).pop() ?? '';
+-      if (!/^[A-Za-z0-9_-][A-Za-z0-9._-]{0,150}$/.test(filename)) throw new SlideDeckUnavailable('no_file');
+-      url = found.blockUuid ? articlePdfUrl(orgUuid, courseUuid, activityUuid, found.blockUuid, filename) : slideDeckUrl(orgUuid, courseUuid, activityUuid, filename);
+-    }
+-    if (__DEV__) console.log('[slides] article PDF url:', url);
+-    cacheName = slideCacheName(activityUuid, found.driveId ? `drive-${found.driveId}.pdf` : found.exportUrl ? `gdoc-${found.exportUrl.split('/d/')[1].split('/')[0]}.pdf` : url.split('/').slice(-2).join('-'));
+-  }
++  const dir = new Directory(Paths.cache, 'slides');
++  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
++  const file = new File(dir, slideCacheName(activityUuid, info.deck.version));
++  if (!(file.exists && file.size > 0)) await download(courseUuid, activityUuid, file);
+ 
+-  const file = await cachedPdf(url, cacheName, token);
+   const base64 = await file.base64();
+-  if (__DEV__) console.log('[slides] downloaded', file.size, 'bytes, starts with', JSON.stringify(base64.slice(0, 12)));
+-  // A real PDF starts "%PDF" (base64 "JVBER"). Anything else (a Drive sign-in or "can't scan this file"
+-  // page, an error page) is not a deck: drop it from the cache so the next try fetches again.
++  // A real PDF starts "%PDF" (base64 "JVBER"); the BFF checks this too. Anything else is dropped from
++  // the cache so the next try fetches again.
+   if (!base64.startsWith('JVBER')) {
+     file.delete();
+     throw new SlideDeckUnavailable('not_downloadable');
+   }
+-  return { activityUuid, title: activity.name?.trim().slice(0, 200) || 'Slides', base64 };
++  return { activityUuid, title: info.title, base64 };
+ }
+diff --git a/src/screens/activity/completion.test.tsx b/src/screens/activity/completion.test.tsx
+index 9bce8ff..a187eaa 100644
+--- a/src/screens/activity/completion.test.tsx
++++ b/src/screens/activity/completion.test.tsx
+@@ -4,7 +4,6 @@ import { CompleteActivityButton, checkpointsCleared } from '../../ui/molecules/a
+ import { isActivityComplete, completionErrorMessage } from './useActivityCompletion';
+ import type { CourseProgress } from '../../core/learning/types';
+ 
+-jest.mock('../../data/learnhouse/secureToken', () => ({ getStoredToken: jest.fn() }));
+ 
+ const course = {
+   courseUuid: 'c', courseName: 'C', status: null, enrolledAt: null, totalActivities: 2, completedActivities: 1, completionPercentage: 50,
+@@ -32,6 +31,7 @@ describe('activity completion', () => {
+   it('explains failures', () => {
+     expect(completionErrorMessage({ status: 401 })).toMatch(/sign in/);
+     expect(completionErrorMessage({ status: 0 })).toMatch(/offline/);
++    expect(completionErrorMessage({ status: 403 })).toMatch(/not available/);
+     expect(completionErrorMessage(new Error('x'))).toMatch(/couldn't save/);
+   });
+ 
+diff --git a/src/screens/activity/useActivityCompletion.ts b/src/screens/activity/useActivityCompletion.ts
+index 9a211b8..cdb14aa 100644
+--- a/src/screens/activity/useActivityCompletion.ts
++++ b/src/screens/activity/useActivityCompletion.ts
+@@ -1,5 +1,5 @@
+ // Whether the open activity is complete, and the action that marks it so. The starting state comes
+-// from the cached trail; marking calls LearnHouse and then shows "Completed" right away.
++// from the cached trail; marking goes through the BFF and then shows "Completed" right away.
+ import { useCallback, useEffect, useState } from 'react';
+ import { useCourseProgress } from '../you/useCourseProgress';
+ import { markActivityComplete } from '../../data/learnhouse/completionApi';
+@@ -15,11 +15,12 @@ export function isActivityComplete(courses: CourseProgress[], activityUuid: stri
+ export function completionErrorMessage(e: unknown): string {
+   const status = (e as { status?: number } | null)?.status;
+   if (status === 401) return 'Please sign in again to save your progress.';
++  if (status === 403) return 'This activity is not available to you.';
+   if (status === 0) return "You're offline. Try again when you're connected.";
+   return "We couldn't save your progress. Please try again.";
+ }
+ 
+-export function useActivityCompletion(activityUuid: string | undefined) {
++export function useActivityCompletion(courseUuid: string | undefined, activityUuid: string | undefined) {
+   const { status: loadStatus, courses } = useCourseProgress();
+   const [status, setStatus] = useState<CompletionStatus>('unknown');
+   const [error, setError] = useState<string | null>(null);
+@@ -32,17 +33,17 @@ export function useActivityCompletion(activityUuid: string | undefined) {
+ 
+   const markComplete = useCallback((locked = false) => {
+     // `locked`: the screen's own rule (e.g. checkpoints not yet passed) — never record past it.
+-    if (!activityUuid || locked || status === 'saving' || status === 'complete') return;
++    if (!courseUuid || !activityUuid || locked || status === 'saving' || status === 'complete') return;
+     setStatus('saving');
+     setError(null);
+-    markActivityComplete(activityUuid)
++    markActivityComplete(courseUuid, activityUuid)
+       .then(() => setStatus('complete'))
+       .catch((e) => {
+         if (__DEV__) console.log('[completion] mark complete failed:', (e as { status?: number })?.status, String((e as Error)?.message ?? e));
+         setStatus('incomplete');
+         setError(completionErrorMessage(e));
+       });
+-  }, [activityUuid, status]);
++  }, [courseUuid, activityUuid, status]);
+ 
+   return { status, error, markComplete };
+ }
+diff --git a/src/screens/assignment/AssignmentScreen.tsx b/src/screens/assignment/AssignmentScreen.tsx
+index 7d69d82..3753a81 100644
+--- a/src/screens/assignment/AssignmentScreen.tsx
++++ b/src/screens/assignment/AssignmentScreen.tsx
+@@ -17,8 +17,8 @@ import { useAssignmentQuiz } from './useAssignmentQuiz';
+ 
+ export default function AssignmentScreen() {
+   const navigation = useNavigation();
+-  const { activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Assignment'>>().params;
+-  const { load, answers, select, status, error, submit, reload, grade, retriesLeft, retrying, tryAgain } = useAssignmentQuiz(activityUuid);
++  const { courseUuid, activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Assignment'>>().params;
++  const { load, answers, select, status, error, submit, reload, grade, retriesLeft, retrying, tryAgain } = useAssignmentQuiz(courseUuid, activityUuid);
+ 
+   return (
+     <SafeAreaView style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]} edges={['top', 'bottom']}>
+diff --git a/src/screens/assignment/assignment.test.tsx b/src/screens/assignment/assignment.test.tsx
+index 4586dc5..b269617 100644
+--- a/src/screens/assignment/assignment.test.tsx
++++ b/src/screens/assignment/assignment.test.tsx
+@@ -3,12 +3,10 @@ import ReactTestRenderer, { act } from 'react-test-renderer';
+ import { Text } from 'react-native';
+ import { QuizForm, submitLabel, toneFor, sectionHeading } from '../../ui/organisms/quiz/QuizForm';
+ import { choose, answeredCount, assignmentErrorMessage } from './useAssignmentQuiz';
+-import { quizTasksFrom, savedTasksFrom, taskSubmissionBody, gradeFrom } from '../../data/learnhouse/assignmentApi';
++import type { AssignmentQuiz } from '../../contracts/assignment';
+ import { QuizResultCard, verdict, retryLabel } from '../../ui/organisms/quiz/QuizResultCard';
+ import { routeForActivity } from '../../navigation/activityRoute';
+ 
+-jest.mock('../../data/learnhouse/secureToken', () => ({ getStoredToken: jest.fn() }));
+-jest.mock('../../data/learnhouse/authApi', () => ({ fetchSession: jest.fn() }));
+ 
+ const opts = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
+ const questions = [
+@@ -19,28 +17,15 @@ const sections = [{ id: 't1', title: 'Day 1', points: 100, questions }];
+ type Status = 'answering' | 'submitting' | 'submitted';
+ type A = Record<string, string[]>;
+ 
+-// Shape of GET /assignments/{uuid}/tasks (trimmed from a real response).
+-const RAW_TASKS = [
+-  {
+-    title: 'Engineering Reliable Single Agent System', description: 'Knowledge check for Day 1', assignment_type: 'QUIZ',
+-    max_grade_value: 100, assignment_task_uuid: 'assignmenttask_1',
+-    contents: {
+-      grading_mode: 'all_or_nothing',
+-      questions: [
+-        { questionText: 'Which approach?', questionUUID: 'question_1', response_type: 'single', options: [
+-          { text: 'Hardcode', fileID: '', type: 'text', optionUUID: 'option_1' },
+-          { text: 'Abstraction layer', fileID: '', type: 'text', optionUUID: 'option_2' },
+-          { text: '  ', fileID: '', type: 'text', optionUUID: 'option_blank' },
+-        ] },
+-        { questionText: 'Pick all', questionUUID: 'question_2', response_type: 'multiple', options: [
+-          { text: 'X', optionUUID: 'option_3' },
+-        ] },
+-        { questionText: '', questionUUID: 'question_empty', options: [] },
+-      ],
+-    },
+-  },
+-  { title: 'Upload', assignment_type: 'FILE_SUBMISSION', assignment_task_uuid: 'assignmenttask_2', contents: {} },
+-];
++// LearnHouse's raw quiz/answer/grade shapes are mapped by the BFF now (bff/src/assignments.ts,
++// tested in bff/test/slidesAssignments.test.ts); the app receives src/contracts/assignment.ts.
++const QUIZ: AssignmentQuiz = {
++  title: 'T', allowRetries: false, showCorrectAnswers: false,
++  tasks: [{ taskUuid: 'assignmenttask_1', title: 'Day 1', questions: [
++    { id: 'question_1', question: 'Which approach?', multiple: false, options: [{ id: 'option_1', label: 'Hardcode' }, { id: 'option_2', label: 'Abstraction layer' }] },
++    { id: 'question_2', question: 'Pick all', multiple: true, options: [{ id: 'option_3', label: 'X' }] },
++  ] }],
++};
+ 
+ function setup(answers: A = {}, status: Status = 'answering') {
+   const onSelect = jest.fn();
+@@ -76,15 +61,6 @@ describe('assignment quiz', () => {
+     expect(submitLabel('submitted', 3, 3)).toBe('Answers saved');
+   });
+ 
+-  it('reads quiz tasks from the LearnHouse tasks response', () => {
+-    const tasks = quizTasksFrom(RAW_TASKS);
+-    expect(tasks).toHaveLength(1); // the file-upload task is skipped
+-    expect(tasks[0]).toMatchObject({ taskUuid: 'assignmenttask_1', title: 'Engineering Reliable Single Agent System', points: 100 });
+-    expect(tasks[0].questions.map((q) => q.id)).toEqual(['question_1', 'question_2']); // empty question dropped
+-    expect(tasks[0].questions[0].options).toEqual([{ id: 'option_1', label: 'Hardcode' }, { id: 'option_2', label: 'Abstraction layer' }]);
+-    expect(tasks[0].questions[1].multiple).toBe(true);
+-  });
+-
+   it('replaces single answers and toggles multiple ones', () => {
+     expect(choose({ q: ['a'] }, 'q', 'b', false)).toEqual({ q: ['b'] });
+     expect(choose({ q: ['a'] }, 'q', 'b', true)).toEqual({ q: ['a', 'b'] });
+@@ -92,8 +68,7 @@ describe('assignment quiz', () => {
+   });
+ 
+   it('counts answered questions across tasks', () => {
+-    const quiz = { assignmentUuid: 'x', title: 'T', allowRetries: false, showCorrectAnswers: false, tasks: quizTasksFrom(RAW_TASKS) };
+-    expect(answeredCount(quiz, { question_1: ['option_1'], question_2: [] })).toBe(1);
++    expect(answeredCount(QUIZ, { question_1: ['option_1'], question_2: [] })).toBe(1);
+   });
+ 
+   it('heads sections with task number only when there are several', () => {
+@@ -101,32 +76,6 @@ describe('assignment quiz', () => {
+     expect(sectionHeading(1, 2, { id: 't', title: 'Week 1', questions })).toBe('Task 2 · Week 1');
+   });
+ 
+-  it('reads saved answers (only options flagged true)', () => {
+-    const saved = savedTasksFrom({
+-      assignmenttask_1: {
+-        assignment_task_submission_uuid: 'sub_1', grade: 0,
+-        task_submission: { questions: [], submissions: [
+-          { questionUUID: 'question_1', optionUUID: 'option_1', answer: false },
+-          { questionUUID: 'question_1', optionUUID: 'option_2', answer: true },
+-        ] },
+-      },
+-      junk: 'nope',
+-    });
+-    expect(saved).toEqual({ assignmenttask_1: { submissionUuid: 'sub_1', answers: { question_1: ['option_2'] }, grade: 0 } });
+-    expect(savedTasksFrom(null)).toEqual({});
+-  });
+-
+-  it('builds the task body with every option flagged', () => {
+-    const [task] = quizTasksFrom(RAW_TASKS);
+-    const body = taskSubmissionBody(task, { question_1: ['option_2'] }, 'sub_1');
+-    expect(body.assignment_task_submission_uuid).toBe('sub_1');
+-    expect(body.task_submission.submissions).toEqual([
+-      { questionUUID: 'question_1', optionUUID: 'option_1', answer: false },
+-      { questionUUID: 'question_1', optionUUID: 'option_2', answer: true },
+-      { questionUUID: 'question_2', optionUUID: 'option_3', answer: false },
+-    ]);
+-  });
+-
+   it('explains load failures', () => {
+     expect(assignmentErrorMessage({ status: 401 })).toMatch(/sign in/);
+     expect(assignmentErrorMessage(new Error('x'))).toMatch(/couldn't load/);
+@@ -162,19 +111,6 @@ describe('assignment quiz', () => {
+     expect(onSelect).not.toHaveBeenCalled();
+   });
+ 
+-  it('reads the grade response', () => {
+-    const g = gradeFrom({
+-      grade: 80, max_grade: 200, percentage: 40.0, points_summary: '80/200 pts', passed: true, passing_threshold: 40.0,
+-      overall_feedback: null,
+-      tasks: [{ index: 1, assignment_task_uuid: 'assignmenttask_1', title: 'Same title', description: 'Knowledge check for Day 1',
+-        points_summary: '80/100', passed: true, feedback: '' }],
+-    });
+-    expect(g).toEqual({
+-      percent: 40, percentLabel: '40%', pointsLabel: '80/200 pts', passed: true, passPercent: 40,
+-      tasks: [{ taskUuid: 'assignmenttask_1', title: 'Knowledge check for Day 1', pointsLabel: '80/100', passed: true }],
+-    });
+-  });
+-
+   it('words the verdict and retry button', () => {
+     expect(verdict(true, 40)).toBe('Passed');
+     expect(verdict(false, 40)).toBe('Not passed yet · 40% needed');
+diff --git a/src/screens/assignment/useAssignmentQuiz.ts b/src/screens/assignment/useAssignmentQuiz.ts
+index 6afea91..4c312a2 100644
+--- a/src/screens/assignment/useAssignmentQuiz.ts
++++ b/src/screens/assignment/useAssignmentQuiz.ts
+@@ -1,10 +1,10 @@
+ // src/screens/assignment/useAssignmentQuiz.ts
+-// Loads the assignment's quiz tasks (and any answers already saved) from LearnHouse, and owns the
+-// answers + submission: save each task's answers, then hand in the assignment.
++// Loads the assignment's quiz (and any answers already saved) through the BFF, and owns the answers
++// + submission. The BFF saves each task's answers and hands the assignment in, as the learner.
+ import { useCallback, useEffect, useState } from 'react';
+ import {
+-  getAssignmentGrade, getAssignmentQuiz, getSavedTasks, retryAssignment, submitAssignmentQuiz,
+-  type AssignmentGrade, type AssignmentQuiz, type SavedTask,
++  getAssignmentGrade, getAssignmentQuiz, getSavedAnswers, retryAssignment, submitAssignment,
++  type AssignmentGrade, type AssignmentQuiz,
+ } from '../../data/learnhouse/assignmentApi';
+ import { clearTrailCache } from '../../data/learnhouse/trailCache';
+ import type { QuizFormStatus } from '../../ui/organisms/quiz/QuizForm';
+@@ -26,6 +26,7 @@ export function answeredCount(quiz: AssignmentQuiz, answers: Answers) {
+ export function assignmentErrorMessage(e: unknown): string {
+   const status = (e as { status?: number } | null)?.status;
+   if (status === 401) return 'Please sign in again to open this assignment.';
++  // Includes a dev-login session: assignments need a real LearnHouse sign-in.
+   if (status === 403) return 'This assignment is not available to you.';
+   if (status === 404) return "This assignment couldn't be found.";
+   return "We couldn't load this assignment. Check your connection and try again.";
+@@ -44,13 +45,12 @@ type Load =
+   | { status: 'ready'; quiz: AssignmentQuiz; error: null }
+   | { status: 'error'; quiz: null; error: string };
+ 
+-export function useAssignmentQuiz(activityUuid: string) {
++export function useAssignmentQuiz(courseUuid: string, activityUuid: string) {
+   const [load, setLoad] = useState<Load>({ status: 'loading', quiz: null, error: null });
+   const [attempt, setAttempt] = useState(0);
+   const [answers, setAnswers] = useState<Answers>({});
+   const [status, setStatus] = useState<QuizFormStatus>('answering');
+   const [error, setError] = useState<string | null>(null);
+-  const [saved, setSaved] = useState<Record<string, SavedTask>>({});
+   const [grade, setGrade] = useState<AssignmentGrade | null>(null);
+   const [retriesLeft, setRetriesLeft] = useState<number | null>(null);
+   const [retrying, setRetrying] = useState(false);
+@@ -58,18 +58,17 @@ export function useAssignmentQuiz(activityUuid: string) {
+   useEffect(() => {
+     let cancelled = false;
+     setLoad({ status: 'loading', quiz: null, error: null });
+-    getAssignmentQuiz(activityUuid)
++    getAssignmentQuiz(courseUuid, activityUuid)
+       .then(async (quiz) => {
+         // Pre-fill answers saved earlier; a missing or failed lookup just means a fresh start.
+-        const prior = await getSavedTasks(quiz.assignmentUuid).catch(() => ({} as Record<string, SavedTask>));
++        const prior = await getSavedAnswers(courseUuid, activityUuid).catch(() => ({} as Answers));
+         if (cancelled) return;
+-        setSaved(prior);
+-        setAnswers(Object.assign({}, ...Object.values(prior).map((t) => t.answers)));
++        setAnswers(prior);
+         setLoad({ status: 'ready', quiz, error: null });
+       })
+       .catch((e) => { if (!cancelled) setLoad({ status: 'error', quiz: null, error: assignmentErrorMessage(e) }); });
+     return () => { cancelled = true; };
+-  }, [activityUuid, attempt]);
++  }, [courseUuid, activityUuid, attempt]);
+ 
+   const quiz = load.quiz;
+   const select = useCallback((questionId: string, optionId: string) => {
+@@ -86,12 +85,12 @@ export function useAssignmentQuiz(activityUuid: string) {
+     }
+     setStatus('submitting');
+     setError(null);
+-    submitAssignmentQuiz(quiz, answers, saved)
++    submitAssignment(courseUuid, activityUuid, answers)
+       .then(async () => {
+         setStatus('submitted');
+         clearTrailCache(); // progress changed: Path re-reads the trail (and may celebrate a finished stage)
+         // Auto-graded on hand-in; if the grade can't be read, the form's "Answers saved" state remains.
+-        try { setGrade(await getAssignmentGrade(quiz.assignmentUuid)); } catch (e) {
++        try { setGrade(await getAssignmentGrade(courseUuid, activityUuid)); } catch (e) {
+           if (__DEV__) console.log('[assignment] grade failed:', String((e as Error)?.message ?? e));
+         }
+       })
+@@ -100,7 +99,7 @@ export function useAssignmentQuiz(activityUuid: string) {
+         setStatus('answering');
+         setError(submitErrorMessage(e));
+       });
+-  }, [quiz, answers, saved]);
++  }, [quiz, answers, courseUuid, activityUuid]);
+ 
+   const reload = useCallback(() => setAttempt((n) => n + 1), []);
+ 
+@@ -109,7 +108,7 @@ export function useAssignmentQuiz(activityUuid: string) {
+     if (!quiz || retrying) return;
+     setRetrying(true);
+     setError(null);
+-    retryAssignment(quiz.assignmentUuid)
++    retryAssignment(courseUuid, activityUuid)
+       .then(({ retriesLeft: left }) => {
+         setRetriesLeft(left);
+         setAnswers({});
+@@ -118,7 +117,7 @@ export function useAssignmentQuiz(activityUuid: string) {
+       })
+       .catch((e) => setError(submitErrorMessage(e)))
+       .finally(() => setRetrying(false));
+-  }, [quiz, retrying]);
++  }, [quiz, retrying, courseUuid, activityUuid]);
+ 
+   return { load, answers, select, status, error, submit, reload, grade, retriesLeft, retrying, tryAgain };
+ }
+diff --git a/src/screens/lesson/LessonScreen.tsx b/src/screens/lesson/LessonScreen.tsx
+index ec9cff2..e8c83fd 100644
+--- a/src/screens/lesson/LessonScreen.tsx
++++ b/src/screens/lesson/LessonScreen.tsx
+@@ -42,7 +42,7 @@ export default function LessonScreen() {
+   const [video, setVideo] = useState<LessonVideoResponse | null>(null);
+   const [loadError, setLoadError] = useState<string | null>(null);
+   const [captionsPref, setCaptions] = useState<'on' | 'off'>('on');
+-  const completion = useActivityCompletion(params?.activityUuid);
++  const completion = useActivityCompletion(params?.courseUuid, params?.activityUuid);
+ 
+   useEffect(() => {
+     if (!params) return;
+diff --git a/src/screens/slides/SlidesScreen.tsx b/src/screens/slides/SlidesScreen.tsx
+index 667fbbb..a63db02 100644
+--- a/src/screens/slides/SlidesScreen.tsx
++++ b/src/screens/slides/SlidesScreen.tsx
+@@ -36,7 +36,7 @@ export default function SlidesScreen() {
+   const { courseUuid, activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Slides'>>().params;
+   const deck = useSlideDeck(courseUuid, activityUuid);
+   const pager = useSlidePager();
+-  const completion = useActivityCompletion(activityUuid);
++  const completion = useActivityCompletion(courseUuid, activityUuid);
+   const { setTotal } = pager;
+   const fs = useFullscreen();
+   const insets = useSafeAreaInsets();
+diff --git a/src/screens/slides/slides.test.tsx b/src/screens/slides/slides.test.tsx
+index cf3f8c1..e63be7d 100644
+--- a/src/screens/slides/slides.test.tsx
++++ b/src/screens/slides/slides.test.tsx
+@@ -8,7 +8,7 @@ import { buildPdfViewerHtml, parseViewerMessage, PDFJS_VERSION } from './engines
+ import { clampPage, useSlidePager } from './useSlidePager';
+ import { slideDeckErrorMessage } from './useSlideDeck';
+ import { clampAspect } from './SlidesScreen';
+-import { slideDeckFile, slideDeckUrl, slideCacheName, SlideDeckUnavailable, findPdfInContent, articlePdfUrl, outlineContent, driveFileId } from '../../data/learnhouse/slidesApi';
++import { slideCacheName, SlideDeckUnavailable } from '../../data/learnhouse/slidesApi';
+ import { routeForActivity } from '../../navigation/activityRoute';
+ import { SlidePager, pagerLabel } from '../../ui/molecules/slides/SlidePager';
+ import { SlideStage } from '../../ui/organisms/slides/SlideStage';
+@@ -30,48 +30,12 @@ describe('routing by content', () => {
+   });
+ });
+ 
+-describe('slidesApi helpers', () => {
+-  const act_ = (o: object) => ({ activity_uuid: 'activity_1', activity_type: 'TYPE_DOCUMENT', ...o }) as any;
+-  it('accepts a plain .pdf file name on a document activity only', () => {
+-    expect(slideDeckFile(act_({ content: { filename: 'documentpdf_x.pdf' } }))).toBe('documentpdf_x.pdf');
+-    expect(slideDeckFile(act_({ content: { filename: 'deck.PDF' } }))).toBe('deck.PDF');
+-    expect(slideDeckFile(act_({ content: { filename: '../etc/passwd.pdf' } }))).toBeNull();
+-    expect(slideDeckFile(act_({ content: { filename: 'notes.docx' } }))).toBeNull();
+-    expect(slideDeckFile(act_({ content: {} }))).toBeNull();
+-    expect(slideDeckFile(act_({ activity_type: 'TYPE_VIDEO', content: { filename: 'a.pdf' } }))).toBeNull();
+-  });
+-  it('builds the LearnHouse documentpdf media path', () => {
+-    process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL = 'https://lh.example.org/';
+-    expect(slideDeckUrl('org_1', 'course_1', 'activity_1', 'deck.pdf'))
+-      .toBe('https://lh.example.org/content/orgs/org_1/courses/course_1/activities/activity_1/documentpdf/deck.pdf');
+-  });
+-  it('makes a safe cache name per activity and file', () => {
+-    expect(slideCacheName('activity_1', 'deck.pdf')).toBe('activity_1-deck.pdf');
+-  });
+-  it('finds a PDF inside an article, whichever way the editor stored it', () => {
+-    expect(findPdfInContent({ type: 'doc', content: [{ type: 'paragraph' }] })).toBeNull();
+-    expect(findPdfInContent({ content: [{ attrs: { src: 'https://cdn.example.org/a/deck.pdf?x=1' } }] })?.ref).toBe('https://cdn.example.org/a/deck.pdf?x=1');
+-    expect(findPdfInContent({ content: [{ attrs: { blockObject: { block_uuid: 'block_9', content: { file_id: 'file_1', file_format: 'PDF' } } } }] }))
+-      .toEqual({ ref: 'file_1.pdf', blockUuid: 'block_9' });
+-    expect(findPdfInContent({ a: ['x.png', 'first.pdf', 'second.pdf'] })?.ref).toBe('first.pdf');
+-    expect(findPdfInContent('not.pdf.exe')).toBeNull();
+-  });
+-  it('recognises Google Drive links to a PDF', () => {
+-    const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+-    expect(driveFileId(`https://drive.google.com/file/d/${id}/preview`)).toBe(id);
+-    expect(driveFileId(`https://drive.google.com/file/d/${id}/view?usp=sharing`)).toBe(id);
+-    expect(driveFileId(`https://drive.google.com/open?id=${id}`)).toBe(id);
+-    expect(driveFileId(`https://drive.google.com/uc?export=download&id=${id}`)).toBe(id);
+-    expect(driveFileId('https://example.com/file/d/abc')).toBeNull();
+-    expect(driveFileId('http://drive.google.com/file/d/' + id)).toBeNull();
+-    expect(findPdfInContent({ content: [{ type: 'embed', attrs: { embedUrl: `https://drive.google.com/file/d/${id}/preview` } }] }))
+-      .toEqual({ ref: `https://drive.google.com/file/d/${id}/preview`, driveId: id });
+-  });
+-  it('builds the article block file path and shortens long outlines', () => {
+-    process.env.EXPO_PUBLIC_LEARNHOUSE_BASE_URL = 'https://lh.example.org';
+-    expect(articlePdfUrl('org_1', 'course_1', 'activity_1', 'block_9', 'file_1.pdf'))
+-      .toBe('https://lh.example.org/content/orgs/org_1/courses/course_1/activities/activity_1/dynamic/blocks/pdfBlock/block_9/file_1.pdf');
+-    expect(JSON.stringify(outlineContent({ t: 'x'.repeat(200) }))).toContain('…');
++// PDF discovery (document files, article blocks, Drive / Google Docs links) moved to the BFF:
++// see bff/test/slidesAssignments.test.ts.
++describe('slidesApi', () => {
++  it('makes a safe cache name per activity and deck version', () => {
++    expect(slideCacheName('activity_1', 'v1AbCdEfGh')).toBe('activity_1-v1AbCdEfGh.pdf');
++    expect(slideCacheName('a/b', 'v')).toBe('a_b-v.pdf');
+   });
+   it('maps load failures to readable messages', () => {
+     expect(slideDeckErrorMessage(new SlideDeckUnavailable('not_slides'))).toMatch(/not a slide deck/);
+@@ -152,21 +116,3 @@ describe('slide components', () => {
+     expect(loading.root.findAll((n) => n.props.testID === 'slide-fullscreen')).toHaveLength(0);
+   });
+ });
+-
+-describe('googleExportUrl', () => {
+-  const { googleExportUrl, findPdfInContent: find } = require('../../data/learnhouse/slidesApi');
+-  const id = '1AbCdEfGhIjKlMnOp';
+-  it('maps Docs, Slides and Sheets links to their PDF export', () => {
+-    expect(googleExportUrl(`https://docs.google.com/document/d/${id}/edit?usp=sharing`)).toBe(`https://docs.google.com/document/d/${id}/export?format=pdf`);
+-    expect(googleExportUrl(`https://docs.google.com/presentation/d/${id}/preview`)).toBe(`https://docs.google.com/presentation/d/${id}/export/pdf`);
+-    expect(googleExportUrl(`https://docs.google.com/spreadsheets/d/${id}/htmlview`)).toBe(`https://docs.google.com/spreadsheets/d/${id}/export?format=pdf`);
+-  });
+-  it('ignores other links', () => {
+-    expect(googleExportUrl('https://example.com/document/d/abc')).toBeNull();
+-    expect(googleExportUrl('https://docs.google.com/forms/d/1AbCdEfGhIjKlMnOp/view')).toBeNull();
+-  });
+-  it('is found inside an article embed', () => {
+-    const content = { type: 'doc', content: [{ type: 'embed', attrs: { embed_url: `https://docs.google.com/document/d/${id}/preview` } }] };
+-    expect(find(content)).toEqual({ ref: `https://docs.google.com/document/d/${id}/preview`, exportUrl: `https://docs.google.com/document/d/${id}/export?format=pdf` });
+-  });
+-});
+diff --git a/src/screens/slides/useSlideDeck.ts b/src/screens/slides/useSlideDeck.ts
+index e0f0aa3..ac95fb0 100644
+--- a/src/screens/slides/useSlideDeck.ts
++++ b/src/screens/slides/useSlideDeck.ts
+@@ -1,4 +1,4 @@
+-// Loads a slide deck (PDF activity) from LearnHouse for the Slides screen.
++// Loads a slide deck (PDF activity) through the BFF for the Slides screen.
+ import { useCallback, useEffect, useState } from 'react';
+ import { getSlideDeck, SlideDeckUnavailable, type SlideDeck } from '../../data/learnhouse/slidesApi';
+ 

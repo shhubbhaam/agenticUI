@@ -19,4 +19,4 @@ const agent = env.GEMINI_API_KEY ? createGeminiAgent({ apiKey: env.GEMINI_API_KE
 console.log(`LearnHouse: ${env.LH_BASE_URL} org=${env.LH_ORG_SLUG} courses=${allowedCourses.size} token=${env.LH_API_TOKEN ? 'set' : 'MISSING'} media=${env.LH_ORG_UUID ? 'on' : 'off (set LH_ORG_UUID)'} agent=${agent ? env.GEMINI_MODEL || 'gemini-3.5-flash-lite' : 'fallback-only (no GEMINI_API_KEY)'}`);
 
 const PORT = Number(env.PORT ?? 3000);
-createApp({ lh, agent, allowedCourses, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));
+createApp({ lh, agent, allowedCourses, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined, lhOrigin: env.LH_BASE_URL ? new URL(env.LH_BASE_URL).origin : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));

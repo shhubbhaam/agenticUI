@@ -17,8 +17,8 @@ import { useAssignmentQuiz } from './useAssignmentQuiz';
 
 export default function AssignmentScreen() {
   const navigation = useNavigation();
-  const { activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Assignment'>>().params;
-  const { load, answers, select, status, error, submit, reload, grade, retriesLeft, retrying, tryAgain } = useAssignmentQuiz(activityUuid);
+  const { courseUuid, activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Assignment'>>().params;
+  const { load, answers, select, status, error, submit, reload, grade, retriesLeft, retrying, tryAgain } = useAssignmentQuiz(courseUuid, activityUuid);
 
   return (
     <SafeAreaView style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]} edges={['top', 'bottom']}>

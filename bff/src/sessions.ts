@@ -9,6 +9,12 @@ export interface Learner {
   /** LearnHouse identity read at login (absent for dev login). Server-side only until GET /api/me. */
   profile?: LearnerProfile;
   email?: string;
+  /**
+   * The learner's own LearnHouse access token, for calls LearnHouse only accepts AS the learner
+   * (assignment answers and hand-in). Kept in this in-memory session: never returned to the app,
+   * never logged. Absent for dev login.
+   */
+  lhToken?: string;
 }
 export interface Session extends Learner {
   expiresAt: number;

@@ -42,7 +42,7 @@ export default function LessonScreen() {
   const [video, setVideo] = useState<LessonVideoResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [captionsPref, setCaptions] = useState<'on' | 'off'>('on');
-  const completion = useActivityCompletion(params?.activityUuid);
+  const completion = useActivityCompletion(params?.courseUuid, params?.activityUuid);
 
   useEffect(() => {
     if (!params) return;

@@ -2,6 +2,7 @@
 // Endpoints follow docs.learnhouse.app/reference/headless; verify them against the
 // pinned LearnHouse release you run (see docs/W3-plan-and-evidence.md, "Pinning").
 import { httpError, type FetchLike } from './util.ts';
+import { PUBLIC_PDF_HOSTS } from './slides.ts';
 import type { Learner } from './sessions.ts';
 
 // ---- LearnHouse response shapes (only the fields the BFF reads) ----------
@@ -57,6 +58,25 @@ export interface LearnHouse {
   getActivity?(activityUuid: string): Promise<LhActivityFull>;
   /** An uploaded activity video as a stream (Range passed through). The BFF checks access first. */
   openActivityVideo?(ref: MediaRef, range: string | undefined, signal: AbortSignal): Promise<MediaResponse>;
+  /** A slide deck PDF stored in LearnHouse (document activity, or an article's PDF block). Org token. */
+  openActivityDocument?(ref: DocumentRef, signal: AbortSignal): Promise<MediaResponse>;
+  /** A public PDF (Google Drive / Docs export). Only PUBLIC_PDF_HOSTS; no credentials are sent. */
+  openPublicPdf?(url: string, signal: AbortSignal): Promise<MediaResponse>;
+  /** Calls LearnHouse only accepts as the learner, made with their own LearnHouse token. */
+  asLearner?(lhToken: string): LearnerApi;
+}
+
+export interface DocumentRef { courseUuid: string; activityUuid: string; filename: string; blockUuid?: string }
+
+/** LearnHouse calls made AS the learner. Paths are built here from validated ids only. */
+export interface LearnerApi {
+  getAssignmentForActivity(activityUuid: string): Promise<unknown>;
+  getAssignmentTasks(assignmentUuid: string): Promise<unknown>;
+  getMyTaskSubmissions(assignmentUuid: string): Promise<unknown>;
+  saveTaskSubmission(assignmentUuid: string, taskUuid: string, body: unknown): Promise<unknown>;
+  submitAssignment(assignmentUuid: string): Promise<unknown>;
+  getGrade(assignmentUuid: string, learnerId: string): Promise<unknown>;
+  retryAssignment(assignmentUuid: string): Promise<unknown>;
 }
 
 export interface MediaRef { courseUuid: string; activityUuid: string; filename: string }
@@ -78,15 +98,16 @@ export interface LearnHouseOptions {
   mediaFetch?: typeof fetch;
 }
 
-interface CallOptions { body?: unknown; form?: Record<string, string>; auth?: 'org' | 'none' }
+interface CallOptions { body?: unknown; form?: Record<string, string>; auth?: 'org' | 'none'; /** A learner's LearnHouse token instead of the org token. */ bearer?: string }
 
 export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000, fetchImpl = fetch, orgUuid, mediaFetch = fetch }: LearnHouseOptions): LearnHouse {
   if (!baseUrl || !orgToken || !orgSlug) {
     throw new Error('LH_BASE_URL, LH_API_TOKEN and LH_ORG_SLUG must be set in bff/.env');
   }
-  async function call<T>(method: string, path: string, { body, form, auth = 'org' }: CallOptions = {}): Promise<T> {
+  async function call<T>(method: string, path: string, { body, form, auth = 'org', bearer }: CallOptions = {}): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' };
-    if (auth === 'org') headers.Authorization = `Bearer ${orgToken}`;
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    else if (auth === 'org') headers.Authorization = `Bearer ${orgToken}`;
     let payload: string | undefined;
     if (form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; payload = new URLSearchParams(form).toString(); }
     else if (body) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
@@ -115,8 +136,8 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
     };
   }
 
-  // Turn a LearnHouse login/oauth response into a learner. The learner's own LearnHouse token is used
-  // here once (to read their session) and never stored or returned to the app.
+  // Turn a LearnHouse login/oauth response into a learner. The learner's own LearnHouse token reads
+  // their session here and is kept server-side in the BFF session; it is never returned to the app.
   async function finishLogin(data: LhLoginResponse | null): Promise<Learner | null> {
     // LearnHouse versions differ: the id may be at user.id, user.user_id or top-level.
     let user: LhUser | null | undefined = data?.user ?? data;
@@ -134,7 +155,19 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
       return null;
     }
     const displayName = profile?.user.first_name || user?.first_name || user?.username || 'Learner';
-    return { learnerId: String(id), displayName, profile };
+    // The learner's token stays in the BFF session (assignment calls need it); never sent to the app.
+    return { learnerId: String(id), displayName, profile, ...(userToken ? { lhToken: userToken } : {}) };
+  }
+  // A raw stream (PDF). The timeout covers the response HEADERS only; the body streams while read.
+  async function openStream(url: string, headers: Record<string, string>, signal: AbortSignal): Promise<MediaResponse> {
+    const ctrl = new AbortController();
+    const stop = () => ctrl.abort();
+    signal.addEventListener('abort', stop, { once: true });
+    const timer = setTimeout(stop, timeoutMs);
+    try {
+      const res = await mediaFetch(url, { headers, signal: ctrl.signal, redirect: 'follow' });
+      return { status: res.status, header: (n) => res.headers.get(n), body: res.body };
+    } finally { clearTimeout(timer); }
   }
   const rejected = (e: unknown) => [400, 401, 403].includes((e as { status?: number }).status as number);
 
@@ -154,7 +187,32 @@ export function createLearnHouse({ baseUrl, orgToken, orgSlug, timeoutMs = 8000,
     // Uploaded files are served at {origin}/content/orgs/{org}/courses/{course}/activities/{activity}/video/{file}
     // (401 without auth, per scripts/diagnose.ts 6c). The timeout covers the response HEADERS only:
     // the body can stream for as long as the client keeps reading.
+    async openPublicPdf(url: string, signal: AbortSignal): Promise<MediaResponse> {
+      const u = new URL(url);
+      if (u.protocol !== 'https:' || !PUBLIC_PDF_HOSTS.has(u.hostname)) throw httpError('host not allowed', 400);
+      return openStream(url, {}, signal);
+    },
+    asLearner(lhToken: string): LearnerApi {
+      const e = encodeURIComponent;
+      const as = <T>(method: string, path: string, body?: unknown) => call<T>(method, path, { bearer: lhToken, body });
+      const a = (uuid: string) => `/assignments/${e(uuid)}`;
+      return {
+        getAssignmentForActivity: (activityUuid) => as('GET', `/assignments/activity/${e(activityUuid)}`),
+        getAssignmentTasks: (uuid) => as('GET', `${a(uuid)}/tasks`),
+        getMyTaskSubmissions: (uuid) => as('GET', `${a(uuid)}/tasks/submissions/me`),
+        saveTaskSubmission: (uuid, taskUuid, body) => as('PUT', `${a(uuid)}/tasks/${e(taskUuid)}/submissions`, body),
+        submitAssignment: (uuid) => as('POST', `${a(uuid)}/submissions`),
+        getGrade: (uuid, learnerId) => as('GET', `${a(uuid)}/submissions/${e(learnerId)}/grade`),
+        retryAssignment: (uuid) => as('POST', `${a(uuid)}/submissions/me/retry`),
+      };
+    },
     ...(orgUuid ? {
+      async openActivityDocument({ courseUuid, activityUuid, filename, blockUuid }: DocumentRef, signal: AbortSignal): Promise<MediaResponse> {
+        const e = encodeURIComponent;
+        const where = blockUuid ? `dynamic/blocks/pdfBlock/${e(blockUuid)}` : 'documentpdf';
+        const url = `${new URL(baseUrl).origin}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/${where}/${e(filename)}`;
+        return openStream(url, { Authorization: `Bearer ${orgToken}` }, signal);
+      },
       async openActivityVideo({ courseUuid, activityUuid, filename }: MediaRef, range: string | undefined, signal: AbortSignal): Promise<MediaResponse> {
         const e = encodeURIComponent;
         const url = `${new URL(baseUrl).origin}/content/orgs/${e(orgUuid)}/courses/${e(courseUuid)}/activities/${e(activityUuid)}/video/${e(filename)}`;

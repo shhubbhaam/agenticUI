@@ -1,5 +1,5 @@
 // Whether the open activity is complete, and the action that marks it so. The starting state comes
-// from the cached trail; marking calls LearnHouse and then shows "Completed" right away.
+// from the cached trail; marking goes through the BFF and then shows "Completed" right away.
 import { useCallback, useEffect, useState } from 'react';
 import { useCourseProgress } from '../you/useCourseProgress';
 import { markActivityComplete } from '../../data/learnhouse/completionApi';
@@ -15,11 +15,12 @@ export function isActivityComplete(courses: CourseProgress[], activityUuid: stri
 export function completionErrorMessage(e: unknown): string {
   const status = (e as { status?: number } | null)?.status;
   if (status === 401) return 'Please sign in again to save your progress.';
+  if (status === 403) return 'This activity is not available to you.';
   if (status === 0) return "You're offline. Try again when you're connected.";
   return "We couldn't save your progress. Please try again.";
 }
 
-export function useActivityCompletion(activityUuid: string | undefined) {
+export function useActivityCompletion(courseUuid: string | undefined, activityUuid: string | undefined) {
   const { status: loadStatus, courses } = useCourseProgress();
   const [status, setStatus] = useState<CompletionStatus>('unknown');
   const [error, setError] = useState<string | null>(null);
@@ -32,17 +33,17 @@ export function useActivityCompletion(activityUuid: string | undefined) {
 
   const markComplete = useCallback((locked = false) => {
     // `locked`: the screen's own rule (e.g. checkpoints not yet passed) — never record past it.
-    if (!activityUuid || locked || status === 'saving' || status === 'complete') return;
+    if (!courseUuid || !activityUuid || locked || status === 'saving' || status === 'complete') return;
     setStatus('saving');
     setError(null);
-    markActivityComplete(activityUuid)
+    markActivityComplete(courseUuid, activityUuid)
       .then(() => setStatus('complete'))
       .catch((e) => {
         if (__DEV__) console.log('[completion] mark complete failed:', (e as { status?: number })?.status, String((e as Error)?.message ?? e));
         setStatus('incomplete');
         setError(completionErrorMessage(e));
       });
-  }, [activityUuid, status]);
+  }, [courseUuid, activityUuid, status]);
 
   return { status, error, markComplete };
 }

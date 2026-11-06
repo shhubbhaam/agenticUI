@@ -9,7 +9,11 @@ import { buildSlots, fallbackSlots, authorizeSlots, type Agent, type Decision, t
 import type { LearnHouse, LearnerProfile, Trail } from './learnhouse.ts';
 import { causeCode, type HttpError, type Logger } from './util.ts';
 import { LessonVideoResponseSchema, youTubeIdFrom, type LessonVideo } from '../../src/contracts/lessonVideo.ts';
-import type { LhActivityFull } from './learnhouse.ts';
+import type { LhActivityFull, LearnerApi } from './learnhouse.ts';
+import { resolveDeck, deckVersion, type DeckLocator } from './slides.ts';
+import { assignmentUuidFrom, quizFrom, savedTasksFrom, taskSubmissionBody, unknownAnswer, gradeFrom, retriesLeftFrom } from './assignments.ts';
+import { SlideDeckResponseSchema } from '../../src/contracts/slides.ts';
+import { AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, SubmitRequestSchema, RetryResponseSchema, type AssignmentQuiz } from '../../src/contracts/assignment.ts';
 
 /** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
 function playerWindow(details: unknown): { startSec?: number; endSec?: number } {
@@ -45,7 +49,7 @@ export function toLessonVideo(a: LhActivityFull, { mediaEnabled = false }: { med
 }
 
 const UUID_RE = /^[A-Za-z0-9_-]{1,64}$/;
-const MAX_BODY = 8 * 1024;
+const MAX_BODY = 64 * 1024; // an assignment hand-in carries every chosen option id
 
 // ---- tiny router: route('GET', '/api/me/courses/:courseUuid/meta', ...handlers) ----
 export interface Req extends IncomingMessage {
@@ -103,6 +107,8 @@ export interface AppOptions {
   logger?: Logger;
   /** The LearnHouse org this BFF serves (LH_ORG_SLUG). /api/me only returns roles in this org. */
   org?: { slug: string; name?: string };
+  /** LearnHouse's origin (from LH_BASE_URL): a PDF link in course content is fetched only from here. */
+  lhOrigin?: string;
 }
 export interface App {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
@@ -112,7 +118,7 @@ export interface App {
 interface CompletionResult { activityUuid: string; idempotencyKey: string; status: 'applied' | 'received' }
 interface Outcome { http: number; body: Record<string, unknown> }
 
-export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org }: AppOptions): App {
+export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin }: AppOptions): App {
   const routes: Route[] = [];
   const route = (method: string) => (path: string, ...handlers: Handler[]) => { routes.push({ method, path, ...compile(path), handlers }); };
   const app = { get: route('GET'), post: route('POST') };
@@ -395,6 +401,198 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
       if ((e as Error)?.name === 'AbortError' && res.destroyed) return;
       if (!res.headersSent) upstreamError(res, e); else res.destroy();
     }
+  });
+
+  // ---- shared gate for activity routes: enrolled in this course + activity published in it ----
+  type Gate = { error: 'not_enrolled' | 'activity_forbidden' } | { inCourse: { activity_uuid: string; name?: string } };
+  async function gateActivity(learnerId: string, courseUuid: string, activityUuid: string): Promise<Gate> {
+    if (!(await isEnrolled(learnerId, courseUuid))) return { error: 'not_enrolled' };
+    const trail = await trailOrNull(learnerId, courseUuid);
+    const inCourse = (await publishedActivities(courseUuid, trail)).find((a) => a.activity_uuid === activityUuid);
+    return inCourse ? { inCourse } : { error: 'activity_forbidden' };
+  }
+  const firstName = (...names: unknown[]) =>
+    names.map((n) => (typeof n === 'string' ? n.trim() : '')).find(Boolean)?.slice(0, 200);
+
+  // ---- Slide decks: the BFF finds the PDF and streams it; the app never gets its address ----
+  // The access decision + locator are cached per learner+activity for a minute (like media grants).
+  const deckGrants = new Map<string, { loc: DeckLocator; exp: number }>();
+  async function deckFor(learnerId: string, courseUuid: string, activityUuid: string) {
+    const gate = await gateActivity(learnerId, courseUuid, activityUuid);
+    if ('error' in gate) return { error: gate.error };
+    const activity = await lh.getActivity!(activityUuid);
+    const found = resolveDeck(activity, lhOrigin ?? '');
+    // A deck stored in LearnHouse needs LH_ORG_UUID (media paths); without it the BFF cannot fetch it.
+    const deck = 'problem' in found ? found
+      : found.kind === 'lh' && !lh.openActivityDocument ? { problem: 'not_downloadable' as const }
+      : found.kind === 'public' && !lh.openPublicPdf ? { problem: 'not_downloadable' as const }
+      : found;
+    return { activity, inCourse: gate.inCourse, deck };
+  }
+
+  app.get('/api/me/courses/:courseUuid/activities/:activityUuid/slides', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid, activityUuid } = req.params;
+    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
+    if (!lh.getActivity) return res.status(501).json({ error: 'not_supported' });
+    try {
+      const r = await deckFor(req.learner.learnerId, courseUuid, activityUuid);
+      if ('error' in r) return res.status(403).json({ error: r.error });
+      if (!('problem' in r.deck)) {
+        if (deckGrants.size > 5000) deckGrants.clear(); // bounded
+        deckGrants.set(`${req.learner.learnerId}|${courseUuid}|${activityUuid}`, { loc: r.deck, exp: Date.now() + 60_000 });
+      }
+      const body = SlideDeckResponseSchema.safeParse({
+        activityUuid,
+        title: firstName(r.activity?.name, r.inCourse.name) ?? 'Slides',
+        deck: 'problem' in r.deck ? { kind: 'unavailable', reason: r.deck.problem } : { kind: 'pdf', version: deckVersion(activityUuid, r.deck) },
+      });
+      if (!body.success) { logger.warn?.('[slides] response failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
+      res.json(body.data);
+    } catch (e) { upstreamError(res, e); }
+  });
+
+  const MAX_DECK_BYTES = 100 * 1024 * 1024;
+  app.get('/api/me/courses/:courseUuid/activities/:activityUuid/slides/file', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid, activityUuid } = req.params;
+    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
+    if (!lh.getActivity) return res.status(501).json({ error: 'not_supported' });
+    const learnerId = req.learner.learnerId;
+    try {
+      const key = `${learnerId}|${courseUuid}|${activityUuid}`;
+      let loc = deckGrants.get(key)?.exp! > Date.now() ? deckGrants.get(key)!.loc : null;
+      if (!loc) {
+        const r = await deckFor(learnerId, courseUuid, activityUuid);
+        if ('error' in r) return res.status(403).json({ error: r.error });
+        if ('problem' in r.deck) return res.status(r.deck.problem === 'not_downloadable' ? 422 : 404).json({ error: r.deck.problem });
+        loc = r.deck;
+      }
+      const ctrl = new AbortController();
+      res.on('close', () => { if (!res.writableFinished) ctrl.abort(); });
+      const up = loc.kind === 'lh'
+        ? await lh.openActivityDocument!({ courseUuid, activityUuid, filename: loc.filename, ...(loc.blockUuid ? { blockUuid: loc.blockUuid } : {}) }, ctrl.signal)
+        : await lh.openPublicPdf!(loc.url, ctrl.signal);
+      if (up.status !== 200 || !up.body) {
+        await up.body?.cancel().catch(() => {});
+        logger.warn?.(`[slides] ${loc.kind === 'lh' ? 'LearnHouse' : 'public host'} answered ${up.status}`);
+        // A public file that is private / needs sign-in is "not downloadable" (the app explains sharing).
+        if (loc.kind === 'public') return res.status(422).json({ error: 'not_downloadable' });
+        if (up.status === 404) return res.status(404).json({ error: 'not_found' });
+        return res.status(502).json({ error: 'upstream_error', upstreamStatus: up.status });
+      }
+      // Only a real PDF is passed on: Drive's sign-in / virus-scan pages are HTML, not decks.
+      const reader = up.body.getReader();
+      let head = new Uint8Array(0);
+      while (head.length < 5) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const next = new Uint8Array(head.length + value.length); next.set(head); next.set(value, head.length); head = next;
+      }
+      if (Buffer.from(head.subarray(0, 5)).toString('latin1') !== '%PDF-') {
+        await reader.cancel().catch(() => {});
+        return res.status(422).json({ error: 'not_downloadable' });
+      }
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      const len = Number(up.header('content-length'));
+      if (Number.isFinite(len) && len > 0 && len <= MAX_DECK_BYTES) res.setHeader('Content-Length', String(len));
+      let sent = 0;
+      const write = (chunk: Uint8Array) => new Promise<void>((resolve) => { if (res.write(chunk)) resolve(); else res.once('drain', resolve); });
+      for (let chunk: Uint8Array | undefined = head; chunk; ) {
+        sent += chunk.length;
+        if (sent > MAX_DECK_BYTES || res.destroyed) { await reader.cancel().catch(() => {}); res.destroy(); return; }
+        await write(chunk);
+        const r = await reader.read();
+        chunk = r.done ? undefined : r.value;
+      }
+      res.end();
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError' && res.destroyed) return;
+      if (!res.headersSent) upstreamError(res, e); else res.destroy();
+    }
+  });
+
+  // ---- Assignment quizzes: made AS the learner, with their LearnHouse token held in the session ----
+  // Routes are keyed by course + activity; the LearnHouse assignment uuid is looked up here each time,
+  // so the app cannot point a call at another assignment.
+  const asLearner = (req: Req): LearnerApi | null => (req.learner.lhToken && lh.asLearner ? lh.asLearner(req.learner.lhToken) : null);
+  const learnerCallError = (res: Res, e: unknown) => {
+    // LearnHouse rejected the learner's own token (expired): the app asks them to sign in again.
+    if (statusOf(e) === 401) return res.status(401).json({ error: 'learnhouse_session_expired' });
+    upstreamError(res, e);
+  };
+  async function assignmentFor(req: Req, res: Res): Promise<{ api: LearnerApi; uuid: string } | null> {
+    const { courseUuid, activityUuid } = req.params;
+    if (!UUID_RE.test(activityUuid)) { res.status(400).json({ error: 'invalid_activity' }); return null; }
+    const api = asLearner(req);
+    // Dev login has no LearnHouse token: assignments need a real LearnHouse sign-in.
+    if (!api) { res.status(403).json({ error: 'learnhouse_login_required' }); return null; }
+    const gate = await gateActivity(req.learner.learnerId, courseUuid, activityUuid);
+    if ('error' in gate) { res.status(403).json({ error: gate.error }); return null; }
+    const uuid = assignmentUuidFrom(await api.getAssignmentForActivity(activityUuid));
+    if (!uuid) { res.status(404).json({ error: 'not_an_assignment' }); return null; }
+    return { api, uuid };
+  }
+  async function quizOf(api: LearnerApi, uuid: string, activityUuid: string): Promise<AssignmentQuiz> {
+    const [a, tasks] = await Promise.all([api.getAssignmentForActivity(activityUuid), api.getAssignmentTasks(uuid)]);
+    return quizFrom(a, tasks);
+  }
+  const A = '/api/me/courses/:courseUuid/activities/:activityUuid/assignment';
+
+  app.get(A, requireSession, requireCourse, async (req, res) => {
+    try {
+      const found = await assignmentFor(req, res); if (!found) return;
+      const body = AssignmentQuizSchema.safeParse(await quizOf(found.api, found.uuid, req.params.activityUuid));
+      if (!body.success) { logger.warn?.('[assignment] quiz failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
+      res.json(body.data);
+    } catch (e) { learnerCallError(res, e); }
+  });
+
+  app.get(`${A}/answers`, requireSession, requireCourse, async (req, res) => {
+    try {
+      const found = await assignmentFor(req, res); if (!found) return;
+      const saved = savedTasksFrom(await found.api.getMyTaskSubmissions(found.uuid));
+      const body = SavedAnswersResponseSchema.safeParse({ answers: saved.answers });
+      res.json(body.success ? body.data : { answers: {} });
+    } catch (e) {
+      if ([400, 404, 422].includes(statusOf(e) as number)) return res.json({ answers: {} }); // nothing saved yet
+      learnerCallError(res, e);
+    }
+  });
+
+  // Save every task's answers, then hand in. Only questions/options of THIS quiz are accepted.
+  app.post(`${A}/submit`, requireSession, requireCourse, async (req, res) => {
+    const parsed = SubmitRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_answers' });
+    try {
+      const found = await assignmentFor(req, res); if (!found) return;
+      const { api, uuid } = found;
+      const quiz = await quizOf(api, uuid, req.params.activityUuid);
+      if (unknownAnswer(quiz, parsed.data.answers)) return res.status(400).json({ error: 'unknown_answer' });
+      const saved = savedTasksFrom(await api.getMyTaskSubmissions(uuid).catch(() => null));
+      for (const task of quiz.tasks) {
+        await api.saveTaskSubmission(uuid, task.taskUuid, taskSubmissionBody(task, parsed.data.answers, saved.submissionUuids[task.taskUuid]));
+      }
+      await api.submitAssignment(uuid);
+      res.json({ submitted: true });
+    } catch (e) { learnerCallError(res, e); }
+  });
+
+  app.get(`${A}/grade`, requireSession, requireCourse, async (req, res) => {
+    try {
+      const found = await assignmentFor(req, res); if (!found) return;
+      const body = AssignmentGradeSchema.safeParse(gradeFrom(await found.api.getGrade(found.uuid, req.learner.learnerId)));
+      if (!body.success) { logger.warn?.('[assignment] grade failed the contract'); return res.status(502).json({ error: 'bad_upstream_content' }); }
+      res.json(body.data);
+    } catch (e) { learnerCallError(res, e); }
+  });
+
+  app.post(`${A}/retry`, requireSession, requireCourse, async (req, res) => {
+    try {
+      const found = await assignmentFor(req, res); if (!found) return;
+      res.json(RetryResponseSchema.parse({ retriesLeft: retriesLeftFrom(await found.api.retryAssignment(found.uuid)) }));
+    } catch (e) { learnerCallError(res, e); }
   });
 
   // Agent layout: built here, authorized here, wrapped in the versioned envelope.

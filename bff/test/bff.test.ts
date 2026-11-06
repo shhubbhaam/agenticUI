@@ -122,7 +122,7 @@ test('home-layout: an agent returning content instead of names cannot inject it'
 });
 
 test('oversized request body -> 413', async () => {
-  const r = await call('/auth/login', { method: 'POST', body: { email: 'a', password: 'x'.repeat(20000) } });
+  const r = await call('/auth/login', { method: 'POST', body: { email: 'a', password: 'x'.repeat(70000) } });
   assert.equal(r.status, 413);
 });
 

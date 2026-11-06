@@ -52,7 +52,7 @@ test('adapter: all-course trail -> GET /admin/{org}/trails/{user}', async () => 
   assert.equal(calls[0].url, 'https://lh.example/api/v1/admin/myorg/trails/42');
 });
 
-test('adapter: google -> POST /auth/oauth (no org token), then the learner session; LH token not kept', async () => {
+test('adapter: google -> POST /auth/oauth (no org token), then the learner session; LH token kept server-side only', async () => {
   const calls: Array<{ url: string; auth?: string; body?: unknown }> = [];
   const fetchImpl: FetchLike = async (url, init) => {
     calls.push({ url, auth: (init?.headers as Record<string, string>)?.Authorization, body: init?.body ? JSON.parse(init.body as string) : undefined });
@@ -69,7 +69,9 @@ test('adapter: google -> POST /auth/oauth (no org token), then the learner sessi
   ]);
   assert.deepEqual(calls[0].body, { email: 'ada@x.org', provider: 'google', access_token: 'g-token' });
   assert.equal(learner?.learnerId, '7');
-  assert.ok(!JSON.stringify(learner).includes('lh-user-jwt'));     // learner token not kept
+  // Kept on the server-side learner (assignment calls); the app never receives it (see slidesAssignments.test.ts).
+  assert.equal(learner?.lhToken, 'lh-user-jwt');
+  assert.ok(!JSON.stringify(learner?.profile).includes('lh-user-jwt'));
   assert.ok(!JSON.stringify(learner).includes('rights'));          // rights matrix dropped
 });
 

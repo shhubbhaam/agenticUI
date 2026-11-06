@@ -4,7 +4,6 @@ import { CompleteActivityButton, checkpointsCleared } from '../../ui/molecules/a
 import { isActivityComplete, completionErrorMessage } from './useActivityCompletion';
 import type { CourseProgress } from '../../core/learning/types';
 
-jest.mock('../../data/learnhouse/secureToken', () => ({ getStoredToken: jest.fn() }));
 
 const course = {
   courseUuid: 'c', courseName: 'C', status: null, enrolledAt: null, totalActivities: 2, completedActivities: 1, completionPercentage: 50,
@@ -32,6 +31,7 @@ describe('activity completion', () => {
   it('explains failures', () => {
     expect(completionErrorMessage({ status: 401 })).toMatch(/sign in/);
     expect(completionErrorMessage({ status: 0 })).toMatch(/offline/);
+    expect(completionErrorMessage({ status: 403 })).toMatch(/not available/);
     expect(completionErrorMessage(new Error('x'))).toMatch(/couldn't save/);
   });
 

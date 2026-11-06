@@ -1,4 +1,4 @@
-// Loads a slide deck (PDF activity) from LearnHouse for the Slides screen.
+// Loads a slide deck (PDF activity) through the BFF for the Slides screen.
 import { useCallback, useEffect, useState } from 'react';
 import { getSlideDeck, SlideDeckUnavailable, type SlideDeck } from '../../data/learnhouse/slidesApi';
 

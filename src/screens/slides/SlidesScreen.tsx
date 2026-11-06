@@ -36,7 +36,7 @@ export default function SlidesScreen() {
   const { courseUuid, activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Slides'>>().params;
   const deck = useSlideDeck(courseUuid, activityUuid);
   const pager = useSlidePager();
-  const completion = useActivityCompletion(activityUuid);
+  const completion = useActivityCompletion(courseUuid, activityUuid);
   const { setTotal } = pager;
   const fs = useFullscreen();
   const insets = useSafeAreaInsets();

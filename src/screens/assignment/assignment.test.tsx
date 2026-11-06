@@ -3,12 +3,10 @@ import ReactTestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { QuizForm, submitLabel, toneFor, sectionHeading } from '../../ui/organisms/quiz/QuizForm';
 import { choose, answeredCount, assignmentErrorMessage } from './useAssignmentQuiz';
-import { quizTasksFrom, savedTasksFrom, taskSubmissionBody, gradeFrom } from '../../data/learnhouse/assignmentApi';
+import type { AssignmentQuiz } from '../../contracts/assignment';
 import { QuizResultCard, verdict, retryLabel } from '../../ui/organisms/quiz/QuizResultCard';
 import { routeForActivity } from '../../navigation/activityRoute';
 
-jest.mock('../../data/learnhouse/secureToken', () => ({ getStoredToken: jest.fn() }));
-jest.mock('../../data/learnhouse/authApi', () => ({ fetchSession: jest.fn() }));
 
 const opts = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
 const questions = [
@@ -19,28 +17,15 @@ const sections = [{ id: 't1', title: 'Day 1', points: 100, questions }];
 type Status = 'answering' | 'submitting' | 'submitted';
 type A = Record<string, string[]>;
 
-// Shape of GET /assignments/{uuid}/tasks (trimmed from a real response).
-const RAW_TASKS = [
-  {
-    title: 'Engineering Reliable Single Agent System', description: 'Knowledge check for Day 1', assignment_type: 'QUIZ',
-    max_grade_value: 100, assignment_task_uuid: 'assignmenttask_1',
-    contents: {
-      grading_mode: 'all_or_nothing',
-      questions: [
-        { questionText: 'Which approach?', questionUUID: 'question_1', response_type: 'single', options: [
-          { text: 'Hardcode', fileID: '', type: 'text', optionUUID: 'option_1' },
-          { text: 'Abstraction layer', fileID: '', type: 'text', optionUUID: 'option_2' },
-          { text: '  ', fileID: '', type: 'text', optionUUID: 'option_blank' },
-        ] },
-        { questionText: 'Pick all', questionUUID: 'question_2', response_type: 'multiple', options: [
-          { text: 'X', optionUUID: 'option_3' },
-        ] },
-        { questionText: '', questionUUID: 'question_empty', options: [] },
-      ],
-    },
-  },
-  { title: 'Upload', assignment_type: 'FILE_SUBMISSION', assignment_task_uuid: 'assignmenttask_2', contents: {} },
-];
+// LearnHouse's raw quiz/answer/grade shapes are mapped by the BFF now (bff/src/assignments.ts,
+// tested in bff/test/slidesAssignments.test.ts); the app receives src/contracts/assignment.ts.
+const QUIZ: AssignmentQuiz = {
+  title: 'T', allowRetries: false, showCorrectAnswers: false,
+  tasks: [{ taskUuid: 'assignmenttask_1', title: 'Day 1', questions: [
+    { id: 'question_1', question: 'Which approach?', multiple: false, options: [{ id: 'option_1', label: 'Hardcode' }, { id: 'option_2', label: 'Abstraction layer' }] },
+    { id: 'question_2', question: 'Pick all', multiple: true, options: [{ id: 'option_3', label: 'X' }] },
+  ] }],
+};
 
 function setup(answers: A = {}, status: Status = 'answering') {
   const onSelect = jest.fn();
@@ -76,15 +61,6 @@ describe('assignment quiz', () => {
     expect(submitLabel('submitted', 3, 3)).toBe('Answers saved');
   });
 
-  it('reads quiz tasks from the LearnHouse tasks response', () => {
-    const tasks = quizTasksFrom(RAW_TASKS);
-    expect(tasks).toHaveLength(1); // the file-upload task is skipped
-    expect(tasks[0]).toMatchObject({ taskUuid: 'assignmenttask_1', title: 'Engineering Reliable Single Agent System', points: 100 });
-    expect(tasks[0].questions.map((q) => q.id)).toEqual(['question_1', 'question_2']); // empty question dropped
-    expect(tasks[0].questions[0].options).toEqual([{ id: 'option_1', label: 'Hardcode' }, { id: 'option_2', label: 'Abstraction layer' }]);
-    expect(tasks[0].questions[1].multiple).toBe(true);
-  });
-
   it('replaces single answers and toggles multiple ones', () => {
     expect(choose({ q: ['a'] }, 'q', 'b', false)).toEqual({ q: ['b'] });
     expect(choose({ q: ['a'] }, 'q', 'b', true)).toEqual({ q: ['a', 'b'] });
@@ -92,39 +68,12 @@ describe('assignment quiz', () => {
   });
 
   it('counts answered questions across tasks', () => {
-    const quiz = { assignmentUuid: 'x', title: 'T', allowRetries: false, showCorrectAnswers: false, tasks: quizTasksFrom(RAW_TASKS) };
-    expect(answeredCount(quiz, { question_1: ['option_1'], question_2: [] })).toBe(1);
+    expect(answeredCount(QUIZ, { question_1: ['option_1'], question_2: [] })).toBe(1);
   });
 
   it('heads sections with task number only when there are several', () => {
     expect(sectionHeading(0, 1, sections[0])).toBe('Day 1 · 100 points');
     expect(sectionHeading(1, 2, { id: 't', title: 'Week 1', questions })).toBe('Task 2 · Week 1');
-  });
-
-  it('reads saved answers (only options flagged true)', () => {
-    const saved = savedTasksFrom({
-      assignmenttask_1: {
-        assignment_task_submission_uuid: 'sub_1', grade: 0,
-        task_submission: { questions: [], submissions: [
-          { questionUUID: 'question_1', optionUUID: 'option_1', answer: false },
-          { questionUUID: 'question_1', optionUUID: 'option_2', answer: true },
-        ] },
-      },
-      junk: 'nope',
-    });
-    expect(saved).toEqual({ assignmenttask_1: { submissionUuid: 'sub_1', answers: { question_1: ['option_2'] }, grade: 0 } });
-    expect(savedTasksFrom(null)).toEqual({});
-  });
-
-  it('builds the task body with every option flagged', () => {
-    const [task] = quizTasksFrom(RAW_TASKS);
-    const body = taskSubmissionBody(task, { question_1: ['option_2'] }, 'sub_1');
-    expect(body.assignment_task_submission_uuid).toBe('sub_1');
-    expect(body.task_submission.submissions).toEqual([
-      { questionUUID: 'question_1', optionUUID: 'option_1', answer: false },
-      { questionUUID: 'question_1', optionUUID: 'option_2', answer: true },
-      { questionUUID: 'question_2', optionUUID: 'option_3', answer: false },
-    ]);
   });
 
   it('explains load failures', () => {
@@ -160,19 +109,6 @@ describe('assignment quiz', () => {
     const { press, onSelect } = setup({ q1: ['b'], q2: ['b'] }, 'submitting');
     press('option-q1-a');
     expect(onSelect).not.toHaveBeenCalled();
-  });
-
-  it('reads the grade response', () => {
-    const g = gradeFrom({
-      grade: 80, max_grade: 200, percentage: 40.0, points_summary: '80/200 pts', passed: true, passing_threshold: 40.0,
-      overall_feedback: null,
-      tasks: [{ index: 1, assignment_task_uuid: 'assignmenttask_1', title: 'Same title', description: 'Knowledge check for Day 1',
-        points_summary: '80/100', passed: true, feedback: '' }],
-    });
-    expect(g).toEqual({
-      percent: 40, percentLabel: '40%', pointsLabel: '80/200 pts', passed: true, passPercent: 40,
-      tasks: [{ taskUuid: 'assignmenttask_1', title: 'Knowledge check for Day 1', pointsLabel: '80/100', passed: true }],
-    });
   });
 
   it('words the verdict and retry button', () => {
