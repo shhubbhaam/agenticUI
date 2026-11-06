@@ -27,6 +27,8 @@ import { ExpoVideoEngine } from './engines/ExpoVideoEngine';
 import { useFullscreen } from './useFullscreen';
 import { useAutoHideControls } from './useAutoHideControls';
 import { MOCK_LESSON, demoCheckpointsFor } from './mockLesson';
+import { CompleteActivityButton, checkpointsCleared } from '../../ui/molecules/activity/CompleteActivityButton';
+import { useActivityCompletion } from '../activity/useActivityCompletion';
 
 const UNSUPPORTED: Record<string, string> = {
   not_a_video: 'This activity is not a video.',
@@ -40,6 +42,7 @@ export default function LessonScreen() {
   const [video, setVideo] = useState<LessonVideoResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [captionsPref, setCaptions] = useState<'on' | 'off'>('on');
+  const completion = useActivityCompletion(params?.activityUuid);
 
   useEffect(() => {
     if (!params) return;
@@ -181,6 +184,15 @@ export default function LessonScreen() {
             <PrimaryCta label="Open checkpoint" onPress={p.openCheckpoint} disabled={!p.canOpenCheckpoint} />
           </>
         )}
+        {/* Only for a real activity (the demo lesson has none to record). */}
+        {/* Hidden until every checkpoint is passed; an activity already complete still shows "Completed". */}
+        {params && (completion.status === 'complete' || checkpointsCleared(p.checkpointsPassed, p.checkpointsTotal)) ? (
+          <CompleteActivityButton
+            status={completion.status}
+            error={completion.error}
+            onPress={() => completion.markComplete(!checkpointsCleared(p.checkpointsPassed, p.checkpointsTotal))}
+          />
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
