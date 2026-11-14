@@ -16,6 +16,8 @@ import { assignmentUuidFrom, quizFrom, savedTasksFrom, taskSubmissionBody, unkno
 import { SlideDeckResponseSchema } from '../../src/contracts/slides.ts';
 import { AssignmentEventPayloadSchema, EVENT_SCHEMA_VERSION } from '../../src/contracts/events.ts';
 import { parseHomeLayout, SLOT_NAMES } from '../../src/contracts/homeLayout.ts';
+import { CheckpointsResponseSchema, CheckpointAnswerRequestSchema, CheckpointAnswerResponseSchema, type CheckpointConfig, type CheckpointSet } from '../../src/contracts/checkpoints.ts';
+import { createMemoryCheckpointStore, type CheckpointStore } from './checkpointStore.ts';
 import { AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, SubmitRequestSchema, RetryResponseSchema, type AssignmentQuiz } from '../../src/contracts/assignment.ts';
 
 /** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
@@ -114,6 +116,10 @@ export interface AppOptions {
   lhOrigin?: string;
   /** Durable event inbox (M5): dedupes completions across retries and BFF restarts. Defaults to memory. */
   inbox?: Inbox;
+  /** M4 checkpoint definitions (bff/checkpoints.json), keyed by video activity uuid or "*". Default: none. */
+  checkpoints?: CheckpointConfig;
+  /** M4 checkpoint attempts (append-only). Defaults to memory. */
+  checkpointStore?: CheckpointStore;
 }
 export interface App {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
@@ -127,7 +133,7 @@ export interface EventResult { eventId: string; status: InboxStatus; reason?: st
 const EVENT_TYPES = new Set<EventType>(['activity_completed', 'assignment_submitted']);
 const MAX_EVENTS = 100;
 
-export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin, inbox = createMemoryInbox() }: AppOptions): App {
+export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin, inbox = createMemoryInbox(), checkpoints = {}, checkpointStore = createMemoryCheckpointStore() }: AppOptions): App {
   const routes: Route[] = [];
   const route = (method: string) => (path: string, ...handlers: Handler[]) => { routes.push({ method, path, ...compile(path), handlers }); };
   const app = { get: route('GET'), post: route('POST') };
@@ -275,7 +281,20 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     return !!course?.chapters?.some((ch) => ch.activities?.some((a) => a.activity_uuid === activityUuid && a.completed));
   }
 
-  type CompletionCore = { kind: 'forbidden'; error: 'not_enrolled' | 'activity_forbidden' } | { kind: 'done'; applied: boolean; writeError: unknown };
+  type CompletionCore = { kind: 'forbidden'; error: 'not_enrolled' | 'activity_forbidden' | 'checkpoints_pending' } | { kind: 'done'; applied: boolean; writeError: unknown };
+
+  // ---- M4: checkpoints (a BFF extension; LearnHouse has none) ----
+  // The set for a video activity: its own entry, else "*". Only video activities have checkpoints.
+  // Config times count from the lesson's start point (LearnHouse's player start time); served times
+  // count from the start of the video file.
+  async function checkpointSetFor(activityUuid: string): Promise<{ set: CheckpointSet; startSec: number } | null> {
+    const set = checkpoints[activityUuid] ?? checkpoints['*'];
+    if (!set || set.checkpoints.length === 0 || !lh.getActivity) return null;
+    const activity = await lh.getActivity(activityUuid);
+    if (activity?.activity_type !== 'TYPE_VIDEO') return null;
+    return { set, startSec: playerWindow(activity.details).startSec ?? 0 };
+  }
+  const allPassedIn = (set: CheckpointSet, passed: readonly string[]) => set.checkpoints.every((c) => passed.includes(c.id));
   // Enrollment + publication checks, the write, then read-back. Shared by the single completion route
   // and POST /api/me/events. Throws only when LearnHouse cannot be read at all.
   async function completeActivityOnce(learnerId: string, courseUuid: string, activityUuid: string): Promise<CompletionCore> {
@@ -285,6 +304,12 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     if (!activities.some((a) => a.activity_uuid === activityUuid)) return { kind: 'forbidden', error: 'activity_forbidden' };
     let writeError: unknown = null;
     if (!(await isCompleted(learnerId, courseUuid, activityUuid))) {
+      // M4: a video with checkpoints completes only once every checkpoint is passed (seeking to the
+      // end is not completion). Already complete in LearnHouse (e.g. on the website) stays complete.
+      const cps = await checkpointSetFor(activityUuid);
+      if (cps && !allPassedIn(cps.set, checkpointStore.passed(learnerId, activityUuid, cps.set.version))) {
+        return { kind: 'forbidden', error: 'checkpoints_pending' };
+      }
       try { await lh.completeActivity(learnerId, activityUuid); } catch (e) { writeError = e; }
     }
     // Reconcile: a lost/timeout response may still have been applied upstream.
@@ -406,6 +431,72 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     const results: EventResult[] = [];
     for (const ev of events) results.push(await processEvent(req.learner, ev));
     res.json({ results });
+  });
+
+  // The checkpoints of a video lesson, without answers, and which ones this learner already passed.
+  app.get('/api/me/courses/:courseUuid/activities/:activityUuid/checkpoints', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid, activityUuid } = req.params;
+    if (!UUID_RE.test(activityUuid)) return res.status(400).json({ error: 'invalid_activity' });
+    const learnerId = req.learner.learnerId;
+    try {
+      const gate = await gateActivity(learnerId, courseUuid, activityUuid);
+      if ('error' in gate) return res.status(403).json({ error: gate.error });
+      const found = await checkpointSetFor(activityUuid);
+      const body = CheckpointsResponseSchema.safeParse(found
+        ? {
+            activityUuid,
+            version: found.set.version,
+            // Never the answer or its explanation: those stay on the server.
+            checkpoints: found.set.checkpoints.map(({ correctId: _c, explanation: _e, ...c }) => ({ ...c, atSec: c.atSec + found.startSec })),
+            passed: checkpointStore.passed(learnerId, activityUuid, found.set.version),
+          }
+        : { activityUuid, version: 'none', checkpoints: [], passed: [] });
+      if (!body.success) { logger.warn?.('[checkpoints] response failed the contract'); return res.status(502).json({ error: 'bad_checkpoint_config' }); }
+      res.json(body.data);
+    } catch (e) { upstreamError(res, e); }
+  });
+
+  // Grade one checkpoint answer on the server and record it (append-only). attemptId makes a retried
+  // answer one recorded attempt. A checkpoint can only be answered once every earlier one is passed.
+  app.post('/api/me/courses/:courseUuid/activities/:activityUuid/checkpoints/:checkpointId/answer', requireSession, requireCourse, async (req, res) => {
+    const { courseUuid, activityUuid, checkpointId } = req.params;
+    if (!UUID_RE.test(activityUuid) || !UUID_RE.test(checkpointId)) return res.status(400).json({ error: 'invalid_activity' });
+    const parsed = CheckpointAnswerRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_answer' });
+    const { attemptId, optionId, version } = parsed.data;
+    const learnerId = req.learner.learnerId;
+    try {
+      const gate = await gateActivity(learnerId, courseUuid, activityUuid);
+      if ('error' in gate) return res.status(403).json({ error: gate.error });
+      const found = await checkpointSetFor(activityUuid);
+      if (!found) return res.status(404).json({ error: 'no_checkpoints' });
+      const { set } = found;
+      // The questions changed since the app loaded them: it reloads instead of answering old ones.
+      if (version !== set.version) return res.status(409).json({ error: 'content_changed', version: set.version });
+      const cp = set.checkpoints.find((c) => c.id === checkpointId);
+      if (!cp) return res.status(404).json({ error: 'unknown_checkpoint' });
+      if (!cp.options.some((o) => o.id === optionId)) return res.status(400).json({ error: 'unknown_option' });
+
+      let correct: boolean;
+      const prior = checkpointStore.getAttempt(learnerId, attemptId);
+      if (prior) {
+        if (prior.activityUuid !== activityUuid || prior.checkpointId !== checkpointId || prior.optionId !== optionId || prior.version !== version) {
+          return res.status(409).json({ error: 'attempt_reused' });
+        }
+        correct = prior.correct; // a retry: same answer, nothing new recorded
+      } else {
+        const passedNow = checkpointStore.passed(learnerId, activityUuid, set.version);
+        const ordered = [...set.checkpoints].sort((a, b) => a.atSec - b.atSec);
+        if (ordered.slice(0, ordered.indexOf(cp)).some((c) => !passedNow.includes(c.id))) {
+          return res.status(409).json({ error: 'checkpoint_locked' });
+        }
+        correct = optionId === cp.correctId;
+        checkpointStore.addAttempt({ learnerId, attemptId, activityUuid, version, checkpointId, optionId, correct });
+      }
+      const passed = checkpointStore.passed(learnerId, activityUuid, set.version);
+      const body = CheckpointAnswerResponseSchema.parse({ correct, ...(correct ? { explanation: cp.explanation } : {}), passed, allPassed: allPassedIn(set, passed) });
+      res.json(body);
+    } catch (e) { upstreamError(res, e); }
   });
 
   // The video for one activity, for the lesson player. Same gates as completion: session, allowed

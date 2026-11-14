@@ -139,6 +139,23 @@ export function markActivityComplete(
   );
 }
 
+// ---------- M4: video checkpoints (a BFF extension; answers never leave the server) ----------
+import {
+  CheckpointsResponseSchema, CheckpointAnswerResponseSchema,
+  type CheckpointsResponse, type CheckpointAnswerRequest, type CheckpointAnswerResponse,
+} from '../../../contracts/checkpoints';
+
+export async function getCheckpoints(courseUuid: string, activityUuid: string): Promise<CheckpointsResponse> {
+  return CheckpointsResponseSchema.parse(await bffFetch<unknown>(
+    `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/checkpoints`));
+}
+
+export async function answerCheckpoint(courseUuid: string, activityUuid: string, checkpointId: string, body: CheckpointAnswerRequest): Promise<CheckpointAnswerResponse> {
+  return CheckpointAnswerResponseSchema.parse(await bffFetch<unknown>(
+    `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/checkpoints/${encodeURIComponent(checkpointId)}/answer`,
+    { method: 'POST', body: JSON.stringify(body) }));
+}
+
 /** Agent-generated home layout, built server-side (Gemini key never reaches the app). */
 export function getHomeLayout(courseUuid: string = LEARNHOUSE.courseUuid, signal?: AbortSignal) {
   return bffFetch<unknown>(`/me/courses/${encodeURIComponent(courseUuid)}/home-layout`, { signal });

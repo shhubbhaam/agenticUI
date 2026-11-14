@@ -7,6 +7,9 @@
 //  - seeking cannot pass the next unanswered checkpoint (also corrects an engine that drifts past it);
 //  - an answered checkpoint never reopens, even after rewinding past it;
 //  - "watched" (furthest point) is kept separate from the playhead.
+//  - real lessons are graded by the BFF (`grade`): the app never holds the answer; checkpoints
+//    already passed come from the BFF (`initialPassed`), so a reopened lesson does not ask again;
+//  - `restore(sec)` resumes a saved playhead, but never past the next unanswered checkpoint.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TimelineCheckpoint } from '../../ui/molecules/player/PlayerTimeline';
 import type { QuizStatus, QuizOption } from '../../ui/organisms/player/CheckpointQuizOverlay';
@@ -19,10 +22,13 @@ export interface PlayerCheckpoint {
   prompt: { title: string; body: string };
   question: string;
   options: QuizOption[];
-  /** Demo only: in the real flow the BFF grades (the app never holds answers). */
-  correctId: string;
-  explanation: string;
+  /** Demo only (no `grade`): in the real flow the BFF grades and the app never holds answers. */
+  correctId?: string;
+  /** Demo only: in the real flow the explanation comes back with a correct answer. */
+  explanation?: string;
 }
+
+export interface GradeResult { correct: boolean; explanation?: string }
 
 interface Options {
   checkpoints: PlayerCheckpoint[];
@@ -31,12 +37,18 @@ interface Options {
   /** true: a real engine will be mounted; false: fake clock. */
   withEngine: boolean;
   tickMs?: number;
+  /** Server-side grading (real lessons). Without it, the demo grades against correctId. */
+  grade?: (checkpointId: string, optionId: string) => Promise<GradeResult>;
+  /** Checkpoint ids already passed (from the BFF). */
+  initialPassed?: readonly string[];
 }
+
+export const GRADE_ERROR = "We couldn't check your answer. Check your connection and try again.";
 
 /** How long after a pause request a "playing" report from the engine is treated as stale. */
 export const PAUSE_GUARD_MS = 800;
 
-export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 0, withEngine, tickMs = 250 }: Options) {
+export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 0, withEngine, tickMs = 250, grade, initialPassed }: Options) {
   const engineRef = useRef<PlayerEngine | null>(null);
   const [duration, setDuration] = useState(knownDuration);
   const [position, setPosition] = useState(0);
@@ -49,6 +61,8 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
   const [selected, setSelected] = useState<string | null>(null);
   const [quiz, setQuiz] = useState<QuizStatus>('answering');
   const [attempt, setAttempt] = useState(1);
+  const [explanation, setExplanation] = useState<string | undefined>(undefined);
+  const [gradeError, setGradeError] = useState<string | null>(null);
   /** When the learner last asked to pause: a late "playing" report from the engine must not undo it. */
   const pausedAt = useRef(0);
 
@@ -59,8 +73,8 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
   const ended = engineStatus === 'ended' || (duration > 0 && position >= duration);
 
   // Latest values for the ticking callback and engine events.
-  const live = useRef({ position, nextOpen, duration, quizOpen: false });
-  live.current = { position, nextOpen, duration, quizOpen: openId !== null };
+  const live = useRef({ position, nextOpen, duration, quizOpen: false, ordered, passed, initialPassed });
+  live.current = { position, nextOpen, duration, quizOpen: openId !== null, ordered, passed, initialPassed };
 
   const pause = useCallback(() => { pausedAt.current = Date.now(); setPlaying(false); }, []);
 
@@ -99,6 +113,27 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
 
   useEffect(() => { setWatched((w) => Math.max(w, position)); }, [position]);
 
+  // Passes recorded on the server count here too (a reopened lesson never asks them again).
+  const passedKey = (initialPassed ?? []).join('|');
+  useEffect(() => {
+    if (!initialPassed?.length) return;
+    setPassed((s) => new Set([...s, ...initialPassed]));
+  }, [passedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Resume a saved playhead: never past the next unanswered checkpoint, never past the end. */
+  const restore = useCallback((sec: number, watchedSec = sec) => {
+    if (!Number.isFinite(sec) || sec <= 0) return;
+    const { ordered: cps, passed: done, initialPassed: fromServer, duration: d } = live.current;
+    // Both sources: the server's passes may not be merged into state yet when this runs.
+    const next = cps.find((c) => !done.has(c.id) && !(fromServer ?? []).includes(c.id));
+    let target = next ? Math.min(sec, next.atSec) : sec;
+    if (d > 0) target = Math.min(target, d);
+    engineRef.current?.seekTo(target);
+    live.current.position = target;
+    setPosition(target);
+    setWatched((w) => Math.max(w, watchedSec, target));
+  }, []);
+
   const seek = useCallback((sec: number) => {
     const target = Math.max(0, Math.min(sec, seekableUntil, duration || sec));
     engineRef.current?.seekTo(target);
@@ -119,8 +154,16 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
   const submit = useCallback(() => {
     if (!open || !selected) return;
     setQuiz('submitting');
-    setTimeout(() => setQuiz(selected === open.correctId ? 'correct' : 'incorrect'), 400);
-  }, [open, selected]);
+    setGradeError(null);
+    if (!grade) {
+      // Demo lesson only: graded on the device against its sample answer.
+      setTimeout(() => { setExplanation(open.explanation); setQuiz(selected === open.correctId ? 'correct' : 'incorrect'); }, 400);
+      return;
+    }
+    grade(open.id, selected)
+      .then((r) => { setExplanation(r.explanation); setQuiz(r.correct ? 'correct' : 'incorrect'); })
+      .catch(() => { setQuiz('answering'); setGradeError(GRADE_ERROR); });
+  }, [open, selected, grade]);
 
   // Engine -> hook
   const engineView: EngineViewProps = {
@@ -168,18 +211,19 @@ export function useCheckpointPlayer({ checkpoints, durationSec: knownDuration = 
           selectedId: selected,
           status: quiz,
           attempt,
-          feedback: quiz === 'correct' ? open.explanation : quiz === 'incorrect' ? 'Rewatch the moment just before this checkpoint, then try again.' : undefined,
+          feedback: quiz === 'correct' ? explanation : quiz === 'incorrect' ? 'Rewatch the moment just before this checkpoint, then try again.' : undefined,
+          error: gradeError,
         }
       : null,
-    select: (id: string) => { if (quiz === 'answering') setSelected(id); },
+    select: (id: string) => { if (quiz === 'answering') { setSelected(id); setGradeError(null); } },
     submit,
-    tryAgain: () => { setQuiz('answering'); setSelected(null); setAttempt((a) => a + 1); },
+    tryAgain: () => { setQuiz('answering'); setSelected(null); setExplanation(undefined); setAttempt((a) => a + 1); },
     continueWatching: () => {
       if (!open) return;
       setPassed((s) => new Set(s).add(open.id));
-      setOpenId(null); setSelected(null); setQuiz('answering'); setAttempt(1);
+      setOpenId(null); setSelected(null); setQuiz('answering'); setAttempt(1); setExplanation(undefined);
       setPlaying(true);
     },
-    togglePlay, seek,
+    togglePlay, seek, restore,
   };
 }

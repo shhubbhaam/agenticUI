@@ -201,7 +201,8 @@ test('an unsupported event version is rejected safely and never applied or store
 test('an event without schemaVersion is read as version 1 (clients from before M1)', async () => {
   const f = createFakeLearnHouse();
   const s = await start(f.lh);
-  const { schemaVersion: _v, deviceId: _d, seq: _s, ...legacy } = done('e-legacy');
+  const legacy: Record<string, unknown> = { ...done('e-legacy') };
+  delete legacy.schemaVersion; delete legacy.deviceId; delete legacy.seq;
   const r = await s.send(await s.login(), [legacy]);
   assert.deepEqual(r.body.results, [{ eventId: 'e-legacy', status: 'applied' }]);
   await s.close();

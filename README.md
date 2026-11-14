@@ -67,6 +67,16 @@ cd bff
 node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('data/inbox.db');console.table(db.prepare('SELECT event_id,type,activity_uuid,status,reason,device_id,seq FROM inbox').all())"
 ```
 
+## Video checkpoints (M4)
+
+LearnHouse has no checkpoint concept, so the BFF owns them: `bff/checkpoints.json` maps a LearnHouse
+video activity uuid (or `"*"` for every video) to a versioned set of questions. Times count from the
+lesson's LearnHouse start point. The app receives the questions **without answers**; the BFF grades
+each answer, records every attempt (append-only, same SQLite file as the inbox) and refuses to mark
+the video complete in LearnHouse until every checkpoint is passed. Changing a set's `version` makes
+learners answer the new questions. The app saves the playhead on the device, so a reopened lesson
+resumes where it stopped (never past an unanswered checkpoint). The shipped file is synthetic content.
+
 ## Feature modules (M2)
 
 `src/config/features.ts` switches the three mobile features independently: `player` (video lessons),

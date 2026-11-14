@@ -3,7 +3,7 @@
 //  - opened from Path with an activity: asks the BFF which video it is and plays it (YouTube engine);
 //  - opened without params: the demo lesson on a fake clock.
 // Checkpoints are DEMO data for now (labelled "(demo)"); the BFF checkpoint route replaces them.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,14 +19,18 @@ import { WatchPromptCard } from '../../ui/molecules/player/WatchPromptCard';
 import { PrimaryCta } from '../../ui/molecules/onboarding/PrimaryCta';
 import { CheckpointQuizOverlay } from '../../ui/organisms/player/CheckpointQuizOverlay';
 import type { RootStackParamList } from '../../navigation/MainStack';
-import { getLessonVideo, lessonVideoFileSource } from '../../core/api/learnhouse/client';
+import { getLessonVideo, lessonVideoFileSource, getCheckpoints, answerCheckpoint, LearnHouseError } from '../../core/api/learnhouse/client';
+import type { CheckpointsResponse } from '../../contracts/checkpoints';
+import { randomUUID } from 'expo-crypto';
+import { getLearnerId } from '../../core/auth/session';
+import { loadPlayerProgress, savePlayerProgress } from '../../data/local/playerProgress';
 import type { LessonVideoResponse } from '../../contracts/lessonVideo';
-import { useCheckpointPlayer } from './useCheckpointPlayer';
+import { useCheckpointPlayer, type PlayerCheckpoint } from './useCheckpointPlayer';
 import { YouTubeEngine } from './engines/YouTubeEngine';
 import { ExpoVideoEngine } from './engines/ExpoVideoEngine';
 import { useFullscreen } from './useFullscreen';
 import { useAutoHideControls } from './useAutoHideControls';
-import { MOCK_LESSON, demoCheckpointsFor } from './mockLesson';
+import { MOCK_LESSON } from './mockLesson';
 import { CompleteActivityButton, checkpointsCleared } from '../../ui/molecules/activity/CompleteActivityButton';
 import { useActivityCompletion } from '../activity/useActivityCompletion';
 
@@ -43,6 +47,12 @@ export default function LessonScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [captionsPref, setCaptions] = useState<'on' | 'off'>('on');
   const completion = useActivityCompletion(params?.courseUuid, params?.activityUuid);
+  // M4: checkpoints from the BFF (no answers) and which ones this learner already passed.
+  const [cpData, setCpData] = useState<CheckpointsResponse | null>(null);
+  const [cpError, setCpError] = useState<string | null>(null);
+  const [cpReload, setCpReload] = useState(0);
+  // The saved playhead has been applied, so the video can mount at the right place.
+  const [resumed, setResumed] = useState(!params);
 
   useEffect(() => {
     if (!params) return;
@@ -53,6 +63,16 @@ export default function LessonScreen() {
     return () => { cancelled = true; };
   }, [params]);
 
+  useEffect(() => {
+    if (!params) return;
+    let cancelled = false;
+    getCheckpoints(params.courseUuid, params.activityUuid)
+      .then((c) => { if (!cancelled) { setCpData(c); setCpError(null); } })
+      // Without its checkpoints a lesson must not play (they could be skipped): block with a reason.
+      .catch((e: { status?: number }) => { if (!cancelled) setCpError(e?.status === 403 ? 'This video is not available to you.' : "We couldn't load this lesson's checkpoints. Check your connection and try again."); });
+    return () => { cancelled = true; };
+  }, [params, cpReload]);
+
   const yt = video?.video.kind === 'youtube' ? video.video : null;
   // Uploaded video: streamed from the BFF's file route (download for offline comes next).
   const hostedSource = useMemo(
@@ -61,8 +81,42 @@ export default function LessonScreen() {
   );
   // Uploaded videos have no caption track yet.
   const captions: CaptionsState = video?.video.kind === 'hosted' ? 'unavailable' : captionsPref;
-  const checkpoints = useMemo(() => (params ? demoCheckpointsFor(yt?.startSec ?? 0) : MOCK_LESSON.checkpoints), [params, yt?.startSec]);
-  const p = useCheckpointPlayer({ checkpoints, durationSec: params ? 0 : MOCK_LESSON.durationSec, withEngine: !!params });
+  const checkpoints = useMemo<PlayerCheckpoint[]>(() => (params ? cpData?.checkpoints ?? [] : MOCK_LESSON.checkpoints), [params, cpData]);
+  // Real lessons are graded by the BFF; each submitted answer is one recorded attempt.
+  const grade = useMemo(() => {
+    if (!params || !cpData) return undefined;
+    return async (checkpointId: string, optionId: string) => {
+      try {
+        return await answerCheckpoint(params.courseUuid, params.activityUuid, checkpointId, { attemptId: randomUUID(), optionId, version: cpData.version });
+      } catch (e) {
+        // The questions changed on the server since this screen loaded them: load the new ones.
+        if (e instanceof LearnHouseError && e.status === 409) setCpReload((n) => n + 1);
+        throw e;
+      }
+    };
+  }, [params, cpData]);
+  const p = useCheckpointPlayer({ checkpoints, durationSec: params ? 0 : MOCK_LESSON.durationSec, withEngine: !!params, grade, initialPassed: cpData?.passed });
+
+  // M4: resume where the learner stopped (saved on this device), once the checkpoints are known.
+  const learnerId = getLearnerId();
+  const restore = p.restore;
+  useEffect(() => {
+    if (!params || !cpData || resumed) return;
+    let cancelled = false;
+    (learnerId ? loadPlayerProgress(learnerId, params.activityUuid).catch(() => null) : Promise.resolve(null))
+      .then((saved) => { if (cancelled) return; if (saved) restore(saved.positionSec, saved.watchedSec); setResumed(true); });
+    return () => { cancelled = true; };
+  }, [params, cpData, resumed, learnerId, restore]);
+  // Save the playhead every 5 s of movement, on pause, and when leaving the lesson.
+  const latest = useRef({ position: 0, watched: 0 });
+  latest.current = { position: p.position, watched: p.watched };
+  const saveProgress = useCallback(() => {
+    if (!params || !learnerId || !resumed) return;
+    void savePlayerProgress(learnerId, params.activityUuid, { positionSec: latest.current.position, watchedSec: latest.current.watched }).catch(() => undefined);
+  }, [params, learnerId, resumed]);
+  const bucket = Math.floor(p.position / 5);
+  useEffect(() => { saveProgress(); }, [bucket, p.playing, saveProgress]);
+  useEffect(() => () => saveProgress(), [saveProgress]);
   const fs = useFullscreen();
   const insets = useSafeAreaInsets();
   const chrome = useAutoHideControls({ playing: p.playing, enabled: fs.fullscreen });
@@ -75,6 +129,7 @@ export default function LessonScreen() {
 
   const blockedMessage =
     loadError ??
+    cpError ??
     (video?.video.kind === 'unsupported' ? UNSUPPORTED[video.video.reason]
       : video?.video.kind === 'hosted' && !hostedSource ? 'This uploaded video is not available yet.' : null) ??
     (p.status === 'error' ? `The video player reported a problem (${p.errorCode ?? 'unknown'}).` : null);
@@ -86,7 +141,7 @@ export default function LessonScreen() {
   const stage = (
     <VideoStage
       variant={fs.fullscreen ? 'fullscreen' : 'card'}
-      status={blockedMessage ? 'error' : params && !video ? 'loading' : p.status}
+      status={blockedMessage ? 'error' : params && (!video || !cpData || !resumed) ? 'loading' : p.status}
       errorMessage={blockedMessage ?? undefined}
       isPlaying={p.playing}
       onPlayPause={fs.fullscreen ? kept(p.togglePlay) : p.togglePlay}
@@ -95,7 +150,7 @@ export default function LessonScreen() {
       posterEyebrow={params ? undefined : MOCK_LESSON.posterEyebrow}
       posterHeadline={params ? undefined : MOCK_LESSON.posterHeadline}
     >
-      {yt && !blockedMessage ? (
+      {yt && !blockedMessage && resumed ? (
         <YouTubeEngine
           key={`${captions}-${fs.fullscreen}`} /* remount resumes at the playhead (params apply on mount) */
           videoId={yt.videoId}
@@ -104,7 +159,7 @@ export default function LessonScreen() {
           captions={captions === 'on'}
           {...p.engineView}
         />
-      ) : hostedSource && !blockedMessage ? (
+      ) : hostedSource && !blockedMessage && resumed ? (
         <ExpoVideoEngine
           key={`hosted-${fs.fullscreen}`} /* remount resumes at the playhead */
           source={hostedSource}

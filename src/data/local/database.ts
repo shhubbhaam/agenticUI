@@ -46,6 +46,15 @@ const SCHEMA = `
     device_id TEXT NOT NULL,
     next_seq INTEGER NOT NULL DEFAULT 0
   );
+  -- M4: where the learner was in each video (playhead) and the furthest point watched, kept apart.
+  CREATE TABLE IF NOT EXISTS player_progress (
+    learner_id TEXT NOT NULL,
+    activity_uuid TEXT NOT NULL,
+    position_sec REAL NOT NULL,
+    watched_sec REAL NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (learner_id, activity_uuid)
+  );
   -- M5: the last /me/trail the BFF returned, per learner, so Home and Path work offline.
   CREATE TABLE IF NOT EXISTS course_snapshot (
     learner_id TEXT PRIMARY KEY NOT NULL,

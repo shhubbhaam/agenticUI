@@ -1,5 +1,5 @@
-// DEMO DATA for the lesson player UI (M4 part 1). Replaced by the BFF lesson route
-// (checkpoints keyed to the LearnHouse activity) in part 2. Not shown as real content.
+// DEMO DATA for the lesson player opened without a LearnHouse activity (design preview only).
+// Real lessons get their checkpoints from the BFF (bff/checkpoints.json), graded on the server.
 import type { PlayerCheckpoint } from './useCheckpointPlayer';
 
 export type MockCheckpoint = PlayerCheckpoint;
@@ -42,8 +42,3 @@ export const MOCK_LESSON = {
     },
   ] satisfies MockCheckpoint[],
 };
-
-/** DEMO checkpoints placed early in any real video (until the BFF serves real ones per activity). */
-export function demoCheckpointsFor(startSec = 0): MockCheckpoint[] {
-  return MOCK_LESSON.checkpoints.map((c, i) => ({ ...c, atSec: startSec + (i === 0 ? 20 : 45), question: `${c.question} (demo)` }));
-}

@@ -27,6 +27,8 @@ interface CheckpointQuizOverlayProps {
   status: QuizStatus;
   /** Shown after grading: why the answer is right, or a hint to try again. */
   feedback?: string;
+  /** The answer could not be checked (e.g. no connection); the learner can try again. */
+  error?: string | null;
   attempt?: number;
   onSubmit: () => void;
   onTryAgain: () => void;
@@ -41,7 +43,7 @@ const CTA: Record<QuizStatus, string> = {
 };
 
 export const CheckpointQuizOverlay: React.FC<CheckpointQuizOverlayProps> = ({
-  checkpointLabel, question, options, selectedId, onSelect, status, feedback, attempt, onSubmit, onTryAgain, onContinue,
+  checkpointLabel, question, options, selectedId, onSelect, status, feedback, error, attempt, onSubmit, onTryAgain, onContinue,
 }) => {
   const locked = status !== 'answering';
   const onCta = status === 'answering' ? onSubmit : status === 'incorrect' ? onTryAgain : status === 'correct' ? onContinue : () => {};
@@ -76,6 +78,12 @@ export const CheckpointQuizOverlay: React.FC<CheckpointQuizOverlayProps> = ({
           />
         ))}
       </View>
+
+      {status === 'answering' && error ? (
+        <View style={tw`mt-4`} accessibilityLiveRegion="polite">
+          <Alert tone="warning" message={error} testID="checkpoint-error" />
+        </View>
+      ) : null}
 
       {(status === 'correct' || status === 'incorrect') && feedback ? (
         <View style={tw`mt-4`} accessibilityLiveRegion="polite">

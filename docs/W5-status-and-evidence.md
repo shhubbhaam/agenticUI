@@ -25,6 +25,7 @@ M3 (web modules) is delivered separately in the team's LearnHouse fork, as agree
 | W3 P1 / M7: render failure | A slot whose component throws shows only its own fallback; the other slot renders. | `src/ui/organisms/SlotBoundary.test.tsx` |
 | W3 P1: fixtures shown as real | Manage Downloads no longer lists 3 fake downloaded lessons ("Nothing downloaded yet" until real storage exists). | `SettingsScreen.test.tsx` |
 | W3 P1: setup / README | README rewritten for Expo + BFF, with the Windows path-length note. | `README.md` |
+| M4: checkpoints (BFF extension) | LearnHouse has no checkpoints: `bff/checkpoints.json` defines them per video activity (or `*`), versioned. App gets questions without answers; BFF grades, records attempts append-only (SQLite), enforces order, and blocks LearnHouse completion until all are passed (already-completed videos stay complete). App saves the playhead and resumes, never past an unanswered checkpoint. A lesson whose checkpoints cannot be loaded does not play. | `bff/test/checkpoints.test.ts` (10), `src/screens/lesson/lesson.test.tsx` "server-graded", `src/data/local/playerProgress.test.ts` |
 
 ## 2. Milestone status
 
@@ -33,7 +34,7 @@ M3 (web modules) is delivered separately in the team's LearnHouse fork, as agree
 | M1 | Partial | Versioned, bounded contracts for layout, quiz, slides, video and **events**; old/unsupported versions rejected | Web consumer (LearnHouse fork); written LearnHouse operation/owner map (§5) |
 | M2 | Pass (needs recording) | 3 mobile modules with their own tests; per-module switches; routing test | Screen recording of one module disabled on device (T2.2 evidence) |
 | M3 | Separate | — | Delivered in the LearnHouse fork |
-| M4 | Partial | Checkpoint pause at exact time, no seeking past an unanswered checkpoint, passed checkpoints never reopen, watched kept separate from playhead | Checkpoints come from demo data (answer held on device); checkpoint progress not persisted across restart; captions |
+| M4 | Pass in code; device run pending | Exact pause at each checkpoint, no seeking past an unanswered one, passed checkpoints never reopen, watched kept separate; checkpoints from the BFF (no answers on device), server grading, append-only attempts, order enforced, completion blocked until all passed, passes survive restarts (server) and the playhead resumes (device) | Recorded device run (T4.1/T4.2); checkpoint content is synthetic (`bff/checkpoints.json`); captions for uploaded videos |
 | M5 | Pass in code + device run | See §1; device: offline slide completion → reconnect → LearnHouse web agrees (14 Nov) | Recorded device runs for process death and phone/web conflict (§4); preference conflicts (S9) |
 | M6 | Not started | — | SSE/AG-UI stream, replay window, snapshot, bound approval |
 | M7 | Substantial | Strict envelope, typed actions, per-slot fallback, server re-check with the same schema, byte cap, render-failure test | Approval tampering (needs M6) |
@@ -114,7 +115,7 @@ git -C <path-to-learnhouse-fork> describe --tags --always
 |---|---|---|
 | Practice tab | Due items and practice set are sample content (`MockPracticeRepository`) | Still sample data: label in demos or hide |
 | Path | `CAPSTONE` / `STAGE nn` labels when a chapter has no `stage_label` | Design default, documented |
-| Lesson player | Checkpoint questions from `mockLesson.ts`; answers held on device | Demo (M4 gap) |
+| Lesson player | Checkpoint questions in `bff/checkpoints.json` are synthetic, applied to every video via `*` | Synthetic content on purpose (public/synthetic data rule); answers stay on the server. `mockLesson.ts` is only the design preview with no activity. |
 | Manage Downloads | Was 3 fake lessons | **Fixed:** empty until real downloads exist |
 
 ## 7. AI assistance (this round)

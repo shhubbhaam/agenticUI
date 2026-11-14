@@ -5,6 +5,9 @@ import { createLearnHouse, type LearnHouse } from './src/learnhouse.ts';
 import { createGeminiAgent } from './src/agent.ts';
 import { parseDevUsers, withDevLogin } from './src/devLogin.ts';
 import { createMemoryInbox, openSqliteInbox, type Inbox } from './src/inbox.ts';
+import { createMemoryCheckpointStore, openSqliteCheckpointStore, type CheckpointStore } from './src/checkpointStore.ts';
+import { CheckpointConfigSchema, type CheckpointConfig } from '../src/contracts/checkpoints.ts';
+import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
@@ -35,4 +38,20 @@ try {
   console.warn(`WARNING: durable inbox unavailable (${(e as Error).message}); using memory. Needs Node >= 22.5.`);
 }
 
-createApp({ lh, agent, allowedCourses, inbox, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined, lhOrigin: env.LH_BASE_URL ? new URL(env.LH_BASE_URL).origin : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));
+// M4 checkpoints: definitions from bff/checkpoints.json (synthetic content), attempts in the same
+// SQLite file as the inbox. An invalid file is refused whole (no checkpoints) rather than half-read.
+let checkpoints: CheckpointConfig = {};
+const checkpointsPath = resolve(env.CHECKPOINTS_PATH || 'checkpoints.json');
+try {
+  const parsed = CheckpointConfigSchema.safeParse(JSON.parse(readFileSync(checkpointsPath, 'utf8')));
+  if (parsed.success) checkpoints = parsed.data;
+  else console.warn(`WARNING: ${checkpointsPath} is not a valid checkpoint file; lessons have no checkpoints.`);
+} catch {
+  console.warn(`No checkpoint file at ${checkpointsPath}; lessons have no checkpoints.`);
+}
+let checkpointStore: CheckpointStore;
+try { checkpointStore = await openSqliteCheckpointStore(inboxPath); }
+catch { checkpointStore = createMemoryCheckpointStore(); }
+console.log(`Checkpoints: ${Object.keys(checkpoints).length} set(s) from ${checkpointsPath}`);
+
+createApp({ lh, agent, allowedCourses, inbox, checkpoints, checkpointStore, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined, lhOrigin: env.LH_BASE_URL ? new URL(env.LH_BASE_URL).origin : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { useCheckpointPlayer, PAUSE_GUARD_MS, type PlayerCheckpoint } from './useCheckpointPlayer';
+import { useCheckpointPlayer, PAUSE_GUARD_MS, GRADE_ERROR, type PlayerCheckpoint } from './useCheckpointPlayer';
 import type { PlayerEngine } from './engines/types';
 
 const mockInject = jest.fn();
@@ -183,3 +183,56 @@ describe('YouTubeEngine', () => {
     act(() => web().props.onMessage({ nativeEvent: { data: 'not json' } })); // ignored
   });
 });
+
+// ---- M4: server-graded checkpoints, passes from the server, resume after restart ----
+describe('useCheckpointPlayer (server-graded, M4)', () => {
+  // As served by the BFF: no correctId, no explanation on the device.
+  const served = (id: string, atSec: number): PlayerCheckpoint => ({ id, atSec, prompt: { title: 't', body: 'b' }, question: 'q', options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] as any });
+  const base = { checkpoints: [served('c1', 3), served('c2', 6)], durationSec: 10, withEngine: false, tickMs: 500 };
+
+  it('grades through the BFF and shows the explanation it returns', async () => {
+    const grade = jest.fn().mockResolvedValue({ correct: true, explanation: 'Because of X.' });
+    const p = harness({ ...base, grade });
+    act(() => p.current.seek(3));
+    act(() => p.current.openCheckpoint());
+    act(() => p.current.select('b'));
+    await act(async () => { p.current.submit(); });
+    expect(grade).toHaveBeenCalledWith('c1', 'b');
+    expect(p.current.quiz?.status).toBe('correct');
+    expect(p.current.quiz?.feedback).toBe('Because of X.');
+  });
+
+  it('a wrong answer from the BFF asks to rewatch; a failed request lets the learner try again', async () => {
+    const grade = jest.fn().mockResolvedValueOnce({ correct: false }).mockRejectedValueOnce(new TypeError('Network request failed'));
+    const p = harness({ ...base, grade });
+    act(() => p.current.seek(3));
+    act(() => p.current.openCheckpoint());
+    act(() => p.current.select('a'));
+    await act(async () => { p.current.submit(); });
+    expect(p.current.quiz?.status).toBe('incorrect');
+    act(() => p.current.tryAgain());
+    act(() => p.current.select('b'));
+    await act(async () => { p.current.submit(); });
+    expect(p.current.quiz?.status).toBe('answering');
+    expect(p.current.quiz?.error).toBe(GRADE_ERROR);
+    expect(p.current.timeline.find((c) => c.id === 'c1')?.state).not.toBe('passed');
+  });
+
+  it('checkpoints already passed on the server are not asked again', () => {
+    const p = harness({ ...base, initialPassed: ['c1'] });
+    expect(p.current.timeline.find((c) => c.id === 'c1')?.state).toBe('passed');
+    expect(p.current.seekableUntil).toBe(6);
+  });
+
+  it('resume: restores the saved playhead, but never past the next unanswered checkpoint', () => {
+    const fresh = harness(base);
+    act(() => fresh.current.restore(8));
+    expect(fresh.current.position).toBe(3); // c1 not passed yet: resume stops at it
+    const after = harness({ ...base, initialPassed: ['c1'] });
+    act(() => after.current.restore(5));
+    expect(after.current.position).toBe(5); // within ±1 s of where the learner stopped
+    act(() => after.current.restore(9));
+    expect(after.current.position).toBe(6); // c2 still open
+  });
+});
+

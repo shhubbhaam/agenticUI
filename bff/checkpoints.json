@@ -1,0 +1,33 @@
+{
+  "*": {
+    "version": "demo-1",
+    "checkpoints": [
+      {
+        "id": "cp1",
+        "atSec": 20,
+        "prompt": { "title": "Look for the missing owner.", "body": "As you watch, notice who is responsible for the step after the AI response." },
+        "question": "Who owned the step after the AI drafted the reply? (synthetic checkpoint)",
+        "options": [
+          { "id": "a", "label": "The support lead" },
+          { "id": "b", "label": "Nobody was assigned" },
+          { "id": "c", "label": "The AI vendor" }
+        ],
+        "correctId": "b",
+        "explanation": "No one was named for the handoff, so the draft sat unsent."
+      },
+      {
+        "id": "cp2",
+        "atSec": 45,
+        "prompt": { "title": "Watch the fix.", "body": "Notice what the team adds to the workflow before the second rollout." },
+        "question": "What did the team add before rolling out again? (synthetic checkpoint)",
+        "options": [
+          { "id": "a", "label": "A bigger model" },
+          { "id": "b", "label": "A named reviewer for every AI draft" },
+          { "id": "c", "label": "More training data" }
+        ],
+        "correctId": "b",
+        "explanation": "A named reviewer closes the handoff gap the first rollout had."
+      }
+    ]
+  }
+}
