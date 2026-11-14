@@ -20,6 +20,10 @@ export interface CheckpointStore {
   addAttempt(a: CheckpointAttempt): void;
   /** Checkpoint ids with a correct attempt for this learner, video and content version. */
   passed(learnerId: string, activityUuid: string, version: string): string[];
+  /** M6 coach: video activities this learner has answered any checkpoint in. */
+  attemptedActivities(learnerId: string): string[];
+  /** M6 coach: this learner's attempts on one video (any version filter applied by the caller). */
+  attemptsFor(learnerId: string, activityUuid: string, version: string): Array<{ checkpointId: string; correct: boolean }>;
   close?(): void;
 }
 
@@ -31,6 +35,9 @@ export function createMemoryCheckpointStore(): CheckpointStore {
     addAttempt: (a) => { if (!rows.has(key(a.learnerId, a.attemptId))) rows.set(key(a.learnerId, a.attemptId), { ...a }); },
     passed: (l, act, v) => [...new Set([...rows.values()]
       .filter((r) => r.learnerId === l && r.activityUuid === act && r.version === v && r.correct).map((r) => r.checkpointId))],
+    attemptedActivities: (l) => [...new Set([...rows.values()].filter((r) => r.learnerId === l).map((r) => r.activityUuid))],
+    attemptsFor: (l, act, v) => [...rows.values()].filter((r) => r.learnerId === l && r.activityUuid === act && r.version === v)
+      .map((r) => ({ checkpointId: r.checkpointId, correct: r.correct })),
   };
 }
 
@@ -61,6 +68,9 @@ export async function openSqliteCheckpointStore(path: string): Promise<Checkpoin
     (learner_id, attempt_id, activity_uuid, version, checkpoint_id, option_id, correct, answered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
   const passed = db.prepare(`SELECT DISTINCT checkpoint_id FROM checkpoint_attempts
     WHERE learner_id = ? AND activity_uuid = ? AND version = ? AND correct = 1`);
+  const attempted = db.prepare('SELECT DISTINCT activity_uuid FROM checkpoint_attempts WHERE learner_id = ?');
+  const attemptsOf = db.prepare(`SELECT checkpoint_id, correct FROM checkpoint_attempts
+    WHERE learner_id = ? AND activity_uuid = ? AND version = ? ORDER BY answered_at`);
   return {
     getAttempt(l, a) {
       const r = get.get(l, a) as Row | undefined;
@@ -71,6 +81,9 @@ export async function openSqliteCheckpointStore(path: string): Promise<Checkpoin
       insert.run(a.learnerId, a.attemptId, a.activityUuid, a.version, a.checkpointId, a.optionId, a.correct ? 1 : 0, new Date().toISOString());
     },
     passed: (l, act, v) => (passed.all(l, act, v) as Array<{ checkpoint_id: string }>).map((r) => r.checkpoint_id),
+    attemptedActivities: (l) => (attempted.all(l) as Array<{ activity_uuid: string }>).map((r) => r.activity_uuid),
+    attemptsFor: (l, act, v) => (attemptsOf.all(l, act, v) as Array<{ checkpoint_id: string; correct: number }>)
+      .map((r) => ({ checkpointId: r.checkpoint_id, correct: r.correct === 1 })),
     close: () => db.close(),
   };
 }

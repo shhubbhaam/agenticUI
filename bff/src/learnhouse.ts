@@ -27,7 +27,7 @@ export interface Trail {
   user_id?: number;
   courses?: Array<{
     course_uuid: string;
-    chapters?: Array<{ chapter_uuid?: string; order?: number; activities?: Array<{ activity_uuid: string; completed?: boolean; published?: boolean }> }>;
+    chapters?: Array<{ chapter_uuid?: string; order?: number; activities?: Array<{ activity_uuid: string; completed?: boolean; published?: boolean; completed_at?: string | null }> }>;
   }>;
 }
 interface LhUser { id?: string | number; user_id?: string | number; first_name?: string; username?: string }

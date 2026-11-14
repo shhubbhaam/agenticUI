@@ -18,6 +18,10 @@ import { AssignmentEventPayloadSchema, EVENT_SCHEMA_VERSION } from '../../src/co
 import { parseHomeLayout, SLOT_NAMES } from '../../src/contracts/homeLayout.ts';
 import { CheckpointsResponseSchema, CheckpointAnswerRequestSchema, CheckpointAnswerResponseSchema, type CheckpointConfig, type CheckpointSet } from '../../src/contracts/checkpoints.ts';
 import { createMemoryCheckpointStore, type CheckpointStore } from './checkpointStore.ts';
+import { createCoach, hashAuth, type CoachData } from './coach.ts';
+import type { CoachStore } from './coachStore.ts';
+import type { CoachModel } from './coachModel.ts';
+import { DecisionRequestSchema, DecisionResponseSchema, CoachStatusSchema, StartSessionResponseSchema, HEARTBEAT_MS, type AgentEvent } from '../../src/contracts/agentEvents.ts';
 import { AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, SubmitRequestSchema, RetryResponseSchema, type AssignmentQuiz } from '../../src/contracts/assignment.ts';
 
 /** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
@@ -120,6 +124,12 @@ export interface AppOptions {
   checkpoints?: CheckpointConfig;
   /** M4 checkpoint attempts (append-only). Defaults to memory. */
   checkpointStore?: CheckpointStore;
+  /** M6 AI coach records (proposals, decisions, plan). Without it the coach routes answer 503. */
+  coachStore?: CoachStore;
+  /** M6 coach model (Gemini). Null: the coach uses its fixed wording. */
+  coachModel?: CoachModel | null;
+  /** M6: pause between streamed text chunks (ms). Tests use 0. */
+  coachChunkDelayMs?: number;
 }
 export interface App {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
@@ -133,7 +143,7 @@ export interface EventResult { eventId: string; status: InboxStatus; reason?: st
 const EVENT_TYPES = new Set<EventType>(['activity_completed', 'assignment_submitted']);
 const MAX_EVENTS = 100;
 
-export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin, inbox = createMemoryInbox(), checkpoints = {}, checkpointStore = createMemoryCheckpointStore() }: AppOptions): App {
+export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin, inbox = createMemoryInbox(), checkpoints = {}, checkpointStore = createMemoryCheckpointStore(), coachStore, coachModel = null, coachChunkDelayMs }: AppOptions): App {
   const routes: Route[] = [];
   const route = (method: string) => (path: string, ...handlers: Handler[]) => { routes.push({ method, path, ...compile(path), handlers }); };
   const app = { get: route('GET'), post: route('POST') };
@@ -821,6 +831,113 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
       const found = await assignmentFor(req, res); if (!found) return;
       res.json(RetryResponseSchema.parse({ retriesLeft: retriesLeftFrom(await found.api.retryAssignment(found.uuid)) }));
     } catch (e) { learnerCallError(res, e); }
+  });
+
+  // ---- M6: AI coach (isolated from the Home layout: own contract, routes, model call, records) ----
+  // What the coach knows: progress from LearnHouse, open checkpoints from the checkpoint store.
+  async function coachData(learnerId: string, courseUuid: string): Promise<CoachData> {
+    const trail = await trailOrNull(learnerId, courseUuid);
+    const acts = (trail?.courses?.find((c) => c.course_uuid === courseUuid)?.chapters ?? []).flatMap((ch) => ch.activities ?? []);
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const completedThisWeek = acts.filter((a) => a.completed && a.completed_at && Date.parse(a.completed_at) >= weekAgo).length;
+    const published = await publishedActivities(courseUuid, trail);
+    const done = new Set(acts.filter((a) => a.completed).map((a) => a.activity_uuid));
+    const nameOf = (uuid: string) => (String(published.find((a) => a.activity_uuid === uuid)?.name ?? '').trim() || 'this lesson').slice(0, 200);
+    const gaps: CoachData['gaps'] = [];
+    for (const uuid of checkpointStore.attemptedActivities(learnerId)) {
+      if (done.has(uuid) || !published.some((a) => a.activity_uuid === uuid) || !UUID_RE.test(uuid)) continue;
+      const found = await checkpointSetFor(uuid);
+      if (!found) continue;
+      const attempts = checkpointStore.attemptsFor(learnerId, uuid, found.set.version);
+      const passedIds = new Set(attempts.filter((a) => a.correct).map((a) => a.checkpointId));
+      const ordered = [...found.set.checkpoints].sort((a, b) => a.atSec - b.atSec);
+      const i = ordered.findIndex((c) => !passedIds.has(c.id));
+      if (i < 0) continue;
+      gaps.push({ activityUuid: uuid, lesson: nameOf(uuid), checkpoint: i + 1, wrongAttempts: attempts.filter((a) => a.checkpointId === ordered[i].id && !a.correct).length });
+      if (gaps.length >= 5) break;
+    }
+    const nextA = published.find((a) => !done.has(a.activity_uuid) && UUID_RE.test(a.activity_uuid));
+    return {
+      facts: { completedThisWeek, gaps: gaps.map(({ lesson, checkpoint, wrongAttempts }) => ({ lesson, checkpoint, wrongAttempts })), nextLesson: nextA ? nameOf(nextA.activity_uuid) : null },
+      gaps,
+      next: nextA ? { activityUuid: nextA.activity_uuid, name: nameOf(nextA.activity_uuid) } : null,
+    };
+  }
+  const coach = coachStore ? createCoach({
+    store: coachStore, model: coachModel, logger, chunkDelayMs: coachChunkDelayMs,
+    load: coachData,
+    // Execution-time re-check of an approved action: still enrolled, still a published activity of this course.
+    canTarget: async (learnerId, courseUuid, activityUuid) =>
+      allowedCourses.has(courseUuid) && (await isEnrolled(learnerId, courseUuid).catch(() => false))
+      && (await publishedActivities(courseUuid, await trailOrNull(learnerId, courseUuid).catch(() => null)).catch(() => []))
+        .some((a) => a.activity_uuid === activityUuid),
+  }) : null;
+  const authOf = (req: Req) => hashAuth(bearer(req) ?? '');
+
+  app.post('/api/me/coach/sessions', requireSession, async (req, res) => {
+    if (!coach) return res.status(503).json({ error: 'coach_unavailable' });
+    const courseUuid = (req.body as { courseUuid?: unknown }).courseUuid;
+    if (typeof courseUuid !== 'string' || !UUID_RE.test(courseUuid) || !allowedCourses.has(courseUuid)) return res.status(403).json({ error: 'course_forbidden' });
+    try { if (!(await isEnrolled(req.learner.learnerId, courseUuid))) return res.status(403).json({ error: 'not_enrolled' }); }
+    catch (e) { return upstreamError(res, e); }
+    const s = coach.start(req.learner.learnerId, courseUuid, authOf(req));
+    res.json(StartSessionResponseSchema.parse({ sessionId: s.id, runId: s.runId }));
+  });
+
+  // The stream (SSE). Last-Event-ID (or ?after=) resumes after that seq; too old -> STATE_SNAPSHOT.
+  // Closes after RUN_FINISHED / RUN_ERROR. Heartbeat comments keep proxies and the app's watchdog happy.
+  app.get('/api/me/coach/sessions/:sessionId/events', requireSession, (req, res) => {
+    const s = coach?.get(req.params.sessionId, req.learner.learnerId, authOf(req));
+    if (!s) return res.status(404).json({ error: 'session_not_found' });
+    const raw = req.headers['last-event-id'] ?? new URL(req.url ?? '/', 'http://bff').searchParams.get('after') ?? '0';
+    const n = Number(Array.isArray(raw) ? raw[0] : raw);
+    const lastSeq = Number.isSafeInteger(n) && n >= 0 ? n : 0;
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    const send = (e: AgentEvent) => { res.write(`id: ${e.seq}\ndata: ${JSON.stringify(e)}\n\n`); };
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
+    const listener = (e: AgentEvent) => { send(e); if (e.type === 'RUN_FINISHED' || e.type === 'RUN_ERROR') stop(); };
+    function stop() {
+      if (heartbeat) clearInterval(heartbeat);
+      heartbeat = null;
+      s!.listeners.delete(listener);
+      if (!res.writableEnded) res.end();
+    }
+    for (const e of coach!.replay(s, lastSeq)) send(e);
+    if (s.finished) return stop();
+    s.listeners.add(listener);
+    heartbeat = setInterval(() => res.write(': ping\n\n'), HEARTBEAT_MS);
+    req.on('close', stop);
+  });
+
+  app.post('/api/me/coach/sessions/:sessionId/cancel', requireSession, (req, res) => {
+    const s = coach?.get(req.params.sessionId, req.learner.learnerId, authOf(req));
+    if (!s) return res.status(404).json({ error: 'session_not_found' });
+    coach!.cancel(s);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/me/coach/approvals/:proposalId', requireSession, async (req, res) => {
+    if (!coach) return res.status(503).json({ error: 'coach_unavailable' });
+    if (!UUID_RE.test(req.params.proposalId)) return res.status(400).json({ error: 'invalid_request' });
+    const parsed = DecisionRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'invalid_request' });
+    try {
+      const out = await coach.decide(req.learner.learnerId, authOf(req), req.params.proposalId, parsed.data);
+      res.status(out.http).json(out.http === 200 ? DecisionResponseSchema.parse(out.body) : out.body);
+    } catch (e) { upstreamError(res, e); }
+  });
+
+  // The approved plan and any proposal still open, without needing a live session.
+  app.get('/api/me/coach/status', requireSession, (req, res) => {
+    if (!coachStore) return res.status(503).json({ error: 'coach_unavailable' });
+    const courseUuid = new URL(req.url ?? '/', 'http://bff').searchParams.get('courseUuid') ?? '';
+    if (!UUID_RE.test(courseUuid) || !allowedCourses.has(courseUuid)) return res.status(403).json({ error: 'course_forbidden' });
+    const pending = coachStore.pendingFor(req.learner.learnerId, new Date());
+    res.json(CoachStatusSchema.parse({
+      plan: coachStore.getPlan(req.learner.learnerId, courseUuid),
+      // Only in the login session it was made in: a new login never inherits an open approval.
+      pendingProposal: pending && pending.courseUuid === courseUuid && pending.authHash === authOf(req) ? pending.proposal : null,
+    }));
   });
 
   // Agent layout: built here, authorized here, wrapped in the versioned envelope.

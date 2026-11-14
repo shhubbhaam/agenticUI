@@ -13,6 +13,7 @@ import { Alert } from '../../ui/molecules/Alert';
 import { ContentRow } from '../../ui/molecules/ContentRow';
 import { EmptyState } from '../../ui/organisms/EmptyState';
 import type { PracticeData } from '../../core/practice/types';
+import { PRACTICE_IS_SAMPLE, PRACTICE_SAMPLE_NOTICE } from '../../core/practice/sample';
 
 interface PracticeViewProps {
   data: PracticeData;
@@ -56,11 +57,14 @@ export const PracticeView: React.FC<PracticeViewProps> = ({
     </View>
   );
 
+  const sampleNotice = PRACTICE_IS_SAMPLE ? <Alert tone="info" testID="practice-sample-notice" message={PRACTICE_SAMPLE_NOTICE} /> : null;
+
   if (data.dueItems.length === 0) {
     const caughtUp = data.hasStartedLearning;
     return (
       <PracticeTemplate
         practiceHeader={header}
+        sampleNotice={sampleNotice}
         bottombar={bottombar}
         emptyState={
           <EmptyState
@@ -84,6 +88,7 @@ export const PracticeView: React.FC<PracticeViewProps> = ({
   return (
     <PracticeTemplate
       practiceHeader={header}
+      sampleNotice={sampleNotice}
       practiceCard={
         <PracticeCard
           eyebrow="Bring an idea back"

@@ -77,6 +77,19 @@ the video complete in LearnHouse until every checkpoint is passed. Changing a se
 learners answer the new questions. The app saves the playhead on the device, so a reopened lesson
 resumes where it stopped (never past an unanswered checkpoint). The shipped file is synthetic content.
 
+## AI coach (M6)
+
+Home → **Ask your coach**. The BFF runs a coach session and streams it to the app over **SSE**
+(`/api/me/coach/*`): run start, three tool steps (`read_progress`, `find_gaps`,
+`choose_next_step`), shared state, the message text, then one **approval** request. Every event has
+a `seq`; the app applies an event only once and reconnects with `Last-Event-ID`, so nothing is
+missed or duplicated; a cursor older than the 5-minute replay window gets a `STATE_SNAPSHOT`.
+Gemini only picks one of the options the server offers and writes the explanation (fixed wording
+without a key or on failure). An approval is valid only for the exact proposal (hash), once, in the
+same login session, within 10 minutes, and is re-checked when it runs. The coach is separate from
+Home's agent-chosen cards: own contract (`src/contracts/agentEvents.ts`), routes, model call
+(`bff/src/coachModel.ts`) and records (`coach_*` tables in the inbox SQLite file).
+
 ## Feature modules (M2)
 
 `src/config/features.ts` switches the three mobile features independently: `player` (video lessons),

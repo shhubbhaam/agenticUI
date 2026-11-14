@@ -8,6 +8,8 @@ import { createMemoryInbox, openSqliteInbox, type Inbox } from './src/inbox.ts';
 import { createMemoryCheckpointStore, openSqliteCheckpointStore, type CheckpointStore } from './src/checkpointStore.ts';
 import { CheckpointConfigSchema, type CheckpointConfig } from '../src/contracts/checkpoints.ts';
 import { readFileSync } from 'node:fs';
+import { openCoachStore, type CoachStore } from './src/coachStore.ts';
+import { createGeminiCoach } from './src/coachModel.ts';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
@@ -54,4 +56,11 @@ try { checkpointStore = await openSqliteCheckpointStore(inboxPath); }
 catch { checkpointStore = createMemoryCheckpointStore(); }
 console.log(`Checkpoints: ${Object.keys(checkpoints).length} set(s) from ${checkpointsPath}`);
 
-createApp({ lh, agent, allowedCourses, inbox, checkpoints, checkpointStore, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined, lhOrigin: env.LH_BASE_URL ? new URL(env.LH_BASE_URL).origin : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));
+// M6 AI coach: proposals, decisions and plan in the same SQLite file; Gemini only if a key is set.
+let coachStore: CoachStore | undefined;
+try { coachStore = await openCoachStore(inboxPath); }
+catch { console.warn('WARNING: AI coach unavailable (needs node:sqlite, Node >= 22.5).'); }
+const coachModel = env.GEMINI_API_KEY ? createGeminiCoach({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL || 'gemini-3.5-flash-lite' }) : null;
+console.log(`Coach: ${coachStore ? 'on' : 'off'} model=${coachModel ? env.GEMINI_MODEL || 'gemini-3.5-flash-lite' : 'fixed wording'}`);
+
+createApp({ lh, agent, allowedCourses, inbox, checkpoints, checkpointStore, coachStore, coachModel, org: env.LH_ORG_SLUG ? { slug: env.LH_ORG_SLUG } : undefined, lhOrigin: env.LH_BASE_URL ? new URL(env.LH_BASE_URL).origin : undefined }).listen(PORT, () => console.log(`BFF listening on http://localhost:${PORT}`));

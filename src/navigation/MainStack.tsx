@@ -12,6 +12,7 @@ import SkillsScreen from '../screens/skills/SkillsScreen';
 import EvidenceScreen from '../screens/skills/EvidenceScreen';
 import StreakScreen from '../screens/streak/StreakScreen';
 import ComingSoonScreen from '../screens/placeholder/ComingSoonScreen';
+import CoachScreen from '../screens/coach/CoachScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import AccessibilityScreen from '../screens/settings/AccessibilityScreen';
 import ManageDownloadsScreen from '../screens/settings/ManageDownloadsScreen';
@@ -52,6 +53,8 @@ export type RootStackParamList = {
   ManageDownloads: undefined;
   // Settings rows whose screens are not designed yet.
   ComingSoon: { title: string; message?: string };
+  // M6: the AI coach (agentUi module), for one course.
+  Coach: { courseUuid: string };
   /** Without params: the demo lesson (fake clock). With params: that activity's real video. */
   Lesson: { courseUuid: string; activityUuid: string; title?: string; chapter?: string; format?: string } | undefined;
   /** A PDF (document) activity, opened as a slide deck. Route by content with navigation/activityRoute.ts. */
@@ -102,6 +105,7 @@ export default function MainStack() {
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Accessibility" component={AccessibilityScreen} />
         <Stack.Screen name="ManageDownloads" component={ManageDownloadsScreen} />
+        <Stack.Screen name="Coach" component={CoachScreen} />
         <Stack.Screen name="ComingSoon">
           {({ route }) => <ComingSoonScreen title={route.params.title} message={route.params.message} />}
         </Stack.Screen>

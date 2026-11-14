@@ -13,6 +13,7 @@ import { FlashCard } from '../../ui/organisms/practice/FlashCard';
 import { Alert } from '../../ui/molecules/Alert';
 import type { PracticeDeck } from '../../core/practice/types';
 import type { useQuickPractice } from './useQuickPractice';
+import { PRACTICE_IS_SAMPLE, PRACTICE_SAMPLE_NOTICE } from '../../core/practice/sample';
 
 type Session = ReturnType<typeof useQuickPractice>;
 
@@ -41,6 +42,12 @@ export const QuickPracticeView: React.FC<QuickPracticeViewProps> = ({ deck, sess
           backTestID="back-header-back"
           iconColor={colors.text.primary}
         />
+
+        {PRACTICE_IS_SAMPLE ? (
+          <View style={{ marginTop: 12 }}>
+            <Alert tone="info" testID="practice-sample-notice" message={PRACTICE_SAMPLE_NOTICE} />
+          </View>
+        ) : null}
 
         {phase === 'complete' ? (
           <View style={{ marginTop: 18 }}>

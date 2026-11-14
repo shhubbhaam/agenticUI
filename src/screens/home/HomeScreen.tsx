@@ -27,6 +27,7 @@ import { TrustedCatalogue } from '../../schemas/homeLayoutSchema';
 import type { ParseResult, SlotComponent, SlotName, SlotResult, LayoutAction } from '../../contracts/homeLayout';
 import { fetchHomeLayout } from '../../services/agentService';
 import { FEATURES } from '../../config/features';
+import { GhostCta } from '../../ui/molecules/onboarding/GhostCta';
 import { runLayoutAction } from './actions';
 import { useSessionStore } from '../../state/useSessionStore';
 import { clearTrailCache } from '../../data/learnhouse/trailCache';
@@ -172,6 +173,9 @@ export default function HomeScreen() {
       nextStepSection={homeData.status === 'ready' ? renderSlot('nextStepSection') : undefined}
       footerActions={
         <View>
+          {FEATURES.agentUi && homeData.status !== 'loading' && homeData.courseUuid ? (
+            <GhostCta label="Ask your coach" onPress={() => navigation.navigate('Coach', { courseUuid: homeData.courseUuid })} />
+          ) : null}
           {notice ? <Text accessibilityLiveRegion="polite" style={tw`text-center text-gray-600 mb-2`}>{notice}</Text> : null}
           <ActionFooter
             onPressFormat={() => setNotice('Format choice is coming soon.')}

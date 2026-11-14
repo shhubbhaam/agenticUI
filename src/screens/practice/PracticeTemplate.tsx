@@ -5,6 +5,7 @@ import { colors } from '../../ui/tokens/colors';
 
 interface PracticeTemplateProps {
   practiceHeader?: ReactNode;
+  sampleNotice?: ReactNode; // "Sample content" label, above everything else
   practiceCard?: ReactNode; // Main practice card slot
   practiceNotification?: ReactNode; // Info alert slot (offline / downloaded sets)
   revisitList?: ReactNode; // "Ready to revisit" slot
@@ -17,6 +18,7 @@ interface PracticeTemplateProps {
 // section break is 18.
 export const PracticeTemplate: React.FC<PracticeTemplateProps> = ({
   practiceHeader,
+  sampleNotice,
   practiceCard,
   practiceNotification,
   revisitList,
@@ -32,6 +34,7 @@ export const PracticeTemplate: React.FC<PracticeTemplateProps> = ({
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        {sampleNotice ? <View style={{ marginBottom: 12 }}>{sampleNotice}</View> : null}
         {emptyState ? <View>{emptyState}</View> : null}
         {practiceCard ? (
           <View style={{ marginBottom: practiceNotification ? 12 : 18 }}>{practiceCard}</View>

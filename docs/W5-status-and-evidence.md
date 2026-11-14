@@ -25,6 +25,7 @@ M3 (web modules) is delivered separately in the team's LearnHouse fork, as agree
 | W3 P1 / M7: render failure | A slot whose component throws shows only its own fallback; the other slot renders. | `src/ui/organisms/SlotBoundary.test.tsx` |
 | W3 P1: fixtures shown as real | Manage Downloads no longer lists 3 fake downloaded lessons ("Nothing downloaded yet" until real storage exists). | `SettingsScreen.test.tsx` |
 | W3 P1: setup / README | README rewritten for Expo + BFF, with the Windows path-length note. | `README.md` |
+| M6: AI coach (isolated from Home) | SSE stream with lifecycle/tool/state/text/approval events, replay and snapshot, approvals bound to the exact proposal and login session, Stop. Gemini picks among server-offered options only; model text never logged. | `bff/test/coach.test.ts` (13), `src/core/coach/*.test.ts`, `src/ui/organisms/coach/CoachParts.test.tsx`, `src/screens/coach/coach.test.ts` |
 | M4: checkpoints (BFF extension) | LearnHouse has no checkpoints: `bff/checkpoints.json` defines them per video activity (or `*`), versioned. App gets questions without answers; BFF grades, records attempts append-only (SQLite), enforces order, and blocks LearnHouse completion until all are passed (already-completed videos stay complete). App saves the playhead and resumes, never past an unanswered checkpoint. A lesson whose checkpoints cannot be loaded does not play. | `bff/test/checkpoints.test.ts` (10), `src/screens/lesson/lesson.test.tsx` "server-graded", `src/data/local/playerProgress.test.ts` |
 
 ## 2. Milestone status
@@ -36,8 +37,8 @@ M3 (web modules) is delivered separately in the team's LearnHouse fork, as agree
 | M3 | Separate | — | Delivered in the LearnHouse fork |
 | M4 | Pass in code; device run pending | Exact pause at each checkpoint, no seeking past an unanswered one, passed checkpoints never reopen, watched kept separate; checkpoints from the BFF (no answers on device), server grading, append-only attempts, order enforced, completion blocked until all passed, passes survive restarts (server) and the playhead resumes (device) | Recorded device run (T4.1/T4.2); checkpoint content is synthetic (`bff/checkpoints.json`); captions for uploaded videos |
 | M5 | Pass in code + device run | See §1; device: offline slide completion → reconnect → LearnHouse web agrees (14 Nov) | Recorded device runs for process death and phone/web conflict (§4); preference conflicts (S9) |
-| M6 | Not started | — | SSE/AG-UI stream, replay window, snapshot, bound approval |
-| M7 | Substantial | Strict envelope, typed actions, per-slot fallback, server re-check with the same schema, byte cap, render-failure test | Approval tampering (needs M6) |
+| M6 | Pass in code; device run pending | AI coach on Android over SSE: lifecycle, tool, shared-state and text events; seq + `Last-Event-ID` resume; 5-min replay window and snapshot; heartbeats, back-off, stall watchdog, background/foreground; one approval bound to proposal hash, learner, login session, expiry, one-time, re-checked at execution; interrupt (Stop). Isolated from the Home layout. | Recorded emulator run with the network cut mid-run; streaming on web (not in scope) |
+| M7 | Pass in code | Strict envelope, typed actions, per-slot fallback, server re-check with the same schema, byte cap, render-failure test; coach events validated on both sides and shown only through four trusted components; approval tampering and replay refused | — |
 | M8 | Partial | Accessibility labels (~51 components), larger text, reduce motion | Recorded TalkBack and 200% text runs; captions; localization-safe check |
 | M9 | Not started | Timeouts and fallbacks | Measured cold start, bundle size, reconnect-to-synced, module failure |
 
@@ -48,16 +49,16 @@ M3 (web modules) is delivered separately in the team's LearnHouse fork, as agree
 | S1 | Unknown component | M7 T7.1 | **Pass** | contract suite; BFF re-check (`agent.test.ts`) |
 | S2 | Malformed properties | M7 T7.1/T7.3 | **Pass** | contract suite; `SlotBoundary.test.tsx` |
 | S3 | Code/script injection | M7 T7.1 | **Pass** | closed catalogue and actions; contract suite (inert strings) |
-| S4 | Duplicate SSE event | M6 T6.2 | Not done | needs M6 |
-| S5 | Interrupted SSE stream | M6 T6.2 | Not done | needs M6 |
+| S4 | Duplicate SSE event | M6 T6.2 | **Pass** | `coachReducer.test.ts` (applied once by seq); `coach.test.ts` reconnect |
+| S5 | Interrupted SSE stream | M6 T6.2 | **Pass (code)**; device run pending | `coach.test.ts` "Last-Event-ID resumes", "older than the replay window" |
 | S6 | Offline duplicate batch | M5 T5.2 | **Pass** | `events.test.ts` "same batch sent twice", "same event id twice in ONE batch", durable restart |
 | S7 | App terminated offline | M5 T5.1 | **Pass (code)**; device run pending | `outbox.test.ts`; device test 1 in §4 |
 | S8 | Multi-device completion | M5 T5.4 | **Pass (code)**; device run pending | monotonic completion + read-back; device test 2 in §4 |
 | S9 | Conflicting preferences | M5 T5.4 | Not done | settings are device-local; no cross-device rule yet |
-| S10 | Approval tampering | M6 T6.3 | Not done | needs M6 |
+| S10 | Approval tampering | M6 T6.3 | **Pass** | `coach.test.ts` "changed proposal (hash)", "one decision per proposal", "login session", "expired", "re-checked when it runs" |
 | S11 | Old client version | M1 T1.2 / M7 T7.1 | **Pass** | layout `version` and event `schemaVersion` rejection tests |
 | S12 | Sensitive telemetry | M7/M9 | Partial | model receives no name/email; raw model text never logged; no automated log-content test yet |
-| S13 | Recovery to live state | M5/M6/M9 | Partial | offline snapshot → reconnect → server state (M5); agent stream recovery needs M6 |
+| S13 | Recovery to live state | M5/M6/M9 | **Pass (code)** | M5 offline snapshot → reconnect; M6 stream snapshot → live (`coachReducer.test.ts`) |
 
 ## 4. Device runs to record (M5)
 
@@ -113,7 +114,7 @@ git -C <path-to-learnhouse-fork> describe --tags --always
 
 | Where | What | Status |
 |---|---|---|
-| Practice tab | Due items and practice set are sample content (`MockPracticeRepository`) | Still sample data: label in demos or hide |
+| Practice tab and quick practice | Due items and practice set are sample content (`MockPracticeRepository`) | **Labelled on screen:** "Sample content: Practice isn't connected to your course yet" (`src/core/practice/sample.ts`, `PracticeView.test.tsx`) |
 | Path | `CAPSTONE` / `STAGE nn` labels when a chapter has no `stage_label` | Design default, documented |
 | Lesson player | Checkpoint questions in `bff/checkpoints.json` are synthetic, applied to every video via `*` | Synthetic content on purpose (public/synthetic data rule); answers stay on the server. `mockLesson.ts` is only the design preview with no activity. |
 | Manage Downloads | Was 3 fake lessons | **Fixed:** empty until real downloads exist |

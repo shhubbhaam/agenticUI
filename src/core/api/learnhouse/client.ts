@@ -72,7 +72,8 @@ export interface LHUserTrail {
 
 // ---------- fetch helper ----------
 export class LearnHouseError extends Error {
-  constructor(public status: number, public path: string, message: string) {
+  /** The BFF's fixed error code from the response body ({ error }), when it sent one. */
+  constructor(public status: number, public path: string, message: string, public code?: string) {
     super(message);
   }
 }
@@ -94,7 +95,12 @@ async function bffFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
   if (!res.ok) {
-    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`);
+    let code: string | undefined;
+    try {
+      const body = (await res.json()) as { error?: unknown } | null;
+      if (typeof body?.error === 'string') code = body.error;
+    } catch { /* no JSON body */ }
+    throw new LearnHouseError(res.status, path, `BFF returned ${res.status}`, code);
   }
   return res.json() as Promise<T>;
 }
@@ -154,6 +160,31 @@ export async function answerCheckpoint(courseUuid: string, activityUuid: string,
   return CheckpointAnswerResponseSchema.parse(await bffFetch<unknown>(
     `/me/courses/${encodeURIComponent(courseUuid)}/activities/${encodeURIComponent(activityUuid)}/checkpoints/${encodeURIComponent(checkpointId)}/answer`,
     { method: 'POST', body: JSON.stringify(body) }));
+}
+
+// ---------- M6: AI coach (separate from the Home layout) ----------
+import {
+  StartSessionResponseSchema, DecisionResponseSchema, CoachStatusSchema,
+  type DecisionRequest, type CoachStatus,
+} from '../../../contracts/agentEvents';
+
+export async function startCoachSession(courseUuid: string) {
+  return StartSessionResponseSchema.parse(await bffFetch<unknown>('/me/coach/sessions', { method: 'POST', body: JSON.stringify({ courseUuid }) }));
+}
+export async function cancelCoachSession(sessionId: string): Promise<void> {
+  await bffFetch<unknown>(`/me/coach/sessions/${encodeURIComponent(sessionId)}/cancel`, { method: 'POST' });
+}
+export async function decideCoachProposal(proposalId: string, body: DecisionRequest) {
+  return DecisionResponseSchema.parse(await bffFetch<unknown>(`/me/coach/approvals/${encodeURIComponent(proposalId)}`, { method: 'POST', body: JSON.stringify(body) }));
+}
+export async function getCoachStatus(courseUuid: string): Promise<CoachStatus> {
+  return CoachStatusSchema.parse(await bffFetch<unknown>(`/me/coach/status?courseUuid=${encodeURIComponent(courseUuid)}`));
+}
+/** The stream's URL and auth header (the stream itself is read with expo/fetch in data/coach). */
+export function coachStreamSource(sessionId: string): { uri: string; headers: Record<string, string> } | null {
+  const token = getSessionToken();
+  if (!token) return null;
+  return { uri: `${LEARNHOUSE.baseUrl}/me/coach/sessions/${encodeURIComponent(sessionId)}/events`, headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' } };
 }
 
 /** Agent-generated home layout, built server-side (Gemini key never reaches the app). */
