@@ -22,7 +22,7 @@ export const BackHeader: React.FC<BackHeaderProps> = ({
   iconColor = colors.action.ghost,
   backTestID,
 }) => (
-  <View style={[tw`flex-row items-center w-full`, { height: 44 }]}>
+  <View style={[tw`flex-row items-center w-full`, { minHeight: 44 }]}>
     <View style={{ width: 40 }}>
       {onBack ? (
         <TouchableOpacity

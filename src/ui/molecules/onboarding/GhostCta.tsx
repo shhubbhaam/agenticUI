@@ -10,7 +10,7 @@ interface GhostCtaProps {
 }
 
 export const GhostCta: React.FC<GhostCtaProps> = ({ label, onPress }) => (
-  <TouchableOpacity onPress={onPress} style={[tw`items-center justify-center w-full`, { height: 44 }]}>
+  <TouchableOpacity onPress={onPress} style={[tw`items-center justify-center w-full`, { minHeight: 44, paddingVertical: 8 }]}>
     <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: colors.action.ghost, ...typography.fontSize['type-14-base'] }}>
       {label}
     </Text>

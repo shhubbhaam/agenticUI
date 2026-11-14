@@ -46,7 +46,7 @@ export const ChoiceCard: React.FC<ChoiceCardProps> = ({
         accessibilityState={{ selected }}
         onPress={onPress}
         activeOpacity={0.8}
-        style={[container, { flex: 1, height: 120, paddingHorizontal: 12, paddingTop: 16 }]}
+        style={[container, { flex: 1, minHeight: 120, paddingHorizontal: 12, paddingTop: 16, paddingBottom: 12 }]}
       >
         {icon ? (
           <View

@@ -6,6 +6,7 @@ import tw from 'twrnc';
 
 import { colors } from '../tokens/colors';
 import { IconProps } from '../atoms/icons';
+import { FONT_SCALE_CAP } from '../tokens/fontScale';
 
 export type TabItem = {
   key: string;
@@ -46,7 +47,7 @@ const NavItem: React.FC<{
       ) : (
         <View style={{ width: 20, height: 20}} />
       )}
-      <Text style={[tw`mt-1 text-xs font-semibold`, { color }]}>
+      <Text maxFontSizeMultiplier={FONT_SCALE_CAP.fixedCell} numberOfLines={1} style={[tw`mt-1 text-xs font-semibold`, { color }]}>
         {tab.label}
       </Text>
     </TouchableOpacity>

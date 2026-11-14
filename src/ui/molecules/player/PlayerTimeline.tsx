@@ -9,6 +9,7 @@ import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 import { CheckpointMarker, type CheckpointState } from '../../atoms/player/CheckpointMarker';
 import { formatTime } from './formatTime';
+import { FONT_SCALE_CAP } from '../../tokens/fontScale';
 
 export interface TimelineCheckpoint {
   id: string;
@@ -101,7 +102,7 @@ export const PlayerTimeline: React.FC<PlayerTimelineProps> = ({
       </Pressable>
       <View style={tw`flex-row justify-between`}>
         {[formatTime(positionSec), formatTime(durationSec)].map((label, i) => (
-          <Text key={i} style={{ fontFamily: typography.fontFamily.jakarta, color: t.time, ...typography.fontSize['type-10'] }}>
+          <Text key={i} maxFontSizeMultiplier={FONT_SCALE_CAP.fixedCell} style={{ fontFamily: typography.fontFamily.jakarta, color: t.time, ...typography.fontSize['type-10'] }}>
             {label}
           </Text>
         ))}

@@ -20,7 +20,7 @@ export const StreakBadge: React.FC<StreakBadgeProps> = ({ value, frozen = false 
       accessibilityLabel={`${value} day streak${frozen ? ', covered by freeze' : ''}`}
       style={[
         tw`flex-row items-center justify-center`,
-        { height: 67.2, minWidth: 82, paddingHorizontal: 18, gap: 4, borderRadius: 23, backgroundColor: palette.surface },
+        { minHeight: 67.2, minWidth: 82, paddingHorizontal: 18, gap: 4, borderRadius: 23, backgroundColor: palette.surface },
       ]}
     >
       {frozen ? <SnowIcon size={17} /> : <FlameIcon size={17} />}

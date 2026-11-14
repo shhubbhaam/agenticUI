@@ -53,10 +53,10 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
     // The 3px under-shadow is drawn as an offset layer (not a native shadow)
     // so it renders identically on iOS and Android and adds no layout height.
     return (
-      <View style={{ height: 49, width: '100%' }}>
+      <View style={{ width: '100%' }}>
         <View
           pointerEvents="none"
-          style={{ position: 'absolute', left: 0, right: 0, top: 3, height: 49, borderRadius: 13, backgroundColor: tone.shadow }}
+          style={{ position: 'absolute', left: 0, right: 0, top: 3, bottom: -3, borderRadius: 13, backgroundColor: tone.shadow }}
         />
         <TouchableOpacity
           testID={testID}
@@ -66,7 +66,7 @@ export const ActiveButton: React.FC<ActiveButtonProps> = ({
           {...a11y}
           style={[
             tw`flex-row items-center justify-center`,
-            { height: 49, borderRadius: 13, gap: 8, backgroundColor: tone.surface, opacity: disabled ? 0.5 : 1 },
+            { minHeight: 49, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 13, gap: 8, backgroundColor: tone.surface, opacity: disabled ? 0.5 : 1 },
           ]}
         >
           {icon}

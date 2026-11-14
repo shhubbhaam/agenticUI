@@ -3,6 +3,7 @@ import { View, Text } from 'react-native';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 import type { CalendarDay, CalendarDayStatus } from '../../../core/streak/streak';
+import { FONT_SCALE_CAP } from '../../tokens/fontScale';
 
 interface StreakCalendarProps {
   days: CalendarDay[]; // Monday-first, multiple of 7
@@ -36,6 +37,7 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({ days }) => {
         {WEEKDAYS.map((label, i) => (
           <Text
             key={i}
+            maxFontSizeMultiplier={FONT_SCALE_CAP.fixedCell}
             accessibilityElementsHidden
             importantForAccessibility="no"
             style={{
@@ -71,7 +73,7 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({ days }) => {
                   borderColor: look.borderColor,
                 }}
               >
-                <Text style={{ fontFamily: typography.fontFamily.jakarta, color: look.color, ...typography.fontSize['type-11'] }}>
+                <Text maxFontSizeMultiplier={FONT_SCALE_CAP.fixedCell} style={{ fontFamily: typography.fontFamily.jakarta, color: look.color, ...typography.fontSize['type-11'] }}>
                   {day.dayOfMonth}
                 </Text>
               </View>

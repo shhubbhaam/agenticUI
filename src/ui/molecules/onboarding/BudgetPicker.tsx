@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
+import { FONT_SCALE_CAP } from '../../tokens/fontScale';
 
 interface BudgetPickerProps {
   options: readonly number[];
@@ -29,7 +30,8 @@ export const BudgetPicker: React.FC<BudgetPickerProps> = ({ options, value, onCh
               tw`items-center justify-center`,
               {
                 flex: 1,
-                height: 66.8,
+                minHeight: 66.8,
+                paddingVertical: 8,
                 borderRadius: 12,
                 gap: 4.8,
                 backgroundColor: selected ? b.selectedSurface : colors.surface.white,
@@ -38,10 +40,10 @@ export const BudgetPicker: React.FC<BudgetPickerProps> = ({ options, value, onCh
               },
             ]}
           >
-            <Text style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: ink, ...typography.fontSize['type-17'] }}>
+            <Text maxFontSizeMultiplier={FONT_SCALE_CAP.tile} style={{ fontFamily: typography.fontFamily['jakarta-bold'], color: ink, ...typography.fontSize['type-17'] }}>
               {String(minutes)}
             </Text>
-            <Text style={{ fontFamily: typography.fontFamily.jakarta, color: ink, ...typography.fontSize['type-9'] }}>
+            <Text maxFontSizeMultiplier={FONT_SCALE_CAP.tile} style={{ fontFamily: typography.fontFamily.jakarta, color: ink, ...typography.fontSize['type-9'] }}>
               min / day
             </Text>
           </TouchableOpacity>
