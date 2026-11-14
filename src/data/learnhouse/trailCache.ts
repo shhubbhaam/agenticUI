@@ -45,7 +45,20 @@ export function getMyTrailCached(orgSlug: string, userId: number): Promise<Cours
   return promise;
 }
 
+// Screens that show the trail listen here. Progress changing (a completion queued or synced) clears
+// the cache and tells them to read it again, so a screen left mounted underneath (Path, while a
+// lesson was open on top of it) does not keep showing what it read before.
+const listeners = new Set<() => void>();
+
+export function subscribeTrailChanges(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function clearTrailCache(): void {
   cache = null;
   cacheKey = null;
+  listeners.forEach((listener) => listener());
 }

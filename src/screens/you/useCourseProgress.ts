@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore, type SessionIdentity } from '../../state/useSessionStore';
-import { getMyTrailCached, clearTrailCache } from '../../data/learnhouse/trailCache';
+import { getMyTrailCached, clearTrailCache, subscribeTrailChanges } from '../../data/learnhouse/trailCache';
 import { selectActiveCourse } from '../../core/learning/deriveProgress';
 import type { CourseProgress } from '../../core/learning/types';
 
@@ -23,6 +23,9 @@ export function useCourseProgress(): CourseProgressState {
   const [courses, setCourses] = useState<CourseProgress[] | null>(null);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  // Progress changed elsewhere (a lesson completed on a screen above this one): read the trail again.
+  const [trailVersion, setTrailVersion] = useState(0);
+  useEffect(() => subscribeTrailChanges(() => setTrailVersion((v) => v + 1)), []);
 
   useEffect(() => {
     if (!identity) return;
@@ -37,7 +40,7 @@ export function useCourseProgress(): CourseProgressState {
     return () => {
       cancelled = true;
     };
-  }, [identity, retryCount]);
+  }, [identity, retryCount, trailVersion]);
 
   const onRetry = () => {
     clearTrailCache();

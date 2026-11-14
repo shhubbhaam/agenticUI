@@ -1,5 +1,8 @@
 import { getMyTrail } from './progressApi';
 import { setSession, clearSession } from '../../core/auth/session';
+import { getDatabase } from '../local/database';
+import { enqueueCompletion } from '../local/outbox';
+import { getLastTrailSource } from './progressApi';
 
 function mockFetchOnce(status: number, body: unknown) {
   (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -165,5 +168,52 @@ describe('getMyTrail', () => {
       expect(course.chapters[0].skill).toBeNull();
       expect(course.chapters[0].activities[0]).toMatchObject({ grade: null, subType: null });
     });
+  });
+});
+
+// M5: offline reading — the last trail is kept per learner and shown when there is no network,
+// with completions still in the outbox applied on top.
+describe('getMyTrail offline', () => {
+  beforeEach(async () => {
+    process.env.EXPO_PUBLIC_BFF_URL = 'http://bff.test/api';
+    setSession('sess-123', '3', 'Ada');
+    global.fetch = jest.fn();
+    const db = await getDatabase();
+    await db.runAsync('DELETE FROM course_snapshot');
+    await db.runAsync('DELETE FROM outbox_events');
+  });
+  afterEach(() => clearSession());
+
+  it('shows the last saved trail when the network is down', async () => {
+    mockFetchOnce(200, { courses: [RAW_COURSE] });
+    await getMyTrail('my-org', 3);
+    expect(getLastTrailSource().fromCache).toBe(false);
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError('Network request failed'));
+    const [course] = await getMyTrail('my-org', 3);
+    expect(course.courseName).toBe('Applied AI');
+    expect(getLastTrailSource().fromCache).toBe(true);
+  });
+
+  it('with no saved copy, a network failure is still an error', async () => {
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError('Network request failed'));
+    await expect(getMyTrail('my-org', 3)).rejects.toMatchObject({ status: 0 });
+  });
+
+  it('a 401 is never hidden behind the saved copy', async () => {
+    mockFetchOnce(200, { courses: [RAW_COURSE] });
+    await getMyTrail('my-org', 3);
+    mockFetchOnce(401, { detail: 'Invalid token' });
+    await expect(getMyTrail('my-org', 3)).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('completions queued offline show as done, online and offline', async () => {
+    await enqueueCompletion('3', 'course-1', 'activity-2');
+    mockFetchOnce(200, { courses: [RAW_COURSE] });
+    const [online] = await getMyTrail('my-org', 3);
+    expect(online.chapters[0].activities[1].completed).toBe(true);
+    expect(online.completedActivities).toBe(2);
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError('Network request failed'));
+    const [offline] = await getMyTrail('my-org', 3);
+    expect(offline.chapters[0].activities[1].completed).toBe(true);
   });
 });

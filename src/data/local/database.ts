@@ -25,6 +25,27 @@ const SCHEMA = `
     transcript_defaults INTEGER NOT NULL,
     updated_at TEXT NOT NULL
   );
+  -- M5 offline sync: things the learner did that the BFF has not confirmed yet. event_id is
+  -- created once and reused on every retry (the BFF dedupes on it). status: pending | received | rejected.
+  CREATE TABLE IF NOT EXISTS outbox_events (
+    event_id TEXT PRIMARY KEY NOT NULL,
+    learner_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    course_uuid TEXT NOT NULL,
+    activity_uuid TEXT NOT NULL,
+    payload_json TEXT,
+    occurred_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT
+  );
+  CREATE INDEX IF NOT EXISTS outbox_events_learner ON outbox_events (learner_id, status, occurred_at);
+  -- M5: the last /me/trail the BFF returned, per learner, so Home and Path work offline.
+  CREATE TABLE IF NOT EXISTS course_snapshot (
+    learner_id TEXT PRIMARY KEY NOT NULL,
+    trail_json TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+  );
 `;
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;

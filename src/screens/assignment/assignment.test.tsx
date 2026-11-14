@@ -131,3 +131,13 @@ describe('assignment quiz', () => {
     expect(has()).toBe(false);
   });
 });
+
+describe('offline hand-ins (M5)', () => {
+  const { rejectedSubmitMessage } = jest.requireActual('./useAssignmentQuiz') as typeof import('./useAssignmentQuiz');
+  it('explains a refused offline hand-in in plain words', () => {
+    expect(rejectedSubmitMessage('no_retries_left')).toMatch(/no attempts left/);
+    expect(rejectedSubmitMessage('unknown_answer')).toMatch(/changed/);
+    expect(rejectedSubmitMessage('course_forbidden')).toMatch(/not available/);
+    expect(rejectedSubmitMessage(null)).toMatch(/couldn't be submitted/);
+  });
+});

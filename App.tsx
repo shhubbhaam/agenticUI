@@ -3,10 +3,13 @@ import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MainStack from './src/navigation/MainStack';
 import { useSessionStore } from './src/state/useSessionStore';
+import { startSync } from './src/data/sync/syncEngine';
 
 function App() {
   useEffect(() => {
     useSessionStore.getState().hydrate();
+    // M5: send offline completions on start, sign-in, foreground and a back-off timer.
+    return startSync();
   }, []);
 
   const [fontsLoaded] = useFonts({

@@ -18,7 +18,7 @@ import { useAssignmentQuiz } from './useAssignmentQuiz';
 export default function AssignmentScreen() {
   const navigation = useNavigation();
   const { courseUuid, activityUuid, title, chapter } = useRoute<RouteProp<RootStackParamList, 'Assignment'>>().params;
-  const { load, answers, select, status, error, submit, reload, grade, retriesLeft, retrying, tryAgain } = useAssignmentQuiz(courseUuid, activityUuid);
+  const { load, answers, select, status, error, notice, submit, reload, grade, retriesLeft, retrying, tryAgain } = useAssignmentQuiz(courseUuid, activityUuid);
 
   return (
     <SafeAreaView style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]} edges={['top', 'bottom']}>
@@ -49,6 +49,8 @@ export default function AssignmentScreen() {
             onDone={() => navigation.goBack()}
           />
         ) : (
+          <>
+          {notice ? <View style={{ marginTop: 12 }}><Alert tone="info" message={notice} testID="assignment-offline-notice" /></View> : null}
           <QuizForm
             title={load.quiz.title || title || 'Assignment'}
             description={load.quiz.description}
@@ -59,6 +61,7 @@ export default function AssignmentScreen() {
             error={error}
             onSubmit={submit}
           />
+          </>
         )}
       </ScrollView>
     </SafeAreaView>

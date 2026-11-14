@@ -8,11 +8,13 @@ import { createSessionStore, type Session, type SessionStore } from './sessions.
 import { buildSlots, fallbackSlots, authorizeSlots, type Agent, type Decision, type BuildContext } from './agent.ts';
 import type { LearnHouse, LearnerProfile, Trail } from './learnhouse.ts';
 import { causeCode, type HttpError, type Logger } from './util.ts';
+import { createMemoryInbox, type Inbox, type EventType, type InboxStatus } from './inbox.ts';
 import { LessonVideoResponseSchema, youTubeIdFrom, type LessonVideo } from '../../src/contracts/lessonVideo.ts';
 import type { LhActivityFull, LearnerApi } from './learnhouse.ts';
 import { resolveDeck, deckVersion, type DeckLocator } from './slides.ts';
 import { assignmentUuidFrom, quizFrom, savedTasksFrom, taskSubmissionBody, unknownAnswer, gradeFrom, retriesLeftFrom } from './assignments.ts';
 import { SlideDeckResponseSchema } from '../../src/contracts/slides.ts';
+import { AssignmentEventPayloadSchema } from '../../src/contracts/events.ts';
 import { AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, SubmitRequestSchema, RetryResponseSchema, type AssignmentQuiz } from '../../src/contracts/assignment.ts';
 
 /** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
@@ -109,6 +111,8 @@ export interface AppOptions {
   org?: { slug: string; name?: string };
   /** LearnHouse's origin (from LH_BASE_URL): a PDF link in course content is fetched only from here. */
   lhOrigin?: string;
+  /** Durable event inbox (M5): dedupes completions across retries and BFF restarts. Defaults to memory. */
+  inbox?: Inbox;
 }
 export interface App {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
@@ -117,17 +121,20 @@ export interface App {
 }
 interface CompletionResult { activityUuid: string; idempotencyKey: string; status: 'applied' | 'received' }
 interface Outcome { http: number; body: Record<string, unknown> }
+/** One event's outcome in POST /api/me/events. */
+export interface EventResult { eventId: string; status: InboxStatus; reason?: string }
+const EVENT_TYPES = new Set<EventType>(['activity_completed', 'assignment_submitted']);
+const MAX_EVENTS = 100;
 
-export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin }: AppOptions): App {
+export function createApp({ lh, agent = null, allowedCourses, sessions = createSessionStore(), layoutTtlMs = 10 * 60 * 1000, logger = console, org, lhOrigin, inbox = createMemoryInbox() }: AppOptions): App {
   const routes: Route[] = [];
   const route = (method: string) => (path: string, ...handlers: Handler[]) => { routes.push({ method, path, ...compile(path), handlers }); };
   const app = { get: route('GET'), post: route('POST') };
-  // Idempotency, keyed by `${learnerId}:${key}`. A key is bound to ONE course + activity (scope).
-  // `inflight` reserves the key while its write runs, so concurrent retries share one upstream write.
-  // Still in memory: a BFF restart forgets it (durable inbox is M5); LearnHouse completion is itself
-  // idempotent (read-back), so a forgotten key cannot double-complete.
-  const idempotency = new Map<string, { scope: string; result: CompletionResult }>();
+  // Idempotency lives in the inbox (M5), keyed by learner + key/event id; a key is bound to ONE
+  // course + activity (scope). With the SQLite inbox it survives BFF restarts. `inflight` reserves the
+  // key while its write runs, so concurrent retries share one upstream write.
   const inflight = new Map<string, { scope: string; outcome: Promise<Outcome> }>();
+  const inflightEvents = new Map<string, Promise<EventResult>>();
 
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
@@ -267,6 +274,27 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     return !!course?.chapters?.some((ch) => ch.activities?.some((a) => a.activity_uuid === activityUuid && a.completed));
   }
 
+  type CompletionCore = { kind: 'forbidden'; error: 'not_enrolled' | 'activity_forbidden' } | { kind: 'done'; applied: boolean; writeError: unknown };
+  // Enrollment + publication checks, the write, then read-back. Shared by the single completion route
+  // and POST /api/me/events. Throws only when LearnHouse cannot be read at all.
+  async function completeActivityOnce(learnerId: string, courseUuid: string, activityUuid: string): Promise<CompletionCore> {
+    const trail = await trailOrNull(learnerId, courseUuid);
+    if (!(await isEnrolled(learnerId, courseUuid))) return { kind: 'forbidden', error: 'not_enrolled' };
+    const activities = await publishedActivities(courseUuid, trail);
+    if (!activities.some((a) => a.activity_uuid === activityUuid)) return { kind: 'forbidden', error: 'activity_forbidden' };
+    let writeError: unknown = null;
+    if (!(await isCompleted(learnerId, courseUuid, activityUuid))) {
+      try { await lh.completeActivity(learnerId, activityUuid); } catch (e) { writeError = e; }
+    }
+    // Reconcile: a lost/timeout response may still have been applied upstream.
+    const applied = await isCompleted(learnerId, courseUuid, activityUuid).catch(() => false);
+    if (!applied && writeError) {
+      const code = causeCode(writeError);
+      logger.warn?.(`[upstream] ${(writeError as Error).message}${code ? ` (${code})` : ''}`);
+    }
+    return { kind: 'done', applied, writeError };
+  }
+
   // Completion write + read-back. received = accepted; applied = LearnHouse trail confirms it.
   app.post('/api/me/courses/:courseUuid/activities/:activityUuid/complete', requireSession, requireCourse, async (req, res) => {
     const { courseUuid, activityUuid } = req.params;
@@ -277,10 +305,10 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     const cacheKey = `${learnerId}:${key}`;
     const scope = `${courseUuid}/${activityUuid}`;
 
-    const prior = idempotency.get(cacheKey);
+    const prior = inbox.get(learnerId, key);
     if (prior) {
-      if (prior.scope !== scope) return res.status(409).json({ error: 'idempotency_key_reused' });
-      if (prior.result.status === 'applied') return res.json({ ...prior.result, replayed: true });
+      if (prior.type !== 'activity_completed' || `${prior.courseUuid}/${prior.activityUuid}` !== scope) return res.status(409).json({ error: 'idempotency_key_reused' });
+      if (prior.status === 'applied') return res.json({ activityUuid, idempotencyKey: key, status: 'applied', replayed: true });
     }
     const running = inflight.get(cacheKey);
     if (running) {
@@ -290,30 +318,83 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     }
 
     const outcome = (async (): Promise<Outcome> => {
-      const trail = await trailOrNull(learnerId, courseUuid);
-      if (!(await isEnrolled(learnerId, courseUuid))) return { http: 403, body: { error: 'not_enrolled' } };
-      const activities = await publishedActivities(courseUuid, trail);
-      if (!activities.some((a) => a.activity_uuid === activityUuid)) return { http: 403, body: { error: 'activity_forbidden' } };
-
-      let writeError: unknown = null;
-      if (!(await isCompleted(learnerId, courseUuid, activityUuid))) {
-        try { await lh.completeActivity(learnerId, activityUuid); } catch (e) { writeError = e; }
+      const c = await completeActivityOnce(learnerId, courseUuid, activityUuid);
+      if (c.kind === 'forbidden') return { http: 403, body: { error: c.error } };
+      const result: CompletionResult = { activityUuid, idempotencyKey: key, status: c.applied ? 'applied' : 'received' };
+      inbox.put({ learnerId, eventId: key, type: 'activity_completed', courseUuid, activityUuid, status: result.status });
+      if (!c.applied && c.writeError) {
+        return { http: 502, body: { ...result, error: 'upstream_write_failed', upstreamStatus: statusOf(c.writeError) ?? null } };
       }
-      // Reconcile: a lost/timeout response may still have been applied upstream.
-      const applied = await isCompleted(learnerId, courseUuid, activityUuid).catch(() => false);
-      const result: CompletionResult = { activityUuid, idempotencyKey: key, status: applied ? 'applied' : 'received' };
-      idempotency.set(cacheKey, { scope, result });
-      if (!applied && writeError) {
-        const code = causeCode(writeError);
-        logger.warn?.(`[upstream] ${(writeError as Error).message}${code ? ` (${code})` : ''}`);
-        return { http: 502, body: { ...result, error: 'upstream_write_failed', upstreamStatus: statusOf(writeError) ?? null } };
-      }
-      return { http: applied ? 200 : 202, body: { ...result } };
+      return { http: c.applied ? 200 : 202, body: { ...result } };
     })();
     inflight.set(cacheKey, { scope, outcome });
     try { const o = await outcome; res.status(o.http).json(o.body); }
     catch (e) { upstreamError(res, e); }
     finally { inflight.delete(cacheKey); }
+  });
+
+  // ---- M5: batched offline events ----
+  // One event from the app's outbox. The event id is the idempotency key: it is created once on the
+  // device and reused on every retry, so the inbox answers a repeat with what already happened.
+  async function processEvent(session: Session, raw: unknown): Promise<EventResult> {
+    const learnerId = session.learnerId;
+    const e = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const eventId = typeof e.eventId === 'string' && UUID_RE.test(e.eventId) ? e.eventId : '';
+    const { type, courseUuid, activityUuid } = e;
+    if (!eventId || typeof type !== 'string' || !EVENT_TYPES.has(type as EventType)
+      || typeof courseUuid !== 'string' || !UUID_RE.test(courseUuid)
+      || typeof activityUuid !== 'string' || !UUID_RE.test(activityUuid)) {
+      return { eventId, status: 'rejected', reason: 'invalid_event' };
+    }
+    const record = { learnerId, eventId, type: type as EventType, courseUuid, activityUuid };
+    const prior = inbox.get(learnerId, eventId);
+    if (prior) {
+      if (prior.type !== record.type || prior.courseUuid !== courseUuid || prior.activityUuid !== activityUuid) {
+        return { eventId, status: 'rejected', reason: 'event_id_reused' };
+      }
+      // applied and rejected are final; received is tried again.
+      if (prior.status !== 'received') return { eventId, status: prior.status, ...(prior.reason ? { reason: prior.reason } : {}) };
+    }
+    const reject = (reason: string): EventResult => {
+      inbox.put({ ...record, status: 'rejected', reason });
+      return { eventId, status: 'rejected', reason };
+    };
+    if (!allowedCourses.has(courseUuid)) return reject('course_forbidden');
+
+    const cacheKey = `${learnerId}:${eventId}`;
+    const running = inflightEvents.get(cacheKey);
+    if (running) return running;
+    const p = (async (): Promise<EventResult> => {
+      try {
+        if (record.type === 'assignment_submitted') return await submitAssignmentEvent(session, record, e.payload, prior?.reason ?? null, reject);
+        const c = await completeActivityOnce(learnerId, courseUuid, activityUuid);
+        if (c.kind === 'forbidden') return reject(c.error);
+        const status: InboxStatus = c.applied ? 'applied' : 'received';
+        inbox.put({ ...record, status });
+        return { eventId, status };
+      } catch (err) {
+        // LearnHouse unreachable: accepted but not applied. The app keeps the event and sends it again.
+        // A quiz's progress marker (retried / submitting) is kept, so the resend resumes, never repeats.
+        const code = causeCode(err);
+        logger.warn?.(`[events] upstream ${(err as Error).message}${code ? ` (${code})` : ''}`);
+        const stage = inbox.get(learnerId, eventId)?.reason;
+        inbox.put({ ...record, status: 'received', reason: stage === 'retried' || stage === 'submitting' ? stage : null });
+        const reason = statusOf(err) === 401 && record.type === 'assignment_submitted' ? 'learnhouse_session_expired' : 'upstream_unavailable';
+        return { eventId, status: 'received', reason };
+      }
+    })();
+    inflightEvents.set(cacheKey, p);
+    try { return await p; } finally { inflightEvents.delete(cacheKey); }
+  }
+
+  // POST /api/me/events { events: [...] } -> { results: [{ eventId, status, reason? }] }, one per event,
+  // in order. One bad event never fails the batch.
+  app.post('/api/me/events', requireSession, async (req, res) => {
+    const events = (req.body as { events?: unknown }).events;
+    if (!Array.isArray(events) || events.length === 0 || events.length > MAX_EVENTS) return res.status(400).json({ error: 'invalid_request' });
+    const results: EventResult[] = [];
+    for (const ev of events) results.push(await processEvent(req.learner, ev));
+    res.json({ results });
   });
 
   // The video for one activity, for the lesson player. Same gates as completion: session, allowed
@@ -539,6 +620,51 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
     return quizFrom(a, tasks);
   }
   const A = '/api/me/courses/:courseUuid/activities/:activityUuid/assignment';
+
+  // ---- M5: a quiz hand-in from the offline outbox (POST /api/me/events, type assignment_submitted) ----
+  // Every hand-in is its own event and its own attempt: attempts are appended, never merged.
+  // payload = { answers, retry? }: `retry` = the learner pressed "Try again" offline after a graded
+  // attempt, so a new attempt is opened first. The inbox's reason records how far this event got
+  // ('retried', then 'submitting'), so a resend after a lost answer resumes instead of repeating:
+  // it never opens a second retry, and a hand-in whose grade can be read counts as done.
+  async function submitAssignmentEvent(
+    session: Session,
+    record: { learnerId: string; eventId: string; type: EventType; courseUuid: string; activityUuid: string },
+    payload: unknown,
+    stage: string | null,
+    reject: (reason: string) => EventResult,
+  ): Promise<EventResult> {
+    const { learnerId, eventId, courseUuid, activityUuid } = record;
+    const parsed = AssignmentEventPayloadSchema.safeParse(payload);
+    if (!parsed.success) return reject('invalid_answers');
+    const api = session.lhToken && lh.asLearner ? lh.asLearner(session.lhToken) : null;
+    if (!api) return reject('learnhouse_login_required');
+    const gate = await gateActivity(learnerId, courseUuid, activityUuid);
+    if ('error' in gate) return reject(gate.error);
+    // LearnHouse answers 404 for an activity that is not an assignment: final, never retried.
+    const raw = await api.getAssignmentForActivity(activityUuid).catch((err) => { if (statusOf(err) === 404) return null; throw err; });
+    const uuid = raw ? assignmentUuidFrom(raw) : null;
+    if (!uuid) return reject('not_an_assignment');
+    const applied = (): EventResult => { inbox.put({ ...record, status: 'applied', reason: null }); return { eventId, status: 'applied' }; };
+
+    // Read-back: the hand-in may have landed before its answer was lost.
+    if (stage === 'submitting' && (await api.getGrade(uuid, learnerId).then(Boolean, () => false))) return applied();
+
+    const quiz = await quizOf(api, uuid, activityUuid);
+    if (unknownAnswer(quiz, parsed.data.answers)) return reject('unknown_answer');
+    if (parsed.data.retry && stage !== 'retried' && stage !== 'submitting') {
+      try { await api.retryAssignment(uuid); }
+      catch (err) { if ([400, 403, 409, 422].includes(statusOf(err) as number)) return reject('no_retries_left'); throw err; }
+      inbox.put({ ...record, status: 'received', reason: 'retried' });
+    }
+    const saved = savedTasksFrom(await api.getMyTaskSubmissions(uuid).catch(() => null));
+    for (const task of quiz.tasks) {
+      await api.saveTaskSubmission(uuid, task.taskUuid, taskSubmissionBody(task, parsed.data.answers, saved.submissionUuids[task.taskUuid]));
+    }
+    inbox.put({ ...record, status: 'received', reason: 'submitting' });
+    await api.submitAssignment(uuid);
+    return applied();
+  }
 
   app.get(A, requireSession, requireCourse, async (req, res) => {
     try {

@@ -1,15 +1,23 @@
-// Mark an activity complete for the signed-in learner, through the BFF's completion route
-// (POST /me/courses/:c/activities/:a/complete). The BFF checks enrollment + publication, writes to
-// LearnHouse's progress API and reads it back; the idempotency key makes a retried tap one effect.
-import { markActivityComplete as bffComplete } from '../../core/api/learnhouse/client';
+// Mark an activity complete for the signed-in learner. M5: the completion is written to the SQLite
+// outbox FIRST (so it survives no network, an app kill or a BFF restart), then the sync engine sends
+// it to the BFF (POST /api/me/events), which applies it in LearnHouse and reads it back. The event id
+// is created once and reused on every retry, so a retried send is one effect.
+import { getLearnerId } from '../../core/auth/session';
+import { enqueueCompletion } from '../local/outbox';
+import { flushOutbox } from '../sync/syncEngine';
 import { clearTrailCache } from './trailCache';
+import { ApiError } from './client';
 
-export const newIdempotencyKey = () => `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
-
-/** received = the BFF accepted it; applied = LearnHouse already shows it complete. Both count as done. */
-export async function markActivityComplete(courseUuid: string, activityUuid: string, idempotencyKey = newIdempotencyKey()): Promise<'applied' | 'received'> {
-  const r = await bffComplete(activityUuid, idempotencyKey, courseUuid);
-  // Progress changed: Path / Home / streak re-read the trail (and Path may celebrate a finished stage).
+/**
+ * Resolves once the completion is safely queued on the device ('queued'). Home / Path show it as done
+ * straight away (the trail overlay reads the outbox); the send happens in the background.
+ */
+export async function markActivityComplete(courseUuid: string, activityUuid: string): Promise<'queued'> {
+  const learnerId = getLearnerId();
+  if (!learnerId) throw new ApiError(401, 'Not signed in');
+  await enqueueCompletion(learnerId, courseUuid, activityUuid);
+  // Progress changed: Path / Home / streak re-read the trail (with the queued completion applied).
   clearTrailCache();
-  return r.status;
+  void flushOutbox();
+  return 'queued';
 }

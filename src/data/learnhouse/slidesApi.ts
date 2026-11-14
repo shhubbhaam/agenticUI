@@ -51,7 +51,7 @@ async function download(courseUuid: string, activityUuid: string, file: File): P
   try {
     if (part.exists) part.delete();
     part.create();
-    part.write(bytes);
+    await part.write(bytes);
     await part.move(file);
   } catch (e) {
     if (part.exists) part.delete();
@@ -59,12 +59,49 @@ async function download(courseUuid: string, activityUuid: string, file: File): P
   }
 }
 
-export async function getSlideDeck(courseUuid: string, activityUuid: string): Promise<SlideDeck> {
-  const info = await getSlideDeckInfo(courseUuid, activityUuid);
-  if (info.deck.kind === 'unavailable') throw new SlideDeckUnavailable(info.deck.reason);
+/**
+ * True when the BFF could not be reached at all (fetch threw: no network, server down). A reply from
+ * the BFF (LearnHouseError), a bad deck or a contract failure is not "offline".
+ */
+export function isOfflineError(e: unknown): boolean {
+  return e instanceof TypeError;
+}
 
+/** Beside the cached PDFs: each deck's last known version and title, so it opens offline (M5). */
+function metaFileOf(dir: Directory, activityUuid: string): File {
+  return new File(dir, `${activityUuid}.meta.json`.replace(/[^A-Za-z0-9._-]/g, '_'));
+}
+
+/** The deck saved on an earlier visit, or null if this activity was never opened online. */
+async function openSavedDeck(dir: Directory, activityUuid: string): Promise<SlideDeck | null> {
+  try {
+    const meta = metaFileOf(dir, activityUuid);
+    if (!meta.exists) return null;
+    const { version, title } = JSON.parse(await meta.text()) as { version: string; title: string };
+    const file = new File(dir, slideCacheName(activityUuid, version));
+    if (!(file.exists && file.size > 0)) return null;
+    const base64 = await file.base64();
+    return base64.startsWith('JVBER') ? { activityUuid, title, base64 } : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getSlideDeck(courseUuid: string, activityUuid: string): Promise<SlideDeck> {
   const dir = new Directory(Paths.cache, 'slides');
   if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+
+  let info: Awaited<ReturnType<typeof getSlideDeckInfo>>;
+  try {
+    info = await getSlideDeckInfo(courseUuid, activityUuid);
+  } catch (e) {
+    // Offline: open the copy saved when the learner last viewed it online.
+    const saved = isOfflineError(e) ? await openSavedDeck(dir, activityUuid) : null;
+    if (saved) return saved;
+    throw e;
+  }
+  if (info.deck.kind === 'unavailable') throw new SlideDeckUnavailable(info.deck.reason);
+
   const file = new File(dir, slideCacheName(activityUuid, info.deck.version));
   if (!(file.exists && file.size > 0)) await download(courseUuid, activityUuid, file);
 
@@ -74,6 +111,14 @@ export async function getSlideDeck(courseUuid: string, activityUuid: string): Pr
   if (!base64.startsWith('JVBER')) {
     file.delete();
     throw new SlideDeckUnavailable('not_downloadable');
+  }
+  // Remember which version and title this is, for opening it offline. Best effort.
+  try {
+    const meta = metaFileOf(dir, activityUuid);
+    if (!meta.exists) meta.create();
+    await meta.write(JSON.stringify({ version: info.deck.version, title: info.title }));
+  } catch {
+    // The deck still opens; it just won't open offline until the next successful visit.
   }
   return { activityUuid, title: info.title, base64 };
 }

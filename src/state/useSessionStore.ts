@@ -72,7 +72,7 @@ function signedIn(token: string, session: UserSession): SessionIdentity {
 // on never persisting server-fetched data as if it were the source of truth.
 export const useSessionStore = create<SessionState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       status: 'signedOut',
       identity: null,
 
@@ -115,7 +115,16 @@ export const useSessionStore = create<SessionState>()(
         try {
           const identity = signedIn(token, await fetchSession(token));
           set({ status: 'signedIn', identity });
-        } catch {
+        } catch (error) {
+          // M5: no network is not a failed sign-in. Keep the token and continue as the last-known
+          // learner, so the course and the offline outbox stay usable; the next online start (or the
+          // sync engine's 401) re-validates the session.
+          const lastKnown = get().identity;
+          if ((error as { status?: number } | null)?.status === 0 && lastKnown) {
+            setSession(token, String(lastKnown.userId), lastKnown.fullName);
+            set({ status: 'signedIn', identity: lastKnown });
+            return;
+          }
           await clearStoredToken();
           clearSession();
           set({ status: 'signedOut', identity: null });

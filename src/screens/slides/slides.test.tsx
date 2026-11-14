@@ -8,7 +8,8 @@ import { buildPdfViewerHtml, parseViewerMessage, PDFJS_VERSION } from './engines
 import { clampPage, useSlidePager } from './useSlidePager';
 import { slideDeckErrorMessage } from './useSlideDeck';
 import { clampAspect } from './SlidesScreen';
-import { slideCacheName, SlideDeckUnavailable } from '../../data/learnhouse/slidesApi';
+import { slideCacheName, SlideDeckUnavailable, isOfflineError } from '../../data/learnhouse/slidesApi';
+import { LearnHouseError } from '../../core/api/learnhouse/client';
 import { routeForActivity } from '../../navigation/activityRoute';
 import { SlidePager, pagerLabel } from '../../ui/molecules/slides/SlidePager';
 import { SlideStage } from '../../ui/organisms/slides/SlideStage';
@@ -114,5 +115,14 @@ describe('slide components', () => {
     expect(onFs).toHaveBeenCalled();
     const loading = render(<SlideStage status="loading" page={1} total={0} onToggleFullscreen={onFs} />);
     expect(loading.root.findAll((n) => n.props.testID === 'slide-fullscreen')).toHaveLength(0);
+  });
+});
+
+describe('slides offline (M5)', () => {
+  it('only a failed fetch counts as offline; a BFF answer or a bad deck does not', () => {
+    expect(isOfflineError(new TypeError('Network request failed'))).toBe(true);
+    expect(isOfflineError(new LearnHouseError(404, '/slides', 'BFF returned 404'))).toBe(false);
+    expect(isOfflineError(new SlideDeckUnavailable('no_file'))).toBe(false);
+    expect(isOfflineError(new Error('contract'))).toBe(false);
   });
 });

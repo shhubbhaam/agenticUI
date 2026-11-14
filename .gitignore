@@ -228,3 +228,6 @@ scripts/test-learnhouse-api.mjs
 bff/.env
 bff/users.local.json
 # src/core/api/learnhouse/config.ts stays TRACKED: it holds only the BFF URL (W2 review: ignoring it broke fresh checkouts)
+
+# BFF durable inbox (M5)
+bff/data/

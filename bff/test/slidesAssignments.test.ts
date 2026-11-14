@@ -318,3 +318,88 @@ test('assignments: expired LearnHouse token -> 401 learnhouse_session_expired; d
     assert.deepEqual(await r.json(), { error: 'learnhouse_login_required' });
   }, { ...dev.lh, login: dev.fake.lh.login }); // dev-style login: no LearnHouse token
 });
+
+// ================================ M5: quiz hand-ins from the offline outbox ================================
+const ANSWERS = { question_1: ['option_1'], question_2: ['option_3'] };
+const quizEvent = (eventId: string, payload: unknown = { answers: ANSWERS }) =>
+  ({ eventId, type: 'assignment_submitted', courseUuid: 'course_demo', activityUuid: 'act_quiz', payload, occurredAt: '2026-11-14T10:00:00.000Z' });
+const sendEvents = async (b: string, tok: string, events: unknown[]) =>
+  ((await (await fetch(`${b}/me/events`, { method: 'POST', headers: { ...H(tok), 'Content-Type': 'application/json' }, body: JSON.stringify({ events }) })).json()) as { results: unknown[] }).results;
+const ops = (s: ReturnType<typeof setup>, op: string) => s.learnerCalls.filter((c) => c.op === op).length;
+
+test('events: an offline quiz hand-in is saved and submitted as the learner, once', async () => {
+  const s = setup();
+  await withServer(s, async (b) => {
+    const tok = await login(b);
+    assert.deepEqual(await sendEvents(b, tok, [quizEvent('q-1')]), [{ eventId: 'q-1', status: 'applied' }]);
+    assert.equal(ops(s, 'save'), 1);
+    assert.equal(ops(s, 'submit'), 1);
+    assert.ok(s.learnerCalls.every((c) => c.token === 'lh-101'));
+    // The same event again (a retried flush) is answered from the inbox: no second hand-in.
+    assert.deepEqual(await sendEvents(b, tok, [quizEvent('q-1')]), [{ eventId: 'q-1', status: 'applied' }]);
+    assert.equal(ops(s, 'submit'), 1);
+  });
+});
+
+test('events: attempts are appended — each hand-in event is its own attempt; retry opens a new one once', async () => {
+  const s = setup();
+  await withServer(s, async (b) => {
+    const tok = await login(b);
+    await sendEvents(b, tok, [quizEvent('q-a1')]);
+    assert.deepEqual(await sendEvents(b, tok, [quizEvent('q-a2', { answers: ANSWERS, retry: true })]), [{ eventId: 'q-a2', status: 'applied' }]);
+    assert.equal(ops(s, 'submit'), 2);
+    assert.equal(ops(s, 'retry'), 1);
+    await sendEvents(b, tok, [quizEvent('q-a2', { answers: ANSWERS, retry: true })]);
+    assert.equal(ops(s, 'retry'), 1); // never a second retry for the same attempt
+    assert.equal(ops(s, 'submit'), 2);
+  });
+});
+
+test('events: a hand-in whose answer was lost is confirmed by reading the grade back, not submitted again', async () => {
+  const s = setup();
+  const net = () => Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNRESET' } });
+  let loseNext = true;
+  const lh: LearnHouse = { ...s.lh, asLearner: (t) => {
+    const api = s.lh.asLearner!(t);
+    return { ...api, submitAssignment: async (u) => { const r = await api.submitAssignment(u); if (loseNext) { loseNext = false; throw net(); } return r; } };
+  } };
+  await withServer(s, async (b) => {
+    const tok = await login(b);
+    assert.deepEqual(await sendEvents(b, tok, [quizEvent('q-lost')]), [{ eventId: 'q-lost', status: 'received', reason: 'upstream_unavailable' }]);
+    assert.deepEqual(await sendEvents(b, tok, [quizEvent('q-lost')]), [{ eventId: 'q-lost', status: 'applied' }]);
+    assert.equal(ops(s, 'submit'), 1);
+  }, lh);
+});
+
+test('events: quiz hand-ins are checked like the online route', async () => {
+  const s = setup();
+  const noRetries: LearnHouse = { ...s.lh, asLearner: (t) => ({ ...s.lh.asLearner!(t), retryAssignment: async () => { throw Object.assign(new Error('max'), { status: 409 }); } }) };
+  await withServer(s, async (b) => {
+    const tok = await login(b);
+    assert.deepEqual(await sendEvents(b, tok, [
+      quizEvent('q-unknown', { answers: { question_1: ['option_from_elsewhere'] } }),
+      quizEvent('q-bad', { answers: 'nope' }),
+      { ...quizEvent('q-notquiz'), activityUuid: 'act_1' },
+      { ...quizEvent('q-draft'), activityUuid: 'act_draft' },
+      quizEvent('q-noretry', { answers: ANSWERS, retry: true }),
+    ]), [
+      { eventId: 'q-unknown', status: 'rejected', reason: 'unknown_answer' },
+      { eventId: 'q-bad', status: 'rejected', reason: 'invalid_answers' },
+      { eventId: 'q-notquiz', status: 'rejected', reason: 'not_an_assignment' },
+      { eventId: 'q-draft', status: 'rejected', reason: 'activity_forbidden' },
+      { eventId: 'q-noretry', status: 'rejected', reason: 'no_retries_left' },
+    ]);
+    assert.equal(ops(s, 'submit'), 0);
+  }, noRetries);
+});
+
+test('events: an expired LearnHouse token keeps the hand-in for later and says why', async () => {
+  const s = setup();
+  await withServer(s, async (b) => {
+    const tok = await login(b);
+    s.state.lhTokenExpired = true;
+    assert.deepEqual(await sendEvents(b, tok, [quizEvent('q-exp')]), [{ eventId: 'q-exp', status: 'received', reason: 'learnhouse_session_expired' }]);
+    s.state.lhTokenExpired = false;
+    assert.deepEqual(await sendEvents(b, tok, [quizEvent('q-exp')]), [{ eventId: 'q-exp', status: 'applied' }]);
+  });
+});

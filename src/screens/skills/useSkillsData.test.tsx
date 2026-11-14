@@ -10,6 +10,7 @@ jest.mock('../../state/useSessionStore', () => ({
 
 const mockGetMyTrail = jest.fn();
 jest.mock('../../data/learnhouse/trailCache', () => ({
+  subscribeTrailChanges: () => () => undefined,
   getMyTrailCached: (...args: unknown[]) => mockGetMyTrail(...args),
   clearTrailCache: jest.fn(),
 }));

@@ -91,6 +91,31 @@ describe('useSessionStore', () => {
     expect(useSessionStore.getState().status).toBe('signedOut');
   });
 
+  it('hydrate offline keeps the token and the last-known learner (M5 offline use)', async () => {
+    const lastKnown = {
+      userId: 1, fullName: 'Ada Lovelace', email: 'ada@example.com', avatarImage: null,
+      orgId: 7, orgSlug: 'my-org', orgName: 'My Org', roleName: 'admin',
+    };
+    useSessionStore.setState({ status: 'signedOut', identity: lastKnown });
+    mockedSecureToken.getStoredToken.mockResolvedValue('jwt-123');
+    mockedAuthApi.fetchSession.mockRejectedValue(Object.assign(new Error('Network request failed'), { status: 0 }));
+
+    await useSessionStore.getState().hydrate();
+
+    expect(mockedSecureToken.clearStoredToken).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().status).toBe('signedIn');
+    expect(useSessionStore.getState().identity).toEqual(lastKnown);
+  });
+
+  it('hydrate offline with no last-known learner still signs out', async () => {
+    mockedSecureToken.getStoredToken.mockResolvedValue('jwt-123');
+    mockedAuthApi.fetchSession.mockRejectedValue(Object.assign(new Error('Network request failed'), { status: 0 }));
+
+    await useSessionStore.getState().hydrate();
+
+    expect(useSessionStore.getState().status).toBe('signedOut');
+  });
+
   it('hydrate stays signed out with no stored token', async () => {
     mockedSecureToken.getStoredToken.mockResolvedValue(null);
 

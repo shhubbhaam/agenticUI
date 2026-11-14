@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from '../../state/useSessionStore';
-import { getMyTrailCached, clearTrailCache } from '../../data/learnhouse/trailCache';
+import { getMyTrailCached, clearTrailCache, subscribeTrailChanges } from '../../data/learnhouse/trailCache';
 import {
   selectActiveCourse,
   findCurrentChapter,
@@ -52,6 +52,9 @@ export function useHomeData(): HomeData {
   const [courses, setCourses] = useState<CourseProgress[] | null>(null);
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  // Progress changed elsewhere (a lesson completed on a screen above this one): read the trail again.
+  const [trailVersion, setTrailVersion] = useState(0);
+  useEffect(() => subscribeTrailChanges(() => setTrailVersion((v) => v + 1)), []);
   const username = identity?.fullName.split(' ')[0] ?? '';
 
   useEffect(() => {
@@ -67,7 +70,7 @@ export function useHomeData(): HomeData {
     return () => {
       cancelled = true;
     };
-  }, [identity, retryCount]);
+  }, [identity, retryCount, trailVersion]);
 
   const onRetry = () => {
     clearTrailCache();

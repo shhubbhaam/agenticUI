@@ -3,6 +3,10 @@ import { getSessionToken } from '../../core/auth/session';
 import { getStoredToken } from './secureToken';
 import { trailResponseSchema, type TrailCourse } from './schemas';
 import type { ActivityType, CourseProgress } from '../../core/learning/types';
+import { getLearnerId } from '../../core/auth/session';
+import { loadTrailSnapshot, saveTrailSnapshot } from '../local/trailSnapshot';
+import { listPendingCompletions } from '../local/outbox';
+import { applyPendingCompletions } from '../../core/sync/applyPendingCompletions';
 
 function mapActivityType(raw: string): ActivityType {
   if (raw === 'TYPE_VIDEO') return 'video';
@@ -70,10 +74,33 @@ function mapCourse(raw: TrailCourse): CourseProgress {
 
 // The BFF derives the learner from the session and returns only allow-listed courses.
 // orgSlug/userId are kept as the trail cache key (trailCache.ts); they are not sent.
+/** Where the last trail came from: the BFF just now, or the offline copy saved at `fetchedAt`. */
+export interface TrailSource { fromCache: boolean; fetchedAt: Date | null }
+let lastSource: TrailSource = { fromCache: false, fetchedAt: null };
+export const getLastTrailSource = (): TrailSource => lastSource;
+
 export async function getMyTrail(_orgSlug: string, _userId: number): Promise<CourseProgress[]> {
   // On a cold start the screens can ask before hydrate() has restored the in-memory token.
   const token = getSessionToken() ?? (await getStoredToken());
-  const data = await request('/me/trail', { token });
+  const learnerId = getLearnerId();
+  let data: unknown;
+  try {
+    data = await request('/me/trail', { token });
+    lastSource = { fromCache: false, fetchedAt: new Date() };
+    // M5: keep a copy for offline use. A failed save must never fail the screen.
+    if (learnerId) await saveTrailSnapshot(learnerId, data).catch(() => undefined);
+  } catch (error) {
+    // No network (status 0): show the last copy we have, if any. Any other error is real.
+    const offline = (error as { status?: number } | null)?.status === 0;
+    const snapshot = offline && learnerId ? await loadTrailSnapshot(learnerId).catch(() => null) : null;
+    if (!snapshot) throw error;
+    data = snapshot.json;
+    lastSource = { fromCache: true, fetchedAt: snapshot.fetchedAt };
+  }
   const parsed = trailResponseSchema.parse(data);
-  return parsed.courses.map(mapCourse);
+  const courses = parsed.courses.map(mapCourse);
+  if (!learnerId) return courses;
+  // Completions done offline and not yet confirmed by the BFF show as done (and unlock the next one).
+  const pending = await listPendingCompletions(learnerId).catch(() => []);
+  return applyPendingCompletions(courses, pending);
 }

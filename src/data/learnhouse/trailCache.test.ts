@@ -60,3 +60,16 @@ describe('getMyTrailCached', () => {
     expect(mockGetMyTrail).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('trail change notifications (M5)', () => {
+  it('tells listening screens when progress changes, until they unsubscribe', () => {
+    const { clearTrailCache, subscribeTrailChanges } = jest.requireActual('./trailCache') as typeof import('./trailCache');
+    const seen = jest.fn();
+    const unsubscribe = subscribeTrailChanges(seen);
+    clearTrailCache();
+    expect(seen).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    clearTrailCache();
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+});

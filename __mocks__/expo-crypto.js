@@ -44,7 +44,12 @@ async function digestStringAsync(algorithm, data, options) {
   return nodeCrypto.createHash(nodeAlgorithm).update(data, 'utf8').digest(encoding);
 }
 
+function randomUUID() {
+  return nodeCrypto.randomUUID();
+}
+
 module.exports = {
+  randomUUID,
   CryptoDigestAlgorithm,
   CryptoEncoding,
   getRandomBytes,
