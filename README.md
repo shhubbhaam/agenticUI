@@ -1,97 +1,81 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# AI Launchpad — mobile learner app + BFF (P10-G37)
 
-# Getting Started
+A React Native (Expo) learner app over a self-hosted LearnHouse LMS, with offline progress sync and
+agent-chosen Home cards. The app never talks to LearnHouse directly: a small **BFF** (`bff/`) holds
+the LearnHouse org token and the Gemini key, derives the learner from an opaque session, and owns
+only what LearnHouse lacks (offline event inbox, agent layout).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
-
-## Step 1: Start Metro
-
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
-
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```
+App (Expo, Android)  ──HTTPS──▶  BFF (Node, bff/)  ──▶  LearnHouse API (learn.praxisacademy.ai)
+  SQLite outbox                    SQLite inbox            courses, activities, progress (source of truth)
+                                   Gemini (server only)
 ```
 
-## Step 2: Build and run your app
+## Requirements
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+- Node **22.11+** (the BFF's durable inbox uses the built-in `node:sqlite`)
+- Android Studio with an emulator (API 35 used for evidence), JDK 17
+- **Windows:** keep the project in a short path (e.g. `D:\ail`). The native build (CMake/ninja)
+  fails with "Filename longer than 260 characters" from deep folders such as
+  `C:\Users\...\Projects\...`.
 
-### Android
+## Setup
 
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+npm install
+cp .env.example .env              # app: EXPO_PUBLIC_BFF_URL (emulator: http://10.0.2.2:3000/api)
+cp bff/.env.example bff/.env      # BFF: LH_BASE_URL, LH_ORG_SLUG, LH_API_TOKEN, LH_ALLOWED_COURSES, GEMINI_API_KEY
 ```
 
-### iOS
+Secrets live only in `bff/.env` (git-ignored). Anything prefixed `EXPO_PUBLIC_` is bundled into the
+app and readable by anyone with the APK: never put a token or password there.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## Run
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+npm run bff          # BFF on :3000 — reads bff/.env once at start; restart after editing it
+npm run android      # build + install the app on the emulator, start Metro
 ```
 
-Then, and every time you update your native dependencies, run:
+The BFF log shows `Inbox: …/bff/data/inbox.db` when the durable inbox is on.
 
-```sh
-bundle exec pod install
+## Test
+
+```bash
+npm test             # app (Jest): contracts, outbox/sync, screens
+npm run typecheck    # app TypeScript
+npm run test:bff     # BFF (node:test, fake LearnHouse double)
+npm run typecheck:bff
+npm run lint
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## Offline sync (M5) in one paragraph
 
-```sh
-# Using npm
-npm run ios
+Completing a lesson or handing in a quiz writes an event to a SQLite **outbox** on the phone first
+(event id created once, reused on every retry; schema version, device id and per-device sequence
+attached). The app sends the outbox in one batch (`POST /api/me/events`) on start, sign-in, return
+to foreground and a back-off timer. The BFF records each event in a durable **inbox**
+(`bff/data/inbox.db`), applies it to LearnHouse, **reads it back**, and answers `applied`,
+`received` (retry later) or `rejected` (with a fixed reason) per event. Completion only ever goes
+one way; each quiz hand-in is its own attempt. While offline, Home/Path show the last saved trail
+with queued completions applied.
 
-# OR using Yarn
-yarn ios
+Inspect the inbox:
+
+```bash
+cd bff
+node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('data/inbox.db');console.table(db.prepare('SELECT event_id,type,activity_uuid,status,reason,device_id,seq FROM inbox').all())"
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Feature modules (M2)
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+`src/config/features.ts` switches the three mobile features independently: `player` (video lessons),
+`assessment` (quizzes), `agentUi` (agent-chosen Home cards). Turning one off leaves the others,
+navigation and state untouched.
 
-## Step 3: Modify your app
+## Docs
 
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- `docs/W5-status-and-evidence.md` — current milestone status, 13-scenario map, evidence commands
+- `docs/W3-plan-and-evidence.md` — Week 3 plan and evidence (historical)
+- `docs/evidence/` — raw test output and live-run screenshots
+- `ARCHITECTURE_RULEBOOK.md` — architecture rules

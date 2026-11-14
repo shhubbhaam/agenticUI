@@ -9,8 +9,19 @@ const Id = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
 export const EventTypeSchema = z.enum(['activity_completed', 'assignment_submitted']);
 export type EventType = z.infer<typeof EventTypeSchema>;
 
+/**
+ * Version of the event shape. The BFF rejects any other value with `unsupported_version` (never
+ * applied, never stored), so an old or newer client fails safely instead of being misread.
+ */
+export const EVENT_SCHEMA_VERSION = 1;
+
 export const OutboxEventSchema = z.object({
+  schemaVersion: z.literal(EVENT_SCHEMA_VERSION),
   eventId: Id,
+  /** Stable per app install: tells two devices of one learner apart in the inbox (audit, conflicts). */
+  deviceId: Id,
+  /** Per-device order the events were created in (1, 2, 3 ...). */
+  seq: z.number().int().nonnegative(),
   type: EventTypeSchema,
   courseUuid: Id,
   activityUuid: Id,

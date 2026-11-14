@@ -4,7 +4,7 @@
 // `rejected` rows are kept so the app can tell the learner, until dismissed.
 import { randomUUID } from 'expo-crypto';
 import { getDatabase } from './database';
-import type { AssignmentEventPayload, EventResult, EventType, OutboxEvent } from '../../contracts/events';
+import { EVENT_SCHEMA_VERSION, type AssignmentEventPayload, type EventResult, type EventType, type OutboxEvent } from '../../contracts/events';
 import type { PendingCompletion } from '../../core/sync/applyPendingCompletions';
 
 export type OutboxStatus = 'pending' | 'received' | 'rejected';
@@ -20,6 +20,8 @@ interface Row {
   status: OutboxStatus;
   attempts: number;
   last_error: string | null;
+  device_id: string | null;
+  seq: number | null;
 }
 
 export interface RejectedEvent {
@@ -30,8 +32,32 @@ export interface RejectedEvent {
   reason: string | null;
 }
 
-const toEvent = (r: Row): OutboxEvent => ({
+/**
+ * This install's device id and the next sequence number, in one statement (UPDATE ... RETURNING),
+ * so two events queued at the same moment never share a number. The id is made on first use.
+ */
+async function nextDeviceSeq(): Promise<{ deviceId: string; seq: number }> {
+  const db = await getDatabase();
+  await db.runAsync('INSERT OR IGNORE INTO device_meta (id, device_id, next_seq) VALUES (1, ?, 0)', randomUUID());
+  const row = await db.getFirstAsync<{ device_id: string; next_seq: number }>(
+    'UPDATE device_meta SET next_seq = next_seq + 1 WHERE id = 1 RETURNING device_id, next_seq',
+  );
+  return { deviceId: row!.device_id, seq: row!.next_seq };
+}
+
+/** This install's device id (made on first use). */
+export async function getDeviceId(): Promise<string> {
+  const db = await getDatabase();
+  await db.runAsync('INSERT OR IGNORE INTO device_meta (id, device_id, next_seq) VALUES (1, ?, 0)', randomUUID());
+  return (await db.getFirstAsync<{ device_id: string }>('SELECT device_id FROM device_meta WHERE id = 1'))!.device_id;
+}
+
+const toEvent = (r: Row, fallbackDeviceId: string): OutboxEvent => ({
+  schemaVersion: EVENT_SCHEMA_VERSION,
   eventId: r.event_id,
+  // Rows queued before events carried these (older installs) get this device and sequence 0.
+  deviceId: r.device_id ?? fallbackDeviceId,
+  seq: r.seq ?? 0,
   type: r.type,
   courseUuid: r.course_uuid,
   activityUuid: r.activity_uuid,
@@ -52,10 +78,11 @@ export async function enqueueCompletion(learnerId: string, courseUuid: string, a
   );
   if (existing) return existing.event_id;
   const eventId = randomUUID();
+  const { deviceId, seq } = await nextDeviceSeq();
   await db.runAsync(
-    `INSERT INTO outbox_events (event_id, learner_id, type, course_uuid, activity_uuid, occurred_at)
-     VALUES (?, ?, 'activity_completed', ?, ?, ?)`,
-    eventId, learnerId, courseUuid, activityUuid, now.toISOString(),
+    `INSERT INTO outbox_events (event_id, learner_id, type, course_uuid, activity_uuid, occurred_at, device_id, seq)
+     VALUES (?, ?, 'activity_completed', ?, ?, ?, ?, ?)`,
+    eventId, learnerId, courseUuid, activityUuid, now.toISOString(), deviceId, seq,
   );
   return eventId;
 }
@@ -71,11 +98,12 @@ export async function enqueueAssignmentSubmission(
 ): Promise<string> {
   const db = await getDatabase();
   const eventId = randomUUID();
+  const { deviceId, seq } = await nextDeviceSeq();
   const payload: AssignmentEventPayload = retry ? { answers, retry: true } : { answers };
   await db.runAsync(
-    `INSERT INTO outbox_events (event_id, learner_id, type, course_uuid, activity_uuid, payload_json, occurred_at)
-     VALUES (?, ?, 'assignment_submitted', ?, ?, ?, ?)`,
-    eventId, learnerId, courseUuid, activityUuid, JSON.stringify(payload), now.toISOString(),
+    `INSERT INTO outbox_events (event_id, learner_id, type, course_uuid, activity_uuid, payload_json, occurred_at, device_id, seq)
+     VALUES (?, ?, 'assignment_submitted', ?, ?, ?, ?, ?, ?)`,
+    eventId, learnerId, courseUuid, activityUuid, JSON.stringify(payload), now.toISOString(), deviceId, seq,
   );
   return eventId;
 }
@@ -117,7 +145,9 @@ export async function listSendable(learnerId: string, limit: number): Promise<Ou
      ORDER BY occurred_at, rowid LIMIT ?`,
     learnerId, limit,
   );
-  return rows.map(toEvent);
+  if (rows.length === 0) return [];
+  const deviceId = await getDeviceId();
+  return rows.map((r) => toEvent(r, deviceId));
 }
 
 /** Completions and quiz hand-ins not yet confirmed, for the offline overlay (applyPendingCompletions). */

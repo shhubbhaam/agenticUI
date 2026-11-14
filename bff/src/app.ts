@@ -3,7 +3,7 @@
 // against a server-side allow-list; activity access against the course's published content.
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
 import { Readable } from 'node:stream';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createSessionStore, type Session, type SessionStore } from './sessions.ts';
 import { buildSlots, fallbackSlots, authorizeSlots, type Agent, type Decision, type BuildContext } from './agent.ts';
 import type { LearnHouse, LearnerProfile, Trail } from './learnhouse.ts';
@@ -14,7 +14,8 @@ import type { LhActivityFull, LearnerApi } from './learnhouse.ts';
 import { resolveDeck, deckVersion, type DeckLocator } from './slides.ts';
 import { assignmentUuidFrom, quizFrom, savedTasksFrom, taskSubmissionBody, unknownAnswer, gradeFrom, retriesLeftFrom } from './assignments.ts';
 import { SlideDeckResponseSchema } from '../../src/contracts/slides.ts';
-import { AssignmentEventPayloadSchema } from '../../src/contracts/events.ts';
+import { AssignmentEventPayloadSchema, EVENT_SCHEMA_VERSION } from '../../src/contracts/events.ts';
+import { parseHomeLayout, SLOT_NAMES } from '../../src/contracts/homeLayout.ts';
 import { AssignmentQuizSchema, AssignmentGradeSchema, SavedAnswersResponseSchema, SubmitRequestSchema, RetryResponseSchema, type AssignmentQuiz } from '../../src/contracts/assignment.ts';
 
 /** LearnHouse's player options arrive as an object or a JSON string; keep sane whole seconds only. */
@@ -346,10 +347,20 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
       || typeof activityUuid !== 'string' || !UUID_RE.test(activityUuid)) {
       return { eventId, status: 'rejected', reason: 'invalid_event' };
     }
-    const record = { learnerId, eventId, type: type as EventType, courseUuid, activityUuid };
+    // M1: only event shapes this BFF understands are applied. Missing = the original shape (v1).
+    // Not stored, so a later BFF that supports the version can still apply the event.
+    if (e.schemaVersion !== undefined && e.schemaVersion !== EVENT_SCHEMA_VERSION) {
+      return { eventId, status: 'rejected', reason: 'unsupported_version' };
+    }
+    const deviceId = typeof e.deviceId === 'string' && UUID_RE.test(e.deviceId) ? e.deviceId : null;
+    const seq = Number.isSafeInteger(e.seq) && (e.seq as number) >= 0 ? (e.seq as number) : null;
+    const payloadHash = createHash('sha256').update(JSON.stringify(e.payload ?? null)).digest('hex').slice(0, 32);
+    const record = { learnerId, eventId, type: type as EventType, courseUuid, activityUuid, payloadHash, deviceId, seq };
     const prior = inbox.get(learnerId, eventId);
     if (prior) {
-      if (prior.type !== record.type || prior.courseUuid !== courseUuid || prior.activityUuid !== activityUuid) {
+      // Same id, different scope or payload: a different event reusing the id, never applied (W3 review).
+      if (prior.type !== record.type || prior.courseUuid !== courseUuid || prior.activityUuid !== activityUuid
+        || (prior.payloadHash && prior.payloadHash !== payloadHash)) {
         return { eventId, status: 'rejected', reason: 'event_id_reused' };
       }
       // applied and rejected are final; received is tried again.
@@ -629,7 +640,7 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
   // it never opens a second retry, and a hand-in whose grade can be read counts as done.
   async function submitAssignmentEvent(
     session: Session,
-    record: { learnerId: string; eventId: string; type: EventType; courseUuid: string; activityUuid: string },
+    record: { learnerId: string; eventId: string; type: EventType; courseUuid: string; activityUuid: string; payloadHash: string; deviceId: string | null; seq: number | null },
     payload: unknown,
     stage: string | null,
     reject: (reason: string) => EventResult,
@@ -769,14 +780,32 @@ export function createApp({ lh, agent = null, allowedCourses, sessions = createS
       logger.info?.(`[home-layout] source=${source} mainCard=${slots.mainCard?.component ?? 'none'} nextStep=${slots.nextStepSection?.component ?? 'none'}`);
 
       const now = Date.now();
-      res.json({
+      const envelope = (s: typeof slots) => ({
         version: 1,
         layoutId: randomUUID().replace(/-/g, ''),
         learnerId, courseUuid,
         issuedAt: new Date(now).toISOString(),
         expiresAt: new Date(now + layoutTtlMs).toISOString(),
-        slots,
+        slots: s,
       });
+      // M7: the BFF checks what it built with the SAME schema the app parses with
+      // (src/contracts/homeLayout.ts), so it never sends a slot the client must reject. A slot that
+      // fails is dropped (the app shows its progress-based card there); if the envelope itself fails
+      // (e.g. over the byte cap), nothing agent-built is sent.
+      const check = parseHomeLayout(envelope(slots), { learnerId, courseUuid, now: new Date(now) });
+      if (!check.ok) {
+        logger.warn?.(`[home-layout] contract rejected envelope: ${check.reason}`);
+        slots = { mainCard: null, nextStepSection: null } as typeof slots;
+      } else {
+        for (const name of SLOT_NAMES) {
+          const r = check.slots[name];
+          if (!r.ok && r.reason === 'invalid') {
+            logger.warn?.(`[home-layout] contract rejected slot ${name}`);
+            slots = { ...slots, [name]: null };
+          }
+        }
+      }
+      res.json(envelope(slots));
     } catch (e) { upstreamError(res, e); }
   });
 

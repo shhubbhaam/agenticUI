@@ -51,7 +51,7 @@ describe('SettingsScreen', () => {
       ['Format preferences', 'Reading, listening and doing'],
       ['Reminder', '7:30 PM · A gentle nudge'],
       ['Download on Wi-Fi', 'Tomorrow’s plan, when available'],
-      ['Manage downloads', '18 MB · 3 lessons'],
+      ['Manage downloads', 'Nothing downloaded yet'], // no fake downloads before real storage exists
       ['Accessibility', 'Text size, motion, transcripts'],
       ['Organization & access', 'Learning plan and access'],
       ['Account & security', 'Sign-in and privacy'],

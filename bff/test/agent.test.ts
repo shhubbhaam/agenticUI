@@ -111,3 +111,37 @@ test('agentFailureCode: fixed codes for each failure class', () => {
   assert.equal(agentFailureCode(new Error('decision outside catalogue')), 'outside_catalogue');
   assert.equal(agentFailureCode(new Error('anything with learner text')), 'agent_error');
 });
+
+// ---- M7 (W3 review): the BFF checks its own output with the client's schema before sending ----
+import { parseHomeLayout } from '../../src/contracts/homeLayout.ts';
+import type { LearnHouse } from '../src/learnhouse.ts';
+
+test('a card the client schema would reject is never sent: the BFF drops that slot itself', async () => {
+  const fake = createFakeLearnHouse();
+  // An activity id the server-side permission check accepts, but the client contract's id pattern
+  // ([A-Za-z0-9_-]) does not: before M7's shared check, the whole main card arrived invalid.
+  const lh: LearnHouse = {
+    ...fake.lh,
+    async getCourseMeta(uuid) {
+      const m = await fake.lh.getCourseMeta(uuid);
+      return { ...m, chapters: (m.chapters ?? []).map((ch) => ({ ...ch, activities: (ch.activities ?? []).map((a) =>
+        (a.activity_uuid === 'act_1' ? { ...a, activity_uuid: 'act.1' } : a)) })) };
+    },
+  };
+  const warnings: string[] = [];
+  const s = createApp({ lh, agent: null, allowedCourses: new Set(['course_demo']), logger: { info() {}, warn: (m: unknown) => warnings.push(String(m)) } }).server();
+  await new Promise<void>((r) => s.listen(0, () => r()));
+  const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}/api`;
+  const tok = ((await (await fetch(b + '/auth/login', { method: 'POST', body: JSON.stringify({ email: 'asha@test.local', password: 'Passw0rd!' }) })).json()) as any).token;
+  const res = await fetch(b + '/me/courses/course_demo/home-layout', { headers: { Authorization: `Bearer ${tok}` } });
+  const env = (await res.json()) as any;
+  s.close();
+  assert.equal(res.status, 200);
+  assert.ok(warnings.some((w) => w.includes('contract rejected slot mainCard')), 'the shared schema caught it on the server');
+  assert.equal(env.slots.mainCard, null); // dropped: the app shows its progress-based card there
+  const parsed = parseHomeLayout(env, { learnerId: '101', courseUuid: 'course_demo' });
+  assert.ok(parsed.ok, 'the envelope parses with the client contract');
+  if (parsed.ok) {
+    for (const r of Object.values(parsed.slots)) assert.notEqual(!r.ok && r.reason, 'invalid', 'no slot the client would reject');
+  }
+});

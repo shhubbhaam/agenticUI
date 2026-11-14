@@ -26,6 +26,7 @@ import type { RootStackParamList } from '../../navigation/MainStack';
 import { TrustedCatalogue } from '../../schemas/homeLayoutSchema';
 import type { ParseResult, SlotComponent, SlotName, SlotResult, LayoutAction } from '../../contracts/homeLayout';
 import { fetchHomeLayout } from '../../services/agentService';
+import { FEATURES } from '../../config/features';
 import { runLayoutAction } from './actions';
 import { useSessionStore } from '../../state/useSessionStore';
 import { clearTrailCache } from '../../data/learnhouse/trailCache';
@@ -66,6 +67,8 @@ export default function HomeScreen() {
   const courseUuid = homeData.courseUuid;
   useEffect(() => {
     if (sessionStatus !== 'signedIn' || !learnerId || !courseUuid) return;
+    // M2: with the agent UI module off, Home keeps the progress-based cards (the per-slot fallbacks).
+    if (!FEATURES.agentUi) return;
     let cancelled = false;
     setLayout(null);
     fetchHomeLayout({ learnerId, courseUuid }).then((r) => { if (!cancelled) setLayout(r); });

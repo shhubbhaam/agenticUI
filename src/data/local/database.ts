@@ -40,6 +40,12 @@ const SCHEMA = `
     last_error TEXT
   );
   CREATE INDEX IF NOT EXISTS outbox_events_learner ON outbox_events (learner_id, status, occurred_at);
+  -- M5/M1: this install's identity for offline events, and the next per-device sequence number.
+  CREATE TABLE IF NOT EXISTS device_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    device_id TEXT NOT NULL,
+    next_seq INTEGER NOT NULL DEFAULT 0
+  );
   -- M5: the last /me/trail the BFF returned, per learner, so Home and Path work offline.
   CREATE TABLE IF NOT EXISTS course_snapshot (
     learner_id TEXT PRIMARY KEY NOT NULL,
@@ -61,6 +67,10 @@ export function getDatabase(): Promise<SQLiteDatabase> {
         if (columns.some((c) => c.name === 'password_hash')) {
           await db.runAsync('UPDATE profiles SET password_hash = NULL, password_salt = NULL');
         }
+        // Outboxes created before events carried a device id and sequence (M1): add the columns.
+        const outboxColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(outbox_events)');
+        if (!outboxColumns.some((c) => c.name === 'device_id')) await db.execAsync('ALTER TABLE outbox_events ADD COLUMN device_id TEXT');
+        if (!outboxColumns.some((c) => c.name === 'seq')) await db.execAsync('ALTER TABLE outbox_events ADD COLUMN seq INTEGER');
         return db;
       })
       .catch((error: unknown) => {

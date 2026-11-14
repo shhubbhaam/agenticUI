@@ -14,6 +14,11 @@ export interface InboxRecord {
   status: InboxStatus;
   /** Fixed reason code for a rejection (never upstream text). */
   reason?: string | null;
+  /** Hash of the event's payload: a reused event id with a different payload is refused. */
+  payloadHash?: string | null;
+  /** Which install sent it, and its per-device sequence number (audit, multi-device conflicts). */
+  deviceId?: string | null;
+  seq?: number | null;
 }
 
 export interface Inbox {
@@ -29,7 +34,12 @@ export function createMemoryInbox(): Inbox {
   const key = (l: string, e: string) => `${l}\u0000${e}`;
   return {
     get: (l, e) => { const r = rows.get(key(l, e)); return r ? { ...r } : null; },
-    put: (r) => { rows.set(key(r.learnerId, r.eventId), { ...r, reason: r.reason ?? null }); },
+    // Identity fields (payload hash, device, sequence) are fixed on the first write, as in SQLite.
+    put: (r) => {
+      const k = key(r.learnerId, r.eventId);
+      const first = rows.get(k);
+      rows.set(k, { ...r, reason: r.reason ?? null, ...(first ? { payloadHash: first.payloadHash, deviceId: first.deviceId, seq: first.seq } : {}) });
+    },
   };
 }
 
@@ -42,13 +52,19 @@ const SCHEMA = `
     activity_uuid TEXT NOT NULL,
     status TEXT NOT NULL,
     reason TEXT,
+    payload_hash TEXT,
+    device_id TEXT,
+    seq INTEGER,
     received_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     PRIMARY KEY (learner_id, event_id)
   );
 `;
 
-interface Row { learner_id: string; event_id: string; type: string; course_uuid: string; activity_uuid: string; status: string; reason: string | null }
+interface Row {
+  learner_id: string; event_id: string; type: string; course_uuid: string; activity_uuid: string;
+  status: string; reason: string | null; payload_hash: string | null; device_id: string | null; seq: number | null;
+}
 
 /**
  * SQLite inbox on disk (Node >= 22.5, built-in node:sqlite). Throws if node:sqlite is missing so the
@@ -59,20 +75,27 @@ export async function openSqliteInbox(path: string): Promise<Inbox> {
   const db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  // Inboxes created before events carried a payload hash, device id and sequence: add the columns.
+  const cols = new Set((db.prepare('PRAGMA table_info(inbox)').all() as Array<{ name: string }>).map((c) => c.name));
+  for (const [col, type] of [['payload_hash', 'TEXT'], ['device_id', 'TEXT'], ['seq', 'INTEGER']] as const) {
+    if (!cols.has(col)) db.exec(`ALTER TABLE inbox ADD COLUMN ${col} ${type}`);
+  }
   const select = db.prepare('SELECT * FROM inbox WHERE learner_id = ? AND event_id = ?');
   const upsert = db.prepare(`
-    INSERT INTO inbox (learner_id, event_id, type, course_uuid, activity_uuid, status, reason, received_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO inbox (learner_id, event_id, type, course_uuid, activity_uuid, status, reason, payload_hash, device_id, seq, received_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (learner_id, event_id) DO UPDATE SET status = excluded.status, reason = excluded.reason, updated_at = excluded.updated_at`);
   return {
     get(learnerId, eventId) {
       const r = select.get(learnerId, eventId) as Row | undefined;
       return r ? { learnerId: r.learner_id, eventId: r.event_id, type: r.type as EventType, courseUuid: r.course_uuid,
-        activityUuid: r.activity_uuid, status: r.status as InboxStatus, reason: r.reason } : null;
+        activityUuid: r.activity_uuid, status: r.status as InboxStatus, reason: r.reason,
+        payloadHash: r.payload_hash, deviceId: r.device_id, seq: r.seq } : null;
     },
     put(r) {
       const now = new Date().toISOString();
-      upsert.run(r.learnerId, r.eventId, r.type, r.courseUuid, r.activityUuid, r.status, r.reason ?? null, now, now);
+      upsert.run(r.learnerId, r.eventId, r.type, r.courseUuid, r.activityUuid, r.status, r.reason ?? null,
+        r.payloadHash ?? null, r.deviceId ?? null, r.seq ?? null, now, now);
     },
     close: () => db.close(),
   };

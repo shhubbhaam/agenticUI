@@ -24,4 +24,7 @@ export function createMockDownloadsRepository(seed: readonly DownloadedLesson[] 
   };
 }
 
-export const mockDownloadsRepository: DownloadsRepository = createMockDownloadsRepository();
+// The app's instance starts EMPTY: the app must not claim lessons are downloaded when nothing is
+// stored (W3 review: fixtures shown as real state). SEED_DOWNLOADS stays for tests and design demos.
+// Real downloads (Phase 6) replace this with a file-system/SQLite repository behind the same interface.
+export const mockDownloadsRepository: DownloadsRepository = createMockDownloadsRepository([]);

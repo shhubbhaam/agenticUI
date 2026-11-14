@@ -37,7 +37,7 @@ async function start(lh: LearnHouse, opts: { inbox?: Inbox; courses?: string[] }
 }
 
 const done = (eventId: string, activityUuid = 'act_1', courseUuid = 'course_demo') =>
-  ({ eventId, type: 'activity_completed', courseUuid, activityUuid, occurredAt: '2026-11-14T10:00:00.000Z' });
+  ({ schemaVersion: 1, eventId, deviceId: 'device_phone', seq: 1, type: 'activity_completed', courseUuid, activityUuid, occurredAt: '2026-11-14T10:00:00.000Z' });
 
 test('a batch is applied in LearnHouse and read back; a second client sees it', async () => {
   const f = createFakeLearnHouse();
@@ -180,3 +180,47 @@ test('request shape: no session -> 401; empty or >100 events -> 400', async () =
   assert.equal((await s.send(t, Array.from({ length: 101 }, (_, i) => done(`e${i}`)))).status, 400);
   await s.close();
 });
+
+// ---- M1: versioned events ----
+test('an unsupported event version is rejected safely and never applied or stored', async () => {
+  const f = createFakeLearnHouse();
+  const s = await start(f.lh);
+  const t = await s.login();
+  const r = await s.send(t, [{ ...done('e-v2'), schemaVersion: 2 }, done('e-v1', 'act_2')]);
+  assert.deepEqual(r.body.results, [
+    { eventId: 'e-v2', status: 'rejected', reason: 'unsupported_version' },
+    { eventId: 'e-v1', status: 'applied' },
+  ]);
+  assert.equal(f.calls.complete, 1);
+  // Not stored: once supported, the same event id can still be applied.
+  const again = await s.send(t, [done('e-v2')]);
+  assert.deepEqual(again.body.results, [{ eventId: 'e-v2', status: 'applied' }]);
+  await s.close();
+});
+
+test('an event without schemaVersion is read as version 1 (clients from before M1)', async () => {
+  const f = createFakeLearnHouse();
+  const s = await start(f.lh);
+  const { schemaVersion: _v, deviceId: _d, seq: _s, ...legacy } = done('e-legacy');
+  const r = await s.send(await s.login(), [legacy]);
+  assert.deepEqual(r.body.results, [{ eventId: 'e-legacy', status: 'applied' }]);
+  await s.close();
+});
+
+test('a reused event id with a DIFFERENT payload is refused, never applied', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'inbox-')); dirs.push(dir);
+  const inbox = await openSqliteInbox(join(dir, 'inbox.db'));
+  const f = createFakeLearnHouse();
+  const s = await start(f.lh, { inbox });
+  const t = await s.login();
+  await s.send(t, [{ ...done('e-pay'), payload: { note: 'a' } }]);
+  const r = await s.send(t, [{ ...done('e-pay'), payload: { note: 'b' } }]);
+  assert.deepEqual(r.body.results, [{ eventId: 'e-pay', status: 'rejected', reason: 'event_id_reused' }]);
+  // The device and its sequence number are kept with the event, for audit.
+  const row = inbox.get('101', 'e-pay');
+  assert.equal(row?.deviceId, 'device_phone');
+  assert.equal(row?.seq, 1);
+  assert.equal(row?.status, 'applied'); // the refused copy did not change the original
+  await s.close(); inbox.close?.();
+});
+

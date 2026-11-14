@@ -1,6 +1,6 @@
 // W3 FB002 evidence: automated boundary cases for the home-layout contract.
 // Each case states the expected outcome; the run log in docs/ records the observed one.
-import { parseHomeLayout, CONTRACT_VERSION, MAX_PAYLOAD_BYTES } from '../../src/contracts/homeLayout';
+import { parseHomeLayout, CONTRACT_VERSION, MAX_PAYLOAD_BYTES, utf8ByteLength } from '../../src/contracts/homeLayout';
 
 const NOW = new Date('2026-10-11T12:00:00.000Z');
 const ctx = { learnerId: '101', courseUuid: 'course_demo', now: NOW };
@@ -43,6 +43,17 @@ describe('envelope', () => {
   });
   it('rejects an oversized payload before parsing (million-char title)', () => {
     const big = envelope({}, { mainCard: { ...homeCard, props: { ...homeCard.props, title: 'x'.repeat(1_000_000) } } });
+    expect(parseHomeLayout(big, ctx)).toEqual({ ok: false, reason: 'too-large' });
+  });
+  it('counts the cap in UTF-8 bytes: multibyte text under the character count but over the byte cap is refused (W3 review)', () => {
+    expect(utf8ByteLength('a')).toBe(1);
+    expect(utf8ByteLength('é')).toBe(2);
+    expect(utf8ByteLength('न')).toBe(3);
+    expect(utf8ByteLength('😀')).toBe(4);
+    // ~7,000 characters (under the old character-count cap) but ~21,000 bytes on the wire.
+    const text = 'न'.repeat(7000);
+    expect(text.length).toBeLessThan(MAX_PAYLOAD_BYTES);
+    const big = envelope({}, { mainCard: { ...homeCard, props: { ...homeCard.props, title: text } } });
     expect(parseHomeLayout(big, ctx)).toEqual({ ok: false, reason: 'too-large' });
   });
   it('rejects malformed JSON text', () => {

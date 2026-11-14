@@ -101,12 +101,26 @@ export type ParseResult =
   | { ok: true; layoutId: string; slots: Record<SlotName, SlotResult> }
   | { ok: false; reason: 'too-large' | 'malformed' | 'version' | 'expired' | 'wrong-context' };
 
+/** UTF-8 size of a string, without Buffer/TextEncoder (runs the same in Node, RN and browsers). */
+export function utf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c < 0x80) bytes += 1;
+    else if (c < 0x800) bytes += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < text.length) { bytes += 4; i++; } // surrogate pair
+    else bytes += 3;
+  }
+  return bytes;
+}
+
 /** Validate an agent layout payload. Never throws. */
 export function parseHomeLayout(raw: unknown, ctx: LayoutContext): ParseResult {
   // 1. Size bound before any deep parsing.
   let size: number;
   try {
-    size = typeof raw === 'string' ? raw.length : JSON.stringify(raw ?? null).length;
+    // Counted in UTF-8 bytes on the wire, not JS characters (W3 review: multibyte text passed the cap).
+    size = utf8ByteLength(typeof raw === 'string' ? raw : JSON.stringify(raw ?? null));
   } catch {
     return { ok: false, reason: 'malformed' };
   }

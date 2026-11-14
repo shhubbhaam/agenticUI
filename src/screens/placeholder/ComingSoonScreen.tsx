@@ -12,9 +12,11 @@ import { BackHeader } from '../../ui/molecules/BackHeader';
 
 interface ComingSoonScreenProps {
   title: string;
+  /** Replaces "Coming soon." (e.g. for a feature module that is switched off). */
+  message?: string;
 }
 
-export default function ComingSoonScreen({ title }: ComingSoonScreenProps) {
+export default function ComingSoonScreen({ title, message }: ComingSoonScreenProps) {
   const navigation = useNavigation();
   return (
     <View style={[tw`flex-1`, { backgroundColor: colors.surface.canvas }]}>
@@ -38,7 +40,7 @@ export default function ComingSoonScreen({ title }: ComingSoonScreenProps) {
               ...typography.fontSize['type-14'],
             }}
           >
-            Coming soon.
+            {message ?? 'Coming soon.'}
           </Text>
         </View>
       </SafeAreaView>

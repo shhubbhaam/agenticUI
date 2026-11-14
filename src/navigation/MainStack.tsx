@@ -51,7 +51,7 @@ export type RootStackParamList = {
   Accessibility: undefined;
   ManageDownloads: undefined;
   // Settings rows whose screens are not designed yet.
-  ComingSoon: { title: string };
+  ComingSoon: { title: string; message?: string };
   /** Without params: the demo lesson (fake clock). With params: that activity's real video. */
   Lesson: { courseUuid: string; activityUuid: string; title?: string; chapter?: string; format?: string } | undefined;
   /** A PDF (document) activity, opened as a slide deck. Route by content with navigation/activityRoute.ts. */
@@ -103,7 +103,7 @@ export default function MainStack() {
         <Stack.Screen name="Accessibility" component={AccessibilityScreen} />
         <Stack.Screen name="ManageDownloads" component={ManageDownloadsScreen} />
         <Stack.Screen name="ComingSoon">
-          {({ route }) => <ComingSoonScreen title={route.params.title} />}
+          {({ route }) => <ComingSoonScreen title={route.params.title} message={route.params.message} />}
         </Stack.Screen>
         <Stack.Screen name="Lesson" component={LessonScreen} />
         <Stack.Screen name="Slides" component={SlidesScreen} />

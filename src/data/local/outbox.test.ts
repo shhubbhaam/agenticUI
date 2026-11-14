@@ -2,7 +2,7 @@
 import { getDatabase } from './database';
 import {
   applyResults, countSendable, dismissRejected, enqueueAssignmentSubmission, enqueueCompletion,
-  findQueuedSubmission, getEventStatus, listPendingCompletions, listRejected, listSendable, recordFailedAttempt,
+  findQueuedSubmission, getDeviceId, getEventStatus, listPendingCompletions, listRejected, listSendable, recordFailedAttempt,
 } from './outbox';
 
 beforeEach(async () => {
@@ -94,4 +94,16 @@ describe('outbox', () => {
     await applyResults([{ eventId: b, status: 'applied' }]);
     expect(await getEventStatus(b)).toBeNull();
   });
+
+  it('every event carries the schema version, this install\'s device id and an increasing sequence (M1)', async () => {
+    await enqueueCompletion('7', 'c', 'a', new Date('2026-11-14T09:00:00Z'));
+    await enqueueAssignmentSubmission('7', 'c', 'quiz', { q1: ['o1'] }, false, new Date('2026-11-14T09:01:00Z'));
+    const [first, second] = await listSendable('7', 100);
+    const deviceId = await getDeviceId();
+    expect(first).toMatchObject({ schemaVersion: 1, deviceId });
+    expect(second.deviceId).toBe(deviceId);
+    expect(second.seq).toBeGreaterThan(first.seq);
+    expect(await getDeviceId()).toBe(deviceId); // stable for this install
+  });
 });
+
