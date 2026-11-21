@@ -1,0 +1,26 @@
+%% M7: agent-chosen Home layout from a trusted catalogue, validated on both sides.
+flowchart LR
+  subgraph S["BFF (server)"]
+    direction TB
+    T["LearnHouse trail for the session learner"] --> F["Authorised, unfinished,<br/>published activities (≤5)"]
+    F --> D["Gemini stage 1: component per slot<br/>(enum-restricted ids)"]
+    D --> P["Gemini stage 2: props for chosen components"]
+    P --> V1{"parseHomeLayout (app's schema)<br/>+ target authorisation"}
+    F -. "model missing / error / timeout" .-> FB["Deterministic fallback layout<br/>from LearnHouse data"]
+    V1 -- "slot invalid" --> DROP["Drop that slot"]
+    V1 -- "valid" --> ENV["v1 envelope: version · layoutId · learnerId<br/>courseUuid · issuedAt · expiresAt · UTF-8 byte cap"]
+    FB --> ENV
+    DROP --> ENV
+  end
+  subgraph A["App (device)"]
+    direction TB
+    V2{"Envelope + context check<br/>version · learner · course · expiry"}
+    V2 -- "reject" --> SAFE["Progress-cards fallback"]
+    V2 -- "accept" --> SLOT{"Per-slot strict parse"}
+    SLOT -- "invalid" --> SF["Static card for that slot only"]
+    SLOT -- "valid" --> R["Registry → app-owned component<br/>HomeCard · NextStepCard<br/>RevisitSection · PracticeCard"]
+    R --> EB["SlotBoundary (error boundary)"]
+    R --> ACT["Closed action union<br/>complete-activity · open-path · open-practice"]
+    ACT --> SRV["BFF re-checks target before any write"]
+  end
+  ENV --> V2

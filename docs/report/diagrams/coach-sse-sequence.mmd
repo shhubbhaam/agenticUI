@@ -1,0 +1,36 @@
+%% M6: AI coach session over SSE with resume and a bound approval.
+sequenceDiagram
+  autonumber
+  actor L as Learner
+  participant C as Coach screen
+  participant B as BFF coach runner
+  participant G as Gemini
+  participant D as coach_* tables
+  participant LH as LearnHouse
+  L->>C: "What should I do next?"
+  C->>B: POST /api/me/coach/sessions {courseUuid}
+  B-->>C: {sessionId, runId}
+  C->>B: GET …/sessions/:id/events (SSE)
+  B-->>C: id:1 RUN_STARTED
+  B->>LH: read trail (read_progress)
+  B-->>C: TOOL_CALL_START / TOOL_CALL_END ×3 (read_progress, find_gaps, choose_next_step)
+  B-->>C: STATE_DELTA (facts)
+  B->>G: facts + server-offered options (enum responseSchema)
+  G-->>B: {choice ∈ options, explanation}  (template if absent/invalid)
+  B-->>C: TEXT_MESSAGE_START / CONTENT chunks / END
+  B->>D: store proposal (sha256 hash, expiry 10 min, auth hash)
+  B-->>C: APPROVAL_REQUESTED {proposal}
+  Note over C,B: Network drops
+  C->>B: reconnect with Last-Event-ID = last applied seq (back-off 1,2,5,10,30 s)
+  alt cursor inside 5-min / 500-event window
+    B-->>C: only later events
+  else cursor too old
+    B-->>C: STATE_SNAPSHOT (seq = current)
+  end
+  L->>C: Approve
+  C->>B: POST /api/me/coach/approvals/:proposalId {decision, hash, decisionId}
+  B->>D: checks: exists · same hash · same login session · not expired · not decided
+  B->>LH: re-check target (allowed course, enrolled, published)
+  B->>D: record decision (one per proposal) + plan
+  B-->>C: APPROVAL_RESOLVED, RUN_FINISHED
+  C->>C: open the planned activity (type from learner's trail)

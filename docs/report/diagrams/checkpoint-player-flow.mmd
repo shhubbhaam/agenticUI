@@ -1,0 +1,16 @@
+%% M4: checkpoint-aware player (BFF extension; LearnHouse has no checkpoints).
+stateDiagram-v2
+  [*] --> Loading
+  Loading --> Blocked: checkpoints cannot be loaded
+  Loading --> Playing: GET …/checkpoints (questions without answers)<br/>resume saved playhead (never past an unanswered checkpoint)
+  Playing --> PausedAtCheckpoint: playhead reaches next unpassed checkpoint
+  Playing --> Playing: seek backwards / replay
+  Playing --> PausedAtCheckpoint: seek forward past an unpassed checkpoint (clamped)
+  PausedAtCheckpoint --> Answering: overlay shown
+  Answering --> Answering: wrong answer (attempt appended, server-graded)
+  Answering --> Playing: correct answer (checkpoint passed, never reopens)
+  Playing --> Ended: end of video
+  Ended --> Completed: all checkpoints passed → BFF writes LearnHouse completion
+  Ended --> Ended: some checkpoint not passed → completion refused
+  Completed --> [*]
+  Blocked --> [*]

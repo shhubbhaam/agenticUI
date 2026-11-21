@@ -1,0 +1,32 @@
+%% M5: offline completion, durable outbox, idempotent upload and LearnHouse read-back.
+sequenceDiagram
+  autonumber
+  actor L as Learner
+  participant A as App (screens)
+  participant Q as SQLite outbox
+  participant S as Sync engine
+  participant B as BFF /api/me/events
+  participant I as inbox.db
+  participant LH as LearnHouse API
+  Note over A,Q: Device offline
+  L->>A: Complete slide / submit quiz
+  A->>Q: enqueue(eventId=UUID once, deviceId, seq, schemaVersion=1, payload)
+  A-->>L: Shown as done (pending overlay on saved trail)
+  Note over A,LH: Process may be killed here — row survives in SQLite
+  Note over S,B: Connectivity returns / app foregrounded
+  S->>Q: listSendable(pending + received, max batch)
+  S->>B: POST batch (same eventIds on every retry)
+  B->>I: lookup eventId + payload hash
+  alt new event
+    B->>I: insert row (received)
+    B->>LH: write (complete activity / submit attempt)
+    B->>LH: read trail / grade back
+    LH-->>B: state
+    B->>I: mark applied (only if read-back confirms)
+  else same id, same payload
+    B-->>B: return stored result (no second write)
+  else same id, different payload
+    B-->>B: rejected: event_id_reused
+  end
+  B-->>S: per-event status: applied | received | rejected
+  S->>Q: applied → delete · received → retry later · rejected → keep, show

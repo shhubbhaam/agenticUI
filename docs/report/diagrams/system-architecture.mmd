@@ -1,0 +1,48 @@
+%% Component and data-flow view of the submitted system (P10-G37).
+%% Trust boundaries: device | BFF (holds all secrets) | external services.
+flowchart TB
+  subgraph DEV["Android app — Expo SDK 58 / React Native 0.88 (untrusted client)"]
+    direction LR
+    UI["Screens: Login, Home, Path, Lesson,<br/>Assignment, Slides, Coach, You, Practice"]
+    MOD["Feature modules (src/config/features.ts)<br/>player · assessment · agentUi"]
+    CAT["Trusted catalogue + Zod contracts<br/>src/contracts/*"]
+    SQL[("expo-sqlite<br/>outbox_events · device_meta<br/>course_snapshot · player_progress")]
+    SYNC["Sync engine<br/>batched POST /api/me/events"]
+    SSE["Coach stream client<br/>expo/fetch + Last-Event-ID"]
+    UI --> MOD --> CAT
+    UI --> SQL
+    SQL --> SYNC
+  end
+
+  subgraph BFF["BFF — Node 22, node:http (trust boundary: holds secrets)"]
+    direction LR
+    AUTH["Session layer<br/>opaque expiring token"]
+    LAY["Home-layout agent<br/>decide + fill, schema re-check"]
+    INB[("inbox.db (node:sqlite)<br/>inbox · checkpoint_attempts<br/>coach_proposals · coach_decisions · coach_plan")]
+    EVT["Events endpoint<br/>dedupe · received/applied/rejected"]
+    CP["Checkpoint extension<br/>checkpoints.json · server grading"]
+    COACH["AI coach runner<br/>SSE · replay · approvals"]
+    LHA["LearnHouse adapter<br/>org token server-side only"]
+    AUTH --> LAY & EVT & CP & COACH
+    EVT --> INB
+    CP --> INB
+    COACH --> INB
+    LAY & EVT & CP & COACH --> LHA
+  end
+
+  subgraph EXT["External services"]
+    direction LR
+    GEM["Gemini API<br/>structured JSON output"]
+    subgraph LH["LearnHouse fork (v1.3.7 base) — learn.praxisacademy.ai"]
+      LHAPI["FastAPI + PostgreSQL<br/>courses · trails · assignments"]
+      LHWEB["Next.js web app + 3 added web modules<br/>community images · help & support · weighted grading"]
+    end
+  end
+
+  UI -- "HTTPS JSON (session bearer)" --> AUTH
+  SYNC -- "event batch" --> EVT
+  SSE -- "SSE text/event-stream" --> COACH
+  LAY -- "prompt: authorised activity ids only" --> GEM
+  COACH -- "choose among server options" --> GEM
+  LHA -- "REST /api/v1" --> LHAPI
+  LHWEB --> LHAPI

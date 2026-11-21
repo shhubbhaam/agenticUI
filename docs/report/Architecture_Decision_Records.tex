@@ -1,0 +1,543 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+%
+\documentclass[
+  11pt,
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage[]{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage[a4paper,margin=2.2cm,headheight=14pt]{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{microtype}
+\definecolor{accent}{HTML}{1F4E79}
+\titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{accent}}{}{0em}{}
+\pagestyle{fancy}\fancyhf{}
+\lhead{\small Architecture Decision Records}\rhead{\small Modular Learner Experience (P10-G37)}\cfoot{\small\thepage}
+\renewcommand{\arraystretch}{1.2}
+\sloppy
+\usepackage{newunicodechar}
+\newunicodechar{≤}{\ensuremath{\le}}
+\newunicodechar{≥}{\ensuremath{\ge}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{·}{\textperiodcentered}
+\newunicodechar{×}{\ensuremath{\times}}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Architecture Decision Records --- P10-G37},
+  colorlinks=true,
+  linkcolor={accent},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={accent},
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Architecture Decision Records --- P10-G37}
+\author{}
+\date{Written 21 November 2026}
+
+\begin{document}
+\maketitle
+
+{
+\hypersetup{linkcolor=accent}
+\setcounter{tocdepth}{1}
+\tableofcontents
+}
+Project 10 · Group 37 · Shubham Yadav · Repository:
+https://github.com/shhubbhaam/agenticUI
+
+\textbf{About the dates.} This log was written on \textbf{21 Nov 2026}.
+Each decision date below comes from the commit or document that first
+shows the decision; none is backdated. Records are never deleted: a
+replaced decision is marked \emph{Superseded} and points to its
+successor.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+ID
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Title
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Status
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+ADR-001 & LearnHouse (team fork) is the LMS and source of truth &
+Accepted \\
+ADR-002 & A thin BFF holds all secrets, sessions and policy &
+Accepted \\
+ADR-003 & Agent selects from a trusted catalogue; one shared Zod
+contract & Accepted \\
+ADR-004 & Methodology record (9 Oct reaffirmation) & Accepted \\
+ADR-005 & SQLite outbox + durable BFF inbox; conflict rules by data type
+& Accepted (supersedes in-memory idempotency map) \\
+ADR-006 & Dependency-free BFF on \texttt{node:http} and
+\texttt{node:sqlite} & Accepted \\
+ADR-007 & Checkpoints as a BFF extension with server grading &
+Accepted \\
+ADR-008 & AI coach over SSE (AG-UI-style subset) with bound approvals &
+Accepted \\
+ADR-009 & M3 web modules built inside the LearnHouse fork & Accepted
+(approved scope change) \\
+ADR-010 & Compile-time mobile feature switches & Accepted \\
+ADR-011 & Text size follows Android's system setting & Accepted \\
+ADR-012 & Video: YouTube player plus hosted uploads & Accepted \\
+ADR-013 & Gemini only behind the BFF, enum-restricted structured output
+& Accepted \\
+\end{longtable}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-001-learnhouse-team-fork-is-the-lms-and-source-of-truth}{%
+\section{ADR-001 --- LearnHouse (team fork) is the LMS and source of
+truth}\label{adr-001-learnhouse-team-fork-is-the-lms-and-source-of-truth}}
+
+\textbf{Date, status, scope.} Late Sept 2026 (W1 review; adapter code
+from 19 Sept, commit \texttt{0f62868}). Accepted. All milestones; M5
+read-back.
+
+\textbf{Context and drivers.} The project needs courses, learners,
+enrolment and progress, but the course reviewers said not to build a new
+LMS. The team already runs a LearnHouse fork at
+\texttt{learn.praxisacademy.ai}.
+
+\textbf{Options.} (a) Build a small LMS/mock backend. (b) Use LearnHouse
+through its API (chosen). (c) Use LearnHouse's own web UI only.
+
+\textbf{Decision and rationale.} (b): LearnHouse owns courses,
+activities, enrolment, completion and grades; the app and BFF read and
+write through its API and always read back. Judgement, not measurement:
+this avoids a second course database and matches reviewer advice.
+
+\textbf{Consequences.} Real routes must be pinned and verified (the
+public OpenAPI is disabled, so the deployed commit is still unpinned).
+Missing features (checkpoints, event inbox, agent sessions) need small
+extension records (ADR-005, 007, 008).
+
+\textbf{Evidence.} \texttt{bff/src/learnhouse.ts},
+\texttt{bff/test/learnhouse.test.ts}; live run
+\texttt{docs/evidence/live-run-2026-10-24.md}.
+
+\textbf{Revisit trigger.} LearnHouse lacks a required write
+(e.g.~per-checkpoint progress) or changes routes between releases.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-002-a-thin-bff-holds-all-secrets-sessions-and-policy}{%
+\section{ADR-002 --- A thin BFF holds all secrets, sessions and
+policy}\label{adr-002-a-thin-bff-holds-all-secrets-sessions-and-policy}}
+
+\textbf{Date, status, scope.} 11 Oct 2026
+(\texttt{docs/W3-plan-and-evidence.md}). Accepted. M1, M5, M7, security.
+
+\textbf{Context.} The W2 review found a Gemini key literal in the app
+and the LearnHouse organisation token being used from the mobile bundle,
+with learner ids taken from URLs.
+
+\textbf{Options.} (a) Keep calls in the app with environment variables.
+(b) A thin backend-for-frontend (chosen). (c) LearnHouse learner tokens
+only, no backend.
+
+\textbf{Decision.} (b): the BFF checks the login against LearnHouse,
+issues an opaque expiring session, derives the learner from it on every
+\texttt{/api/me/*} route, checks the course allow-list and enrolment,
+and is the only holder of \texttt{LH\_API\_TOKEN} and
+\texttt{GEMINI\_API\_KEY}. (c) was rejected because the progress write
+route used needs the org token.
+
+\textbf{Consequences.} One more process to run; sessions are in memory,
+so a BFF restart signs learners out. The historically committed key must
+be revoked by the author (not verifiable from the repo).
+
+\textbf{Evidence.} \texttt{bff/src/app.ts},
+\texttt{bff/src/sessions.ts}, \texttt{bff/test/bff.test.ts} (21 tests),
+\texttt{docs/evidence/secret-scan.txt}.
+
+\textbf{Revisit trigger.} A second client needs sessions shared across
+BFF instances, or LearnHouse exposes learner-scoped progress writes.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-003-agent-selects-from-a-trusted-catalogue-one-shared-zod-contract}{%
+\section{ADR-003 --- Agent selects from a trusted catalogue; one shared
+Zod
+contract}\label{adr-003-agent-selects-from-a-trusted-catalogue-one-shared-zod-contract}}
+
+\textbf{Date, status, scope.} Proposal (W0), strict versioned contract
+11 Oct 2026, server-side use of the same schema 14 Nov 2026
+(\texttt{9fd4608}). Accepted. M1, M7.
+
+\textbf{Context.} Agent output must never execute; the W3 review found
+the BFF and app validating differently.
+
+\textbf{Options.} (a) Rule-based layout only. (b) Agent-generated UI
+code. (c) Agent chooses catalogue components and props; both sides
+validate with one schema (chosen).
+
+\textbf{Decision.} (c): four components, three typed actions, fixed
+slots, versioned envelope with learner/course/expiry, UTF-8 byte cap,
+per-slot fallback, error boundary per slot; the BFF runs the app's own
+\texttt{parseHomeLayout} and drops slots the app would reject. (a) is
+kept as the fallback when the model fails.
+
+\textbf{Consequences.} Adding a component needs code, schema, registry
+entry and tests. A valid layout is not proven to be a good one; no
+relevance evaluation was run.
+
+\textbf{Evidence.} \texttt{src/contracts/homeLayout.ts}, contract suite,
+\texttt{bff/test/agent.test.ts}, \texttt{SlotBoundary.test.tsx}.
+
+\textbf{Revisit trigger.} The catalogue grows beyond what can be
+described in one prompt, or a reviewer requires official A2UI
+conformance.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-004-methodology-record-9-october-reaffirmation}{%
+\section{ADR-004 --- Methodology record (9 October
+reaffirmation)}\label{adr-004-methodology-record-9-october-reaffirmation}}
+
+\textbf{Date, status, scope.} Methodology document dated \textbf{11 Oct
+2026} --- two days after the 9 Oct 2026, 23:59 IST deadline. This record
+written 21 Nov 2026. Accepted. All milestones.
+
+\textbf{Statement.} The approach was \textbf{reaffirmed}, not changed,
+in the W3 plan: hybrid catalogue-based agent UI over LearnHouse through
+a thin BFF, with M1--M9 mapped to binary test groups T1.1--T9.2 and
+thresholds (cold start ≤ 3 s, web bundle ≤ 500 KB gzip,
+reconnect-to-synced ≤ 5 s, resume drift ≤ 1 s). The 13 scenarios were
+mapped later (\texttt{docs/W5-status-and-evidence.md} §3).
+
+\textbf{Later changes (not part of the 9 Oct record).}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Old
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Evidence prompting change
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Alternatives
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Selected
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Impact
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+M3 as Module-Federation shell + 3 remotes & Single member; web work
+already happening in the LearnHouse fork & Separate React shell;
+headless examples & Web features in the LearnHouse fork (ADR-009) &
+T3.2/T3.3 (independent deploy, failure isolation) not demonstrated \\
+Checkpoints in the app & LearnHouse has no checkpoints; answers on the
+device are insecure & App-only; LearnHouse plugin & BFF extension
+(ADR-007) & T4.1 tested on the BFF \\
+First durable offline event in W3 & Not delivered in W3 & --- &
+Delivered 14 Nov (ADR-005) & M5 later than planned \\
+\end{longtable}
+
+\textbf{Approval.} The M3 change was agreed with the reviewer in
+discussion on \texttt{{[}date\ —\ fill\ in{]}}; this agreement is not
+recorded elsewhere in the repository.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-005-sqlite-outbox-durable-bff-inbox-conflict-rules-by-data-type}{%
+\section{ADR-005 --- SQLite outbox + durable BFF inbox; conflict rules
+by data
+type}\label{adr-005-sqlite-outbox-durable-bff-inbox-conflict-rules-by-data-type}}
+
+\textbf{Date, status, scope.} 14 Nov 2026 (\texttt{ad16a12}). Accepted;
+supersedes the W3 in-memory \texttt{Idempotency-Key} map. M5.
+
+\textbf{Context.} The W3 review showed that concurrent duplicate
+requests could each write upstream, that the map was lost on restart,
+and that ``received'' was shown as ``saved''.
+
+\textbf{Options.} (a) Keep online-only writes with retries. (b)
+AsyncStorage queue. (c) SQLite outbox on the device and a SQLite inbox
+on the BFF (chosen).
+
+\textbf{Decision.} Each event gets an id once and keeps it through
+retries, plus device id, per-device sequence and schema version. The BFF
+stores id + payload hash; same id/same payload returns the stored
+result, same id/new payload is rejected. Results are \texttt{applied}
+(read-back confirmed), \texttt{received} (retry later) or
+\texttt{rejected} (kept visible). Completion is monotonic; quiz hand-ins
+are append-only attempts with stage markers so a resend never submits
+twice.
+
+\textbf{Consequences.} Preference conflicts (S9) are not covered. The
+device must keep rejected rows until the learner sees them.
+
+\textbf{Evidence.} \texttt{src/data/local/outbox.ts},
+\texttt{src/data/sync/syncEngine.ts}, \texttt{bff/src/inbox.ts},
+\texttt{bff/test/events.test.ts} (13); device run 14 Nov 2026.
+
+\textbf{Revisit trigger.} A second client type writes the same records
+offline, or a multi-instance BFF is needed.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-006-dependency-free-bff-on-nodehttp-and-nodesqlite}{%
+\section{\texorpdfstring{ADR-006 --- Dependency-free BFF on
+\texttt{node:http} and
+\texttt{node:sqlite}}{ADR-006 --- Dependency-free BFF on node:http and node:sqlite}}\label{adr-006-dependency-free-bff-on-nodehttp-and-nodesqlite}}
+
+\textbf{Date, status, scope.} 11 Oct 2026. Accepted. BFF.
+
+\textbf{Context.} The development sandbox could not install npm
+packages; Express/axios/dotenv were in use.
+
+\textbf{Options.} (a) Keep Express and install locally only. (b) Node
+built-ins: \texttt{node:http}, native \texttt{-\/-env-file},
+\texttt{node:sqlite}, \texttt{node:test} (chosen).
+
+\textbf{Decision.} (b), with a small hand-written router.
+\textbf{Consequences.} No middleware ecosystem; edge cases (malformed
+URI) must be handled by hand. \textbf{Evidence.}
+\texttt{bff/src/app.ts}; 121/121 tests on Node 22.23.5 (21 Nov 2026).
+
+\textbf{Revisit trigger.} Routing or validation code starts growing
+faster than features.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-007-checkpoints-as-a-bff-extension-with-server-grading}{%
+\section{ADR-007 --- Checkpoints as a BFF extension with server
+grading}\label{adr-007-checkpoints-as-a-bff-extension-with-server-grading}}
+
+\textbf{Date, status, scope.} First attempt in the app 6 Nov
+(\texttt{3ca95ca}); moved to the BFF 6 Nov (\texttt{a780226}) and
+finished 14 Nov (\texttt{37f9cc3}). Accepted. M4.
+
+\textbf{Options.} (a) Checkpoints and answers in the app. (b) A
+LearnHouse plugin. (c) BFF file + store (chosen).
+
+\textbf{Decision.} \texttt{bff/checkpoints.json} (versioned, per
+activity or \texttt{*}); the app receives questions without answers; the
+BFF grades, appends attempts, enforces order and refuses LearnHouse
+completion until all are passed.
+
+\textbf{Consequences.} Checkpoint content is synthetic and shared by
+every video; authors cannot edit it in LearnHouse.
+
+\textbf{Evidence.} \texttt{bff/test/checkpoints.test.ts} (10),
+\texttt{src/screens/lesson/lesson.test.tsx}.
+
+\textbf{Revisit trigger.} Authors need per-lesson checkpoints managed in
+the LMS.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-008-ai-coach-over-sse-ag-ui-style-subset-with-bound-approvals}{%
+\section{ADR-008 --- AI coach over SSE (AG-UI-style subset) with bound
+approvals}\label{adr-008-ai-coach-over-sse-ag-ui-style-subset-with-bound-approvals}}
+
+\textbf{Date, status, scope.} 14 Nov 2026 (\texttt{3c032e8}); redirect
+after approval 15 Nov (\texttt{1571c7f} + uncommitted
+\texttt{CoachScreen.tsx}). Accepted. M6, S4, S5, S10, S13.
+
+\textbf{Options.} (a) WebSocket. (b) Official AG-UI SDK. (c) SSE with a
+documented AG-UI-style event subset (chosen).
+
+\textbf{Decision.} SSE over \texttt{expo/fetch}; event ids = sequence;
+\texttt{Last-Event-ID} resume; 5-min / 500-event replay window with a
+snapshot outside it; 15 s heartbeat; client back-off and 45 s stall
+watchdog. Gemini chooses only among server-offered options. A proposal
+has a SHA-256 hash, a 10-min expiry, one decision, and is bound to the
+learner and login session; the target is re-checked when the decision
+runs. The coach is isolated from the Home layout.
+
+\textbf{Consequences.} Not full AG-UI conformance; sessions are lost on
+BFF restart; web streaming not built.
+
+\textbf{Evidence.} \texttt{bff/src/coach.ts},
+\texttt{bff/test/coach.test.ts} (13), \texttt{src/core/coach/*.test.ts}.
+
+\textbf{Revisit trigger.} A second client needs the stream, or approvals
+must survive a BFF restart.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-009-m3-web-modules-built-inside-the-learnhouse-fork}{%
+\section{ADR-009 --- M3 web modules built inside the LearnHouse
+fork}\label{adr-009-m3-web-modules-built-inside-the-learnhouse-fork}}
+
+\textbf{Date, status, scope.} Work from 12 Oct 2026 (fork
+\texttt{4adc2055}) to 21 Nov 2026 (\texttt{6a301103}); agreement with
+reviewer \texttt{{[}date\ —\ fill\ in{]}}. Accepted as an approved scope
+change. M3.
+
+\textbf{Options.} (a) Module-Federation shell with three remote modules
+over the BFF. (b) Features in the LearnHouse web app (chosen).
+
+\textbf{Decision.} Three modules --- community image upload, Help \&
+Support tickets, weighted course grading --- reuse LearnHouse auth,
+routing, RBAC, design system and i18n.
+
+\textbf{Consequences.} Not independently built or deployed; no
+module-failure isolation test; they do not consume the BFF contracts (M1
+web consumer missing). Their 131 API and 37 web tests were not run for
+the final report. LearnHouse is AGPL-3.0, so the deployed fork's source
+must be offered to its users.
+
+\textbf{Evidence.} https://github.com/shhubbhaam/learnhouse commits
+\texttt{4adc2055}, \texttt{d39e16c7}, \texttt{1108064b},
+\texttt{04829b8f}, \texttt{6a301103}.
+
+\textbf{Revisit trigger.} Evaluators require T3.2/T3.3 evidence as
+originally specified.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-010-compile-time-mobile-feature-switches}{%
+\section{ADR-010 --- Compile-time mobile feature
+switches}\label{adr-010-compile-time-mobile-feature-switches}}
+
+\textbf{Date, status, scope.} 14 Nov 2026 (\texttt{9fd4608}). Accepted.
+M2.
+
+\textbf{Options.} (a) Runtime-loaded mobile modules (excluded by W0
+advice). (b) Separate apps. (c) Compile-time switches per module
+(chosen).
+
+\textbf{Decision.} \texttt{src/config/features.ts} turns
+\texttt{player}, \texttt{assessment}, \texttt{agentUi} off
+independently; their routes open a ``turned off'' screen; Home falls
+back to progress cards. \textbf{Evidence.}
+\texttt{src/navigation/activityRoute.test.ts}.
+
+\textbf{Revisit trigger.} A module must be updated without an app
+release.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-011-text-size-follows-androids-system-setting}{%
+\section{ADR-011 --- Text size follows Android's system
+setting}\label{adr-011-text-size-follows-androids-system-setting}}
+
+\textbf{Date, status, scope.} 15 Nov 2026 (\texttt{114f77e}). Accepted.
+M8.
+
+\textbf{Options.} (a) In-app ``Larger text'' multiplier. (b) Follow the
+OS font scale (chosen), keep the in-app switch untouched for now.
+
+\textbf{Decision.} Font scaling is never disabled; fixed-height
+containers became \texttt{minHeight}; only text in fixed grids or bars
+(streak calendar, tab labels, player times, study-time tiles) is capped
+at 1.3--1.5×.
+
+\textbf{Consequences.} The existing in-app ``Larger text'' switch has no
+effect yet. \textbf{Evidence.} \texttt{src/ui/fontScaling.test.tsx};
+200\% run observed once, not recorded.
+
+\textbf{Revisit trigger.} TalkBack or 200\% recordings show clipped
+content.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-012-video-youtube-player-plus-hosted-uploads}{%
+\section{ADR-012 --- Video: YouTube player plus hosted
+uploads}\label{adr-012-video-youtube-player-plus-hosted-uploads}}
+
+\textbf{Date, status, scope.} 31 Oct 2026 (\texttt{730f7cf}). Accepted.
+M4.
+
+\textbf{Decision.} Course videos play through the YouTube player
+(supervisor's direction); at least one video uploaded to LearnHouse
+plays through \texttt{expo-video} via the BFF file route.
+\textbf{Consequences.} Captions rely on YouTube's own; uploaded videos
+have none.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{adr-013-gemini-only-behind-the-bff-enum-restricted-structured-output}{%
+\section{ADR-013 --- Gemini only behind the BFF, enum-restricted
+structured
+output}\label{adr-013-gemini-only-behind-the-bff-enum-restricted-structured-output}}
+
+\textbf{Date, status, scope.} 11 Oct 2026; coach model 14 Nov 2026.
+Accepted. M6, M7, S12.
+
+\textbf{Decision.} Calls go only from the BFF with a response schema
+whose ids are an enum of server-authorised activities or options; output
+is validated again; template/deterministic fallback on any failure; only
+the chosen id is logged, never model text; the model gets no name,
+e-mail or raw answers.
+
+\textbf{Evidence.} \texttt{bff/src/agent.ts},
+\texttt{bff/src/coachModel.ts}, \texttt{bff/test/coach.test.ts} (model
+output outside the options; no model text in logs).
+
+\textbf{Revisit trigger.} Model latency (9.4 s observed once on 24 Oct)
+becomes the main UX problem, or another provider is required.
+
+\end{document}

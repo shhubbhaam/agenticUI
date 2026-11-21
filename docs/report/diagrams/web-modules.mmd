@@ -1,0 +1,21 @@
+%% M3 (approved change): three web feature modules added to the team's LearnHouse fork.
+%% All three share LearnHouse's auth, routing, RBAC, design system and i18n.
+flowchart LR
+  W1["<b>Community multimedia</b><br/>image upload in discussions & replies"] --> A1["communities/media.py + moderation.py<br/>allow_images · ≤10 images/post<br/>≤10 MB · own uploads only"]
+  W2["<b>Help & Support</b><br/>learner /help · staff /dash/support"] --> A2["routers/tickets.py + services/tickets/*<br/>tickets · messages · attachments<br/>ticket_file_access"]
+  W3["<b>Weighted course grading</b><br/>grading tab · certificate rule · grade card"] --> A3["routers/courses/grading.py<br/>services/courses/course_grading.py<br/>categories · weights · drop-lowest<br/>missing-work policy · gradebook CSV"]
+  A1 --> FS[("Content storage<br/>orgs/{org}/…")]
+  A2 --> FS
+  A2 --> DB[("PostgreSQL<br/>tickets · messages · attachments<br/>grading settings · categories")]
+  A3 --> DB
+  A3 -. "certificate eligibility" .-> CERT["certifications.py<br/>ALL_ASSIGNMENTS · FINAL_GRADE · BOTH"]
+  subgraph WEB["LearnHouse web (Next.js)"]
+    W1
+    W2
+    W3
+  end
+  subgraph API["LearnHouse API (FastAPI)"]
+    A1
+    A2
+    A3
+  end
