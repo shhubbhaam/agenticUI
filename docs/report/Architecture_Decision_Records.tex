@@ -206,8 +206,9 @@ and is the only holder of \texttt{LH\_API\_TOKEN} and
 route used needs the org token.
 
 \textbf{Consequences.} One more process to run; sessions are in memory,
-so a BFF restart signs learners out. The historically committed key must
-be revoked by the author (not verifiable from the repo).
+so a BFF restart signs learners out. The Gemini key committed before W3
+was revoked on \texttt{{[}date\ —\ fill\ in{]}}; it remains in git
+history.
 
 \textbf{Evidence.} \texttt{bff/src/app.ts},
 \texttt{bff/src/sessions.ts}, \texttt{bff/test/bff.test.ts} (21 tests),

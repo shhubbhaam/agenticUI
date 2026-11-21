@@ -64,7 +64,7 @@ learner from it on every `/api/me/*` route, checks the course allow-list and enr
 `LH_API_TOKEN` and `GEMINI_API_KEY`. (c) was rejected because the progress write route used needs the org token.
 
 **Consequences.** One more process to run; sessions are in memory, so a BFF restart signs learners out. The
-historically committed key must be revoked by the author (not verifiable from the repo).
+Gemini key committed before W3 was revoked on `[date — fill in]`; it remains in git history.
 
 **Evidence.** `bff/src/app.ts`, `bff/src/sessions.ts`, `bff/test/bff.test.ts` (21 tests), `docs/evidence/secret-scan.txt`.
 
