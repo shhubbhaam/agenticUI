@@ -1,7 +1,7 @@
 // M6: the AI coach (part of the agentUi module). Separate from Home's agent-chosen cards: its own
 // route, stream and components. The learner asks, watches the coach's steps and message stream in,
 // then approves or declines one suggested change.
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -14,6 +14,10 @@ import { ApprovalCard, CoachMessage, CoachStatusBar, ToolStep } from '../../ui/o
 import { TOOL_LABELS } from '../../core/coach/coachReducer';
 import type { RootStackParamList } from '../../navigation/MainStack';
 import { useCoachStream, type CoachConnection } from './useCoachStream';
+import { useSessionStore } from '../../state/useSessionStore';
+import { getMyTrailCached } from '../../data/learnhouse/trailCache';
+import { findPlanTarget } from '../../core/coach/planTarget';
+import { useOpenActivity } from '../../navigation/activityRoute';
 
 export function connectionText(c: CoachConnection, finished: boolean): string | null {
   if (finished) return null;
@@ -29,6 +33,23 @@ export default function CoachScreen() {
   const { view } = c;
   const started = view.phase !== 'idle' || c.connection !== 'idle';
   const running = started && !view.finished && view.phase !== 'awaiting_approval';
+  const identity = useSessionStore((s) => s.identity);
+  const openActivity = useOpenActivity();
+
+  // After Approve, take the learner straight to the activity the plan names. The type (which screen
+  // opens it) comes from their trail; if it can't be found, they stay here and the card shows the outcome.
+  const opened = useRef<string | null>(null);
+  const { plan } = c;
+  useEffect(() => {
+    if (!plan || !identity || opened.current === plan.proposalId) return;
+    opened.current = plan.proposalId;
+    getMyTrailCached(identity.orgSlug, identity.userId)
+      .then((courses) => {
+        const target = findPlanTarget(courses, plan);
+        if (target) openActivity(target);
+      })
+      .catch(() => undefined);
+  }, [plan, identity, openActivity]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface.canvas }} edges={['top', 'bottom']}>
